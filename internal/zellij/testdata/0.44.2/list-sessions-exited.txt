@@ -1,0 +1,2 @@
+typed [Created 12s ago] 
+doomed [Created 6s ago] (EXITED - attach to resurrect)

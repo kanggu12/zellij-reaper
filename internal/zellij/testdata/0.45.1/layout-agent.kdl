@@ -1,0 +1,15 @@
+layout {
+    cwd "/"
+    tab name="Tab #1" hide_floating_panes=true {
+        pane command="/bin/sh" {
+            args "/usr/local/bin/claude" "--resume"
+            start_suspended true
+        }
+    }
+    new_tab_template {
+        pane command="claude" {
+            args "--resume"
+            start_suspended true
+        }
+    }
+}

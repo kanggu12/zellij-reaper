@@ -1,0 +1,9 @@
+# Built binaries and release output.
+/zellij-reaper
+/dist/
+# Downloaded zellij releases and the binary the integration tests mount.
+/test/integration/.cache/
+# Local tools and notes that are not part of the project.
+/scratch/
+*.swp
+.DS_Store

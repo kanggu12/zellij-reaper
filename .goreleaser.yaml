@@ -1,0 +1,46 @@
+# Release build: static Linux binaries, archives, checksums and packages.
+version: 2
+
+project_name: zellij-reaper
+
+builds:
+  - main: ./cmd/zellij-reaper
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/kanggu12/zellij-reaper/internal/version.Version=v{{ .Version }}
+      - -X github.com/kanggu12/zellij-reaper/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/kanggu12/zellij-reaper/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    # install.sh downloads this exact name.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md, CHANGELOG.md]
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - package_name: zellij-reaper
+    homepage: https://github.com/kanggu12/zellij-reaper
+    maintainer: J.-G. Kang <kanggu12@gmail.com>
+    description: Reap idle and exited zellij sessions, safely.
+    license: MIT
+    formats: [deb, rpm, apk, archlinux]
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/licenses/zellij-reaper/LICENSE
+
+changelog:
+  disable: true
+
+release:
+  # The notes come from CHANGELOG.md, written by hand for each release.
+  mode: replace

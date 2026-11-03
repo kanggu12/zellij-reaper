@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # The release workflow runs all of CI first.
+  workflow_call:
+  # By hand, from the Actions tab or `gh workflow run ci.yml`.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: gofmt, vet, staticcheck, shellcheck, go test -race
+        run: make check
+
+  integration:
+    name: zellij ${{ matrix.zellij }}
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zellij: ["0.43.1", "0.44.3", "0.45.1"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: real sessions in a throwaway container
+        run: test/integration/run.sh ${{ matrix.zellij }}
+
+  build:
+    name: release build
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/*.tar.gz
+          retention-days: 7

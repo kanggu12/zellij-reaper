@@ -1,0 +1,131 @@
+name "idle"
+tabs {
+    tab {
+        position 0
+        name "Tab #1"
+        active false
+        panes_to_hide 0
+        is_fullscreen_active false
+        is_sync_panes_active false
+        are_floating_panes_visible false
+        viewport_rows 48
+        viewport_columns 50
+        display_area_columns 50
+        display_area_rows 50
+        is_swap_layout_dirty false
+        selectable_tiled_panes_count 1
+        selectable_floating_panes_count 0
+        tab_id 0
+    }
+}
+panes {
+    pane {
+        id 0
+        is_plugin false
+        is_focused true
+        is_fullscreen false
+        is_floating false
+        is_suppressed false
+        title "Pane #1"
+        exited false
+        is_held false
+        pane_x 0
+        pane_content_x 0
+        pane_y 1
+        pane_content_y 1
+        pane_rows 48
+        pane_content_rows 48
+        pane_columns 50
+        pane_content_columns 50
+        cursor_coordinates_in_pane 21 0
+        is_selectable true
+        tab_position 0
+    }
+    pane {
+        id 1
+        is_plugin true
+        is_focused false
+        is_fullscreen false
+        is_floating false
+        is_suppressed false
+        title "tab-bar"
+        exited false
+        is_held false
+        pane_x 0
+        pane_content_x 0
+        pane_y 0
+        pane_content_y 0
+        pane_rows 1
+        pane_content_rows 1
+        pane_columns 50
+        pane_content_columns 50
+        plugin_url "tab-bar"
+        is_selectable false
+        tab_position 0
+    }
+    pane {
+        id 2
+        is_plugin true
+        is_focused false
+        is_fullscreen false
+        is_floating false
+        is_suppressed false
+        title "status-bar"
+        exited false
+        is_held false
+        pane_x 0
+        pane_content_x 0
+        pane_y 49
+        pane_content_y 49
+        pane_rows 1
+        pane_content_rows 1
+        pane_columns 50
+        pane_content_columns 50
+        plugin_url "status-bar"
+        is_selectable false
+        tab_position 0
+    }
+    pane {
+        id 0
+        is_plugin true
+        is_focused false
+        is_fullscreen false
+        is_floating false
+        is_suppressed true
+        title "(.) - zellij:link"
+        exited false
+        is_held false
+        pane_x 13
+        pane_content_x 14
+        pane_y 13
+        pane_content_y 14
+        pane_rows 24
+        pane_content_rows 22
+        pane_columns 25
+        pane_content_columns 23
+        plugin_url "zellij:link"
+        is_selectable true
+        tab_position 0
+    }
+}
+connected_clients 0
+web_clients_allowed false
+web_client_count 0
+available_layouts {
+    default source="built-in"
+    classic source="built-in"
+    compact source="built-in"
+    disable-status-bar source="built-in"
+    strider source="built-in"
+}
+tab_history {
+}
+pane_history {
+    client {
+        id 1
+        history {
+            pane_id type="terminal" 0
+        }
+    }
+}
+creation_time 4
