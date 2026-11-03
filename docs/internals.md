@@ -5,25 +5,21 @@ does from the outside, see [how it decides](how-it-decides.md).
 
 ## Layout
 
-```
-cmd/zellij-reaper ──▶ internal/cli ─────────────┐        internal/tui (the dashboard)
-                      plan, run, logs, doctor…  │        model, view, Backend
-                                                ▼            │
-                                         internal/app ◀──────┘
-                                         settings, wiring
-                                                │
-                                                ▼
-                                         internal/reaper ─────────▶ internal/logfile
-                                         Plan (survey) · Run        the decision log
-                                                │
-                      ┌─────────────────────────┼─────────────────────────┐
-                      ▼                         ▼                         ▼
-               internal/inspect          internal/policy           internal/zellij
-               facts per session         Decide: pure rules        the CLI, its files
-                      │
-                      ▼
-               internal/procfs
-               /proc snapshot, sock_diag
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
+flowchart TB
+    cmd["cmd/zellij-reaper"] --> cli["internal/cli<br/>plan, run, logs, doctor, …"]
+    cli -- "no command: the dashboard" --> tui["internal/tui<br/>model, view, Backend"]
+    cli --> app["internal/app<br/>settings, wiring"]
+    tui --> app
+    app --> reaper["internal/reaper<br/>Plan: the survey · Run: survey, act, log"]
+    reaper --> logfile["internal/logfile<br/>the decision log"]
+    reaper --> policy["internal/policy<br/>Decide: rules, no I/O"]
+    reaper --> inspect["internal/inspect<br/>facts per session"]
+    reaper --> zellij["internal/zellij<br/>zellij's command line and files"]
+    inspect --> policy
+    inspect --> procfs["internal/procfs<br/>/proc, the socket table"]
+    inspect --> zellij
 ```
 
 | Package | Holds |
