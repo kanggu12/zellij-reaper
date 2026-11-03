@@ -38,8 +38,8 @@ nfpms:
       - src: LICENSE
         dst: /usr/share/licenses/zellij-reaper/LICENSE
 
-changelog:
-  disable: true
+# The release notes are the CHANGELOG.md section the release workflow passes with
+# --release-notes. The changelog must stay on for that: disabled, it drops them too.
 
 release:
   # The notes come from CHANGELOG.md, written by hand for each release.
