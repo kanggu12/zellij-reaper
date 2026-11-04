@@ -46,6 +46,8 @@ level covers.
   `.github/workflows/ci.yml` and to `default_versions` in `test/integration/run.sh`. If it fails, record what changed
   (`list-sessions -n`, `action list-clients`, a `session-metadata.kdl`) under `internal/zellij/testdata/x.y.z/`, add a
   parser test, then fix.
+- **A dependency**: after adding, removing or upgrading a module, run `make notices`. CI fails while
+  `THIRD_PARTY_NOTICES.md` does not match what the binary is built from.
 - **A language**: add a catalog next to `en` and `ko` in `internal/i18n/catalog.go`, then a `Lang` constant, its entry
   in `catalogs`, and its locale prefix in `Detect` and `Set` (`internal/i18n/i18n.go`). `go test ./internal/i18n/
   ./internal/tui/` checks that every key and placeholder is there and that every frame still fits.

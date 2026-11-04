@@ -24,7 +24,7 @@ checks it against the release's `checksums.txt`, installs it to `~/.local/bin` a
 These variables change what it does:
 
 | Variable | Default | Effect |
-|:---|:---|:---|
+|:---|:---:|:---|
 | `ZELLIJ_REAPER_VERSION` | the latest release | install this release, like `v0.1.0` |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
@@ -89,7 +89,7 @@ The file is `~/.config/zellij-reaper/config.toml` (`$XDG_CONFIG_HOME/zellij-reap
 in `1d12h`; `"0"` means no wait.
 
 | Key | Default | Variable | Meaning |
-|:---|:---|:---|:---|
+|:---|:---:|:---:|:---|
 | `dry_run` | `false` | `ZELLIJ_REAPER_DRY_RUN` | log decisions, delete and rename nothing |
 | `idle_after` | `"12h"` | `ZELLIJ_REAPER_IDLE_AFTER` | how long a running session must be idle |
 | `exited_after` | `"3d"` | `ZELLIJ_REAPER_EXITED_AFTER` | how long an exited session is kept for resurrection |

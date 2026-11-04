@@ -4,7 +4,7 @@ BIN      := zellij-reaper
 PREFIX   ?= $(HOME)/.local
 STATICCHECK := honnef.co/go/tools/cmd/staticcheck@v0.8.2
 
-.PHONY: build install check fmt vet lint test integration demo snapshot clean
+.PHONY: build install check fmt vet lint test integration demo notices snapshot clean
 
 ## build: the binary, in this directory
 build:
@@ -26,7 +26,7 @@ vet:
 
 lint:
 	go run $(STATICCHECK) ./...
-	shellcheck install.sh test/integration/*.sh test/demo/*.sh
+	shellcheck install.sh scripts/*.sh test/integration/*.sh test/demo/*.sh
 
 test:
 	go test -race -count=1 ./...
@@ -40,6 +40,10 @@ integration:
 ## demo: the dashboard on demo sessions in a throwaway container (DEMO_SHELL=1 for a shell)
 demo:
 	test/demo/run.sh $(if $(DEMO_SHELL),--shell,)
+
+## notices: THIRD_PARTY_NOTICES.md from the modules the binary is built from
+notices:
+	scripts/third-party-notices.sh
 
 ## snapshot: a local release build in dist/, as the release workflow makes it
 snapshot:

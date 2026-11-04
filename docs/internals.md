@@ -151,7 +151,7 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 | Passes | `internal/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
 | Setup | `internal/systemd` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
 | Dashboard | `internal/tui` | every state at five sizes in English and Korean, each frame exactly the terminal's size; every action |
-| Real zellij | `test/integration` | 60 checks on real sessions in every state, on zellij 0.43.1, 0.44.3 and 0.45.1, in throwaway containers |
+| Real zellij | `test/integration` | every scenario on real sessions in every state, on zellij 0.43.1, 0.44.3 and 0.45.1, in throwaway containers |
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...

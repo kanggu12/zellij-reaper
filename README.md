@@ -208,4 +208,5 @@ containers) and the bar for a change.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The modules the binary is built from, with their licenses, are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

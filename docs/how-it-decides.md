@@ -29,7 +29,7 @@ They run in this order, and the first check that matches decides. Its code is wh
 dashboard's detail panel marks with ✗.
 
 | Code | Matches when | Log line |
-|:---|:---|:---|
+|:---:|:---|:---|
 | `protected-name` | the name matches `protect`, or is on the protected list | `SKIP protected by protect pattern`, `SKIP protected by protected list` |
 | `no-info` | zellij has written nothing about the session yet | `SKIP no session_info dir (unknown state)` |
 | `exited-live` | listed as exited, but a server still listens on its socket | `SKIP EXITED, but a server still serves it (pid 123)` |

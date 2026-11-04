@@ -21,7 +21,7 @@ archives:
   - formats: [tar.gz]
     # install.sh downloads this exact name.
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [LICENSE, README.md, CHANGELOG.md]
+    files: [LICENSE, THIRD_PARTY_NOTICES.md, README.md, CHANGELOG.md]
 
 checksum:
   name_template: checksums.txt
@@ -37,6 +37,8 @@ nfpms:
     contents:
       - src: LICENSE
         dst: /usr/share/licenses/zellij-reaper/LICENSE
+      - src: THIRD_PARTY_NOTICES.md
+        dst: /usr/share/licenses/zellij-reaper/THIRD_PARTY_NOTICES.md
 
 # The release notes are the CHANGELOG.md section the release workflow passes with
 # --release-notes. The changelog must stay on for that: disabled, it drops them too.

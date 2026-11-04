@@ -23,6 +23,10 @@ jobs:
           go-version-file: go.mod
       - name: gofmt, vet, staticcheck, shellcheck, go test -race
         run: make check
+      # The notices ship with every release: they must list what the binary
+      # is built from now.
+      - name: third-party notices are current
+        run: make notices && git diff --exit-code THIRD_PARTY_NOTICES.md
 
   integration:
     name: zellij ${{ matrix.zellij }}
