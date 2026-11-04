@@ -41,7 +41,7 @@ integration:
 demo:
 	test/demo/run.sh $(if $(DEMO_SHELL),--shell,)
 
-## notices: THIRD_PARTY_NOTICES.md from the modules the binary is built from
+## notices: docs/THIRD_PARTY_NOTICES.md from what the binary is built from
 notices:
 	scripts/third-party-notices.sh
 

@@ -208,5 +208,5 @@ containers) and the bar for a change.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The modules the binary is built from, with their licenses, are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT ([LICENSE](LICENSE)). The libraries zellij-reaper is built from and the font its logo is drawn from are listed
+with their licenses in [THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
