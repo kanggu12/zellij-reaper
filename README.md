@@ -48,8 +48,8 @@ curl -fsSL https://raw.githubusercontent.com/kanggu12/zellij-reaper/main/install
 ```
 
 The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin` and starts the
-timer, with lingering so it also runs after you log out. The first pass runs ten minutes later. Look before it does
-(this machine waits one hour, not twelve, before reaping an idle session):
+timer, with lingering so it also runs after you log out. The first pass runs ten minutes later. Look before it does.
+The sample below comes from a machine set to `idle_after = "1h"`:
 
 ```
 $ zellij-reaper plan
@@ -79,15 +79,16 @@ archives and `go install` are in [setup](docs/setup.md#install), with upgrading,
 ## Try it in a sandbox
 
 ```sh
-docker run --rm -it ghcr.io/kanggu12/zellij-reaper-demo
+docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo
 ```
 
 The dashboard opens on twelve sessions in a throwaway container, one of every kind above. Reap, protect, rename and
-run passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute. Append
-`--shell` for a shell in the same sandbox, and `-e ZELLIJ_REAPER_LANG=ko` for Korean.
+run passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute, and
+`--init` lets ctrl+c out of it. Append `--shell` to the command for a shell in the same sandbox; put
+`-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
 
-From a clone, `make demo` builds the same sandbox from the working tree (it needs Go), and `make demo DEMO_SHELL=1`
-opens its shell.
+From a clone, `make demo` stages the same sessions from the working tree (it needs Go and Docker), and
+`make demo DEMO_SHELL=1` opens its shell.
 
 ## The dashboard
 
@@ -108,7 +109,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 
 | Command | Does |
 |:---|:---|
-| `zellij-reaper` | the dashboard; the plan as a table when the output is not a terminal |
+| `zellij-reaper`, `tui` | the dashboard; the plan as a table when the output is not a terminal |
 | `plan [--json]` | what the next pass would do, changing nothing |
 | `run [--dry-run] [--force]` | one pass now, as the timer runs it |
 | `logs [-n 50] [-f]` | the decision log |

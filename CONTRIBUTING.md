@@ -22,14 +22,14 @@ make build && ./zellij-reaper plan
 ```
 
 `plan` and the dashboard change nothing until you press a key that acts, so they are safe on your own sessions. `run`
-is not: use `run --dry-run`, or `make demo`, which opens the dashboard on demo sessions in a throwaway container
-(`test/demo/Dockerfile` builds the same sandbox as the published demo image).
+is not: use `run --dry-run`, or `make demo`, which stages the same demo sessions in the integration image and
+mounts the binary you just built. The published demo image is built from `test/demo/Dockerfile`.
 
 ## Testing
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
-make integration                         # real zellij 0.43.1, 0.44.3 and 0.45.1, in containers
+make integration                         # real zellij, every release in the matrix, in containers
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
 ```
 
@@ -53,7 +53,7 @@ level covers.
   in `catalogs`, and its locale prefix in `Detect` and `Set` (`internal/i18n/i18n.go`). `go test ./internal/i18n/
   ./internal/tui/` checks that every key and placeholder is there and that every frame still fits.
 - **The dashboard**: `go test ./internal/tui/` renders every state at five sizes in both languages.
-  `zellij-reaper tui --snapshot 132x32` prints one frame (`--theme light`, `--select NAME`); the screenshots in
+  `zellij-reaper tui --snapshot 132x32` prints one frame (a hidden flag; also `--theme light`, `--select NAME`); the screenshots in
   `docs/assets` come from such frames, taken in the `make demo` sandbox.
 
 ## Style

@@ -39,7 +39,7 @@ printing new lines and follows the log across rotations.
 
 **`doctor`** checks zellij and its version, the systemd user instance, the timer (installed, enabled, running this
 binary, the interval it was installed with), lingering, the settings, settings that only your shell sees, zellij's
-session directory, the kernel's socket table and the log. It exits with status 1 when something needs fixing.
+session directory, the kernel's socket table and the log. It exits with status 1 when something is broken; a warning alone still exits 0.
 
 ## Acting
 
