@@ -28,6 +28,11 @@ dashboard do steps 3 to 6 only: no lock, no log, no change.
 They run in this order, and the first check that matches decides. Its code is what `plan --json` reports and what the
 dashboard's detail panel marks with ✗.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/checks-dark.png">
+  <img alt="The checks in the dashboard for two sessions: scratch passes every check and goes at the next pass; api-server stops at 'every pane at a prompt' because a pane runs npm run dev, so it stays" src="assets/checks-light.png">
+</picture>
+
 | Code | Matches when | Log line |
 |:---:|:---|:---|
 | `protected-name` | the name matches `protect`, or is on the protected list | `SKIP protected by protect pattern`, `SKIP protected by protected list` |

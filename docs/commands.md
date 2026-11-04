@@ -76,6 +76,11 @@ prints the file's path, `init` writes the file with every key at its default, an
 
 ## The dashboard
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img alt="The dashboard: the sessions with what the next pass does to each, the checks for the selected one, and the latest decisions" src="assets/screenshot-light.png">
+</picture>
+
 The top bar shows zellij's version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
 (`reaps after 1h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it has been idle, its clients, and what the
 next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear, attached, busy, protected. The panel beside it
