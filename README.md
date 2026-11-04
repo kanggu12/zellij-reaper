@@ -79,13 +79,15 @@ archives and `go install` are in [setup](docs/setup.md#install), with upgrading,
 ## Try it in a sandbox
 
 ```sh
-git clone https://github.com/kanggu12/zellij-reaper && cd zellij-reaper
-make demo
+docker run --rm -it ghcr.io/kanggu12/zellij-reaper-demo
 ```
 
-This needs Go and Docker. The dashboard opens on twelve sessions in a throwaway container, one of every kind above.
-Reap, protect, rename and run passes there as you like; your own sessions are not touched. `make demo DEMO_SHELL=1`
-opens a shell in the same sandbox for the commands.
+The dashboard opens on twelve sessions in a throwaway container, one of every kind above. Reap, protect, rename and
+run passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute. Append
+`--shell` for a shell in the same sandbox, and `-e ZELLIJ_REAPER_LANG=ko` for Korean.
+
+From a clone, `make demo` builds the same sandbox from the working tree (it needs Go), and `make demo DEMO_SHELL=1`
+opens its shell.
 
 ## The dashboard
 

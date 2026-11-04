@@ -67,6 +67,9 @@ out="$tmp/notices.md"
   done <"$tmp/deps"
   echo "| Go standard library | $gover | $(kind "$(go env GOROOT)/LICENSE") | https://go.dev |"
   echo "| JetBrains Mono (the logo's lettering) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |"
+  echo
+  echo "The demo image \`ghcr.io/kanggu12/zellij-reaper-demo\` also carries zellij itself (MIT) and a Debian base"
+  echo "image; their licenses are in the image, under \`/usr/share/licenses/\`."
   while read -r mod ver; do
     dir=$(go list -m -f '{{.Dir}}' "$mod")
     file=$(license_file "$dir")

@@ -5,6 +5,29 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-05
+
+### Added
+
+- A demo image, `ghcr.io/kanggu12/zellij-reaper-demo`: the dashboard on twelve demo sessions in a throwaway
+  container, without a clone or Go. `--shell` opens a shell in the same sandbox.
+- `THIRD_PARTY_NOTICES.md`, listing every module the binary is built from and the font the logo is drawn from, in
+  the release archives and packages.
+- Pictures in the documentation: the checks for two sessions side by side, the dashboard, a sequence diagram of one
+  pass, and what a pass reads and changes.
+
+### Fixed
+
+- A session with a client attached is no longer renamed by `auto_rename` when a protected program runs in it.
+- The protected list is re-read before each delete and shared under a lock, so a protection added from another
+  terminal is never overwritten or missed.
+- A rename from the dashboard keeps the protection, and refuses a name too long for the session's socket path.
+- `recover --aggressive` keeps an orphan server when a client is connected, a pane is busy, a protected program runs
+  in it, or a protected session has lost its socket file.
+- `install` and `doctor` warn about settings that only the shell sees, which the timer never reads.
+- A migrated custom log path is honoured, `logs -n` rejects a negative count, and unit files quote their paths.
+- Release notes are taken from this file again (they were empty in 0.1.0).
+
 ## [0.1.0] - 2026-11-04
 
 The first release of zellij-reaper as one Go binary. It replaces the earlier shell scripts
@@ -43,5 +66,6 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.0

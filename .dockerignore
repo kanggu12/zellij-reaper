@@ -1,0 +1,8 @@
+# The demo image needs the Go sources, test/demo and the licenses, nothing else.
+.git
+.github
+dist
+docs/assets
+scratch
+test/integration/.cache
+zellij-reaper

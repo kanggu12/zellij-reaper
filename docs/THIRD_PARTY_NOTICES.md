@@ -31,6 +31,9 @@ and the Go standard library below, and its logo is drawn from the JetBrains Mono
 | Go standard library | 1.26.0 | BSD-3-Clause | https://go.dev |
 | JetBrains Mono (the logo's lettering) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
 
+The demo image `ghcr.io/kanggu12/zellij-reaper-demo` also carries zellij itself (MIT) and a Debian base
+image; their licenses are in the image, under `/usr/share/licenses/`.
+
 ## charm.land/bubbles/v2 v2.2.1
 
 ```text

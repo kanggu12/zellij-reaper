@@ -19,6 +19,9 @@ timer.
 curl -fsSL https://raw.githubusercontent.com/kanggu12/zellij-reaper/main/install.sh | sh
 ```
 
+To see the dashboard before installing anything, `docker run --rm -it ghcr.io/kanggu12/zellij-reaper-demo` opens it
+on demo sessions in a throwaway container.
+
 The script needs `curl`, `tar` and `sha256sum` (or `shasum`). It downloads the latest release for your architecture,
 checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and runs `zellij-reaper install`.
 These variables change what it does:

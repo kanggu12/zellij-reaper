@@ -22,7 +22,8 @@ make build && ./zellij-reaper plan
 ```
 
 `plan` and the dashboard change nothing until you press a key that acts, so they are safe on your own sessions. `run`
-is not: use `run --dry-run`, or `make demo`, which opens the dashboard on demo sessions in a throwaway container.
+is not: use `run --dry-run`, or `make demo`, which opens the dashboard on demo sessions in a throwaway container
+(`test/demo/Dockerfile` builds the same sandbox as the published demo image).
 
 ## Testing
 
