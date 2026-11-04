@@ -14,14 +14,49 @@ session: keeping a session one more hour costs nothing, deleting one in use cann
 4. **Reads the machine once:** one snapshot of `/proc`, one of the kernel's Unix socket table, and each session's files
    in zellij's cache directory. Every session in the pass is judged against the same moment.
 5. **Asks each running session's server who is attached** (`zellij action list-clients`, four servers at a time).
-6. **Decides each session** with the checks below and logs one line for it.
-7. **Asks again, then deletes.** Just before each delete, a running session is asked for its clients once more and an
-   exited one must still be listed as exited. Anything that changed keeps the session, logged as
-   `-> kept: NAME :: reason`. Then `zellij delete-session NAME --force`.
-8. **Renames the survivors** when `auto_rename` is on, asking each one for its clients first.
+6. **Decides every session** with the checks below, all from that one snapshot.
+7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it asks
+   again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
+   protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
+   it runs `zellij delete-session NAME --force`.
+8. **Renames a session it kept** when `auto_rename` is on, asking it for its clients first.
 
-A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6 and logs what 7 and 8 would do. `plan` and the
-dashboard do steps 3 to 6 only: no lock, no log, no change.
+A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
+`plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
+
+```mermaid
+sequenceDiagram
+    participant T as systemd timer
+    participant R as zellij-reaper run
+    participant K as kernel
+    participant Z as zellij
+    participant L as reaper.log
+    T->>R: every interval
+    R->>R: take the pass lock
+    R->>L: rotate if past log.max_bytes, write the start line
+    R->>R: read the protected list again
+    R->>Z: list-sessions
+    R->>K: one snapshot of /proc and the socket table
+    R->>Z: list-clients for each running session
+    Note over R: decide every session from that one snapshot
+    loop each session, in turn
+        R->>L: its name, state, panes and verdict
+        alt the verdict is reap
+            R->>R: read the protected list again
+            R->>Z: ask again: still exited, or still no client?
+            alt nothing changed
+                R->>Z: delete-session NAME --force
+                R->>L: deleted
+            else something changed
+                R->>L: kept, with the reason
+            end
+        else kept, and auto_rename is on
+            R->>Z: list-clients, then rename-session
+            R->>L: renamed, or kept name
+        end
+    end
+    R->>L: the end line with the counts
+```
 
 ## The checks
 

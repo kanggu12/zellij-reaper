@@ -38,6 +38,34 @@ flowchart TB
 
 ## Reading the machine
 
+A pass reads four things and changes a few of its own; the only sessions it touches go through zellij's own commands.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 300}}}%%
+flowchart LR
+    subgraph reads["what it reads"]
+        a["zellij<br/>list-sessions, list-clients"]
+        b["the kernel<br/>/proc, the socket table"]
+        c["zellij's session files<br/>~/.cache/zellij/…"]
+        d["config.toml and the protected list"]
+    end
+    reaper(["zellij-reaper"])
+    subgraph acts["what it changes"]
+        e["sessions, through zellij<br/>delete-session, rename-session"]
+        f["its decision log<br/>reaper.log"]
+        g["its state files<br/>the pass lock, the protected list"]
+        h["its systemd units and settings<br/>only when you run install"]
+    end
+    a --> reaper
+    b --> reaper
+    c --> reaper
+    d --> reaper
+    reaper --> e
+    reaper --> f
+    reaper --> g
+    reaper --> h
+```
+
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
 socket table, read each session's files, ask each running server for its clients, then decide. `policy.Decide`
 returns the action, a code, the evidence, how long the session still has to wait, and the checks in the order they
