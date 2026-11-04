@@ -15,7 +15,16 @@ no() { fail=$((fail + 1)); echo "  FAIL $1${2:+: $2}"; }
 check() {
   local name=$1
   shift
-  if "$@"; then ok "$name"; else no "$name"; fi
+  if "$@"; then
+    ok "$name"
+  else
+    no "$name"
+    # What the reaper saw, so a failure that only happens now and then can be
+    # read afterwards instead of guessed at.
+    echo "       plan: $($R plan --json 2>&1 | jq -c '[.sessions[] | {name, code}]' 2>/dev/null)"
+    echo "       last log lines:"
+    tail -n 5 "$LOG" 2>/dev/null | sed 's/^/         /'
+  fi
 }
 
 # The server of a session, found by the name it was started with.
@@ -118,7 +127,11 @@ start cmd-pane && $Z --session cmd-pane run -- sleep 99999 >/dev/null 2>&1
 start agent && $Z --session agent run -- claude >/dev/null 2>&1
 start attached && { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
 start keepme && age_ptys keepme '-3 hours'
-start first && $Z --session first action rename-session second && age_ptys first '-3 hours'
+start first && $Z --session first action rename-session second
+# Age it under its first name: a rename leaves the server's command line
+# alone, so that is the only name server_pid can match. (The reaper itself
+# finds the server through the socket file, which the rename does follow.)
+age_ptys first '-3 hours'
 for s in exited-old exited-new; do
   # A second pane makes zellij save the layout, which resurrection needs.
   start "$s" && $Z --session "$s" run -- sleep 5000 >/dev/null 2>&1
@@ -134,10 +147,16 @@ age_ptys agent '-3 hours'
 $R protect keepme >/dev/null
 
 echo "-- the plan"
-# zellij 0.43 answers the first `list-clients` after a background session is
-# created with the client that created it; the reaper keeps such a session
-# for that one pass. Ask once so the checks below see the settled state.
-$R plan --json >/dev/null
+# zellij 0.43 answers the first `list-clients` for a background session with
+# the client that created it, so the reaper keeps that session for one pass.
+# One plan settles one answer per session, and the sessions do not all settle
+# in the same plan: ask until none is reported attached, or give up and let
+# the checks below say what is wrong.
+for _ in $(seq 10); do
+  $R plan --json >/tmp/plan.json 2>/dev/null || break
+  jq -e '[.sessions[] | select(.code == "attached" and .name != "attached")] | length == 0' /tmp/plan.json >/dev/null && break
+  sleep 1
+done
 check "idle for 3h is reaped" is_code idle-old idle-old
 check "idle for a moment waits" is_code idle-new idle-recent
 check "a command under the shell keeps it" is_code shell-busy busy
