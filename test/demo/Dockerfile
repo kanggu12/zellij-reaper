@@ -8,6 +8,11 @@
 # sessions from a working tree instead.
 ARG GO_VERSION=1.26
 ARG ZELLIJ_VERSION=0.45.1
+# What `zellij-reaper version` reports inside the image; the release workflow
+# passes the tag. A local build leaves it empty and the binary says "dev".
+ARG VERSION=
+ARG COMMIT=
+ARG DATE=
 
 # zellij-reaper and the stand-in for a long-running program, static.
 FROM golang:${GO_VERSION}-bookworm AS build
@@ -15,7 +20,13 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -o /out/zellij-reaper ./cmd/zellij-reaper \
+ARG VERSION
+ARG COMMIT
+ARG DATE
+RUN v=github.com/kanggu12/zellij-reaper/internal/version; \
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-s -w -X $v.Version=$VERSION -X $v.Commit=$COMMIT -X $v.Date=$DATE" \
+      -o /out/zellij-reaper ./cmd/zellij-reaper \
  && CGO_ENABLED=0 go build -trimpath -o /out/sleeper ./test/demo/sleeper
 
 # zellij itself, from its own release; TARGETARCH is amd64 or arm64.

@@ -59,13 +59,21 @@ jobs:
       - id: v
         run: |
           # The tag without its v, and the owner in lower case, which ghcr wants.
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${GITHUB_REF_NAME#v}"
+            echo "owner=${GITHUB_REPOSITORY_OWNER,,}"
+            echo "date=$(git log -1 --format=%cs)"
+          } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: test/demo/Dockerfile
           platforms: linux/amd64,linux/arm64
+          # So `zellij-reaper version` in the image reports the release.
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.v.outputs.date }}
           push: true
           tags: |
             ghcr.io/${{ steps.v.outputs.owner }}/zellij-reaper-demo:${{ steps.v.outputs.version }}
