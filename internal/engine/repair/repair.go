@@ -1,0 +1,217 @@
+// Package repair repairs sessions zellij can no longer reach: names too long
+// for a Unix socket path, and servers whose socket file is gone.
+//
+// A session name becomes part of its socket path. Linux caps that path at 107
+// bytes, and a session renamed past it keeps its server running with no
+// socket, so the CLI cannot reach it, and its cache directory comes back after
+// every delete. repair deletes such sessions, clears their files and, when
+// asked, stops the servers that serve no socket, unless somebody may still be
+// using one: a server keeps its clients after its socket file is gone.
+package repair
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"syscall"
+	"time"
+
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
+)
+
+// Zellij is what recover asks of zellij.
+type Zellij interface {
+	ListSessions(ctx context.Context) ([]zellij.Listed, error)
+	Delete(ctx context.Context, name string) error
+}
+
+// Inputs locate everything recover looks at.
+type Inputs struct {
+	Zellij     Zellij
+	ProcRoot   string
+	InfoDir    string
+	SocketDirs []string
+	UID        int
+	Sockets    func() ([]procfs.UnixSocket, error)
+	// Protected reports names never to touch (the protect pattern and list).
+	Protected func(name string) bool
+	// ProtectCommands are programs that keep a server running while they
+	// run under it (config.ProtectCommands).
+	ProtectCommands []string
+	// Shells are extra prompt programs (config.Shells).
+	Shells []string
+	// Signal sends a signal to a process; nil means syscall.Kill. Tests
+	// record the signals instead of sending any.
+	Signal func(pid int, sig syscall.Signal) error
+}
+
+// signal is the function that sends signals.
+func (in Inputs) signal() func(int, syscall.Signal) error {
+	if in.Signal != nil {
+		return in.Signal
+	}
+	return syscall.Kill
+}
+
+// Step is one thing Repair did or tried.
+type Step struct {
+	// Target is a session name or "pid N".
+	Target string
+	// What is a short description ("deleted with zellij", "removed cache").
+	What string
+	// Err is set when the step failed.
+	Err error
+}
+
+// Repair deletes broken sessions and clears their files; with stopOrphans it
+// first stops orphan servers (SIGTERM, then SIGKILL after a second), which
+// otherwise rewrite the files being cleared. An orphan the scan kept is left
+// alone; one that a second look right before the stop does not clear is kept
+// too, and reported as a step.
+func Repair(ctx context.Context, in Inputs, sc Scan, stopOrphans bool) []Step {
+	var steps []Step
+	if stopOrphans && sc.OrphansKnown && sc.AllOrphaned {
+		steps = append(steps, Step{Target: "servers", What: "not stopped: every server looked orphaned, which points at the socket table"})
+	}
+	if stopOrphans && sc.OrphansKnown && !sc.AllOrphaned {
+		steps = append(steps, stopAll(in, sc)...)
+	}
+	for _, b := range sc.Broken {
+		if err := in.Zellij.Delete(ctx, b.Name); err == nil {
+			steps = append(steps, Step{Target: b.Name, What: "deleted with zellij"})
+		} else {
+			// zellij often cannot reach a broken session; the files are
+			// cleared below either way, so this is reported, not fatal.
+			steps = append(steps, Step{Target: b.Name, What: "zellij could not delete it", Err: err})
+		}
+		dir := filepath.Join(in.InfoDir, b.Name)
+		if _, err := os.Stat(dir); err == nil {
+			// filepath.Join cleans the path; a name with "/" or ".." cannot
+			// leave InfoDir because zellij names are single path elements,
+			// and the check below makes that a guarantee.
+			if filepath.Dir(dir) != filepath.Clean(in.InfoDir) {
+				steps = append(steps, Step{Target: b.Name, What: "skipped: name is not a plain directory name"})
+				continue
+			}
+			err := os.RemoveAll(dir)
+			steps = append(steps, Step{Target: b.Name, What: "removed " + dir, Err: err})
+		}
+	}
+	return steps
+}
+
+// stopAll stops the orphans the scan did not keep, after one more look: the
+// scan is older than the stop, and since then a client may have connected or
+// the pid may have passed to another process.
+func stopAll(in Inputs, sc Scan) []Step {
+	var todo []Orphan
+	for _, o := range sc.Orphans {
+		if o.Kept == "" {
+			todo = append(todo, o)
+		}
+	}
+	if len(todo) == 0 {
+		return nil
+	}
+	now, doubt := lookAgain(in, sc)
+	var steps []Step
+	stopped := false
+	for _, o := range todo {
+		why := doubt
+		if why == "" {
+			why = stillStoppable(o, now)
+		}
+		if why != "" {
+			steps = append(steps, Step{Target: "pid " + itoa(o.PID), What: "kept orphan server: " + why})
+			continue
+		}
+		steps = append(steps, stop(in.signal(), o.PID))
+		stopped = true
+	}
+	// Let the stopped servers' last writes land before clearing files.
+	if stopped {
+		time.Sleep(500 * time.Millisecond)
+	}
+	return steps
+}
+
+// lookAgain scans for orphans once more, by pid. doubt is set when that scan
+// cannot be trusted, which keeps every server.
+func lookAgain(in Inputs, sc Scan) (map[int]Orphan, string) {
+	table, err := procfs.Read(in.ProcRoot)
+	if err != nil {
+		return nil, "could not read the processes again: " + err.Error()
+	}
+	servers := table.Servers(in.UID)
+	found, known := orphans(in, table, servers, socketDirs(sc.SocketDir, in.SocketDirs, servers))
+	if !known {
+		return nil, "could not read the socket table again"
+	}
+	// The same check the scan makes: every server orphaned points at the
+	// socket table, not at the servers.
+	if len(servers) > 1 && len(found) == len(servers) {
+		return nil, "every server looked orphaned on a second look"
+	}
+	byPID := map[int]Orphan{}
+	for _, o := range found {
+		byPID[o.PID] = o
+	}
+	return byPID, ""
+}
+
+// stillStoppable says why the second look keeps an orphan, or "" when it
+// may be stopped.
+func stillStoppable(o Orphan, now map[int]Orphan) string {
+	n, ok := now[o.PID]
+	switch {
+	// Exited, serving a socket file again, or the pid is another process's
+	// now: there is nothing to stop.
+	case !ok || n.Socket != o.Socket:
+		return "it is no longer an orphan server"
+	case n.Kept != "":
+		return n.Kept
+	}
+	return ""
+}
+
+// stop ends one process: SIGTERM, then SIGKILL if it is still there.
+func stop(kill func(int, syscall.Signal) error, pid int) Step {
+	st := Step{Target: "pid " + itoa(pid), What: "stopped orphan server"}
+	if err := kill(pid, syscall.SIGTERM); err != nil {
+		st.Err = err
+		return st
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		// Signal 0 only asks whether the process is still there.
+		if kill(pid, 0) != nil {
+			return st
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	st.What = "stopped orphan server (SIGKILL)"
+	st.Err = kill(pid, syscall.SIGKILL)
+	return st
+}
+
+func firstNonEmpty(xs ...string) string {
+	for _, x := range xs {
+		if x != "" {
+			return x
+		}
+	}
+	return ""
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b []byte
+	for n > 0 {
+		b = append([]byte{byte('0' + n%10)}, b...)
+		n /= 10
+	}
+	return string(b)
+}

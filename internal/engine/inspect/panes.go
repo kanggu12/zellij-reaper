@@ -1,0 +1,112 @@
+package inspect
+
+import (
+	"os"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+)
+
+// shellSet is KnownShells plus the configured extras.
+func shellSet(extra []string) map[string]bool {
+	set := map[string]bool{}
+	for _, s := range KnownShells {
+		set[s] = true
+	}
+	for _, s := range extra {
+		set[s] = true
+	}
+	return set
+}
+
+// Panes describes the pane processes of a server, judged by the same rule a
+// pass uses; shells are extra prompt programs on top of KnownShells.
+func Panes(t *procfs.Table, server int, shells []string) []Pane {
+	return panes(t, server, shellSet(shells))
+}
+
+// panes describes the pane processes of a server.
+func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
+	var out []Pane
+	for _, p := range t.Children(server) {
+		// A pane whose process has exited and waits to be collected has
+		// nothing running and no terminal to read.
+		if p.IsZombie() {
+			continue
+		}
+		// Not every child of a server is a pane. zellij runs `ps -ao ppid,args`
+		// to save its layouts, once a minute in every session, and plugins
+		// run commands of their own. Those read no terminal; caught in the
+		// few milliseconds they live, they would make an idle session look
+		// busy for that pass.
+		if !readsTerminal(p) {
+			continue
+		}
+		pane := Pane{PID: p.PID, Command: short(p.CommandLine()), TTY: p.Stdin, Cwd: t.Cwd(p.PID)}
+		pane.Prompt = isPrompt(p, shells)
+		if !pane.Prompt {
+			// A pane that runs a program directly (a command pane, or an
+			// editor started from a layout) is busy as long as it runs.
+			pane.Busy = short(p.CommandLine())
+		} else if kids := t.Children(p.PID); len(kids) > 0 {
+			// A shell with a child is running a command in the foreground or
+			// the background.
+			pane.Busy = short(kids[0].CommandLine())
+		}
+		if tty := p.Stdin; tty != "" && strings.HasPrefix(tty, "/") && tty != "/dev/null" {
+			pane.LastIO = lastIO(tty)
+		}
+		out = append(out, pane)
+	}
+	return out
+}
+
+// readsTerminal reports whether a server's child could be a pane: every pane
+// process gets a terminal as its input. A stdin that cannot be read counts as
+// one, because a process of another user is no reason to call a session idle.
+func readsTerminal(p *procfs.Proc) bool {
+	return p.Stdin != "/dev/null" && !strings.HasPrefix(p.Stdin, "pipe:") && !strings.HasPrefix(p.Stdin, "socket:")
+}
+
+// lastIO is the later of a terminal's last write (mtime) and last read
+// (atime): output and input both mean someone or something used the pane.
+func lastIO(tty string) time.Time {
+	info, err := os.Stat(tty)
+	if err != nil {
+		return time.Time{}
+	}
+	t := info.ModTime()
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		if a := time.Unix(st.Atim.Sec, st.Atim.Nsec); a.After(t) {
+			t = a
+		}
+	}
+	return t
+}
+
+// isPrompt reports whether a process is an interactive shell: both its kernel
+// name and its program are shells, and it was not given a script to run. A
+// script started from its shebang has the script's name as its kernel name,
+// so it is not mistaken for a prompt.
+func isPrompt(p *procfs.Proc, shells map[string]bool) bool {
+	if !shells[p.Comm] || !shells[p.Name()] {
+		return false
+	}
+	for _, a := range p.Argv[min(1, len(p.Argv)):] {
+		if !strings.HasPrefix(a, "-") {
+			return false
+		}
+	}
+	return true
+}
+
+// short keeps a command line to one readable line.
+func short(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > 60 {
+		return string(r[:59]) + "…"
+	}
+	return s
+}

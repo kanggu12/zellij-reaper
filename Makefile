@@ -6,13 +6,13 @@ STATICCHECK := honnef.co/go/tools/cmd/staticcheck@v0.8.2
 
 .PHONY: build install check fmt vet lint test integration demo notices snapshot clean
 
-## build: the binary, in this directory
+## build: the binary, in dist/
 build:
-	CGO_ENABLED=0 go build -trimpath -o $(BIN) ./cmd/zellij-reaper
+	CGO_ENABLED=0 go build -trimpath -o dist/$(BIN) ./cmd/zellij-reaper
 
 ## install: copy the binary to $(PREFIX)/bin and set up the timer
 install: build
-	install -Dm0755 $(BIN) $(PREFIX)/bin/$(BIN)
+	install -Dm0755 dist/$(BIN) $(PREFIX)/bin/$(BIN)
 	$(PREFIX)/bin/$(BIN) install
 
 ## check: everything CI checks before the integration tests
@@ -26,7 +26,7 @@ vet:
 
 lint:
 	go run $(STATICCHECK) ./...
-	shellcheck install.sh scripts/*.sh test/integration/*.sh test/demo/*.sh
+	shellcheck scripts/*.sh test/integration/*.sh test/demo/*.sh
 
 test:
 	go test -race -count=1 ./...
@@ -47,7 +47,7 @@ notices:
 
 ## snapshot: a local release build in dist/, as the release workflow makes it
 snapshot:
-	go run github.com/goreleaser/goreleaser/v2@v2.19.0 release --snapshot --clean
+	go run github.com/goreleaser/goreleaser/v2@v2.19.0 release --snapshot --clean --config .github/goreleaser.yaml
 
 clean:
-	rm -rf $(BIN) dist test/integration/.cache
+	rm -rf dist test/integration/.cache

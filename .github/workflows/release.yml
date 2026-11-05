@@ -36,7 +36,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: release --clean --release-notes ${{ runner.temp }}/notes.md
+          args: release --clean --config .github/goreleaser.yaml --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -63,6 +63,7 @@ jobs:
             echo "version=${GITHUB_REF_NAME#v}"
             echo "owner=${GITHUB_REPOSITORY_OWNER,,}"
             echo "date=$(git log -1 --format=%cs)"
+            echo "commit=$(git rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
@@ -72,7 +73,7 @@ jobs:
           # So `zellij-reaper version` in the image reports the release.
           build-args: |
             VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
+            COMMIT=${{ steps.v.outputs.commit }}
             DATE=${{ steps.v.outputs.date }}
           push: true
           tags: |

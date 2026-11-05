@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/kanggu12/zellij-reaper/internal/cli"
+	"github.com/kanggu12/zellij-reaper/internal/front/cli"
 )
 
 func main() { os.Exit(cli.Execute()) }

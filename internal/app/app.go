@@ -10,15 +10,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kanggu12/zellij-reaper/internal/config"
-	"github.com/kanggu12/zellij-reaper/internal/inspect"
-	"github.com/kanggu12/zellij-reaper/internal/logfile"
-	"github.com/kanggu12/zellij-reaper/internal/procfs"
-	"github.com/kanggu12/zellij-reaper/internal/protect"
-	"github.com/kanggu12/zellij-reaper/internal/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/repair"
-	"github.com/kanggu12/zellij-reaper/internal/systemd"
-	"github.com/kanggu12/zellij-reaper/internal/zellij"
+	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
+	"github.com/kanggu12/zellij-reaper/internal/engine/repair"
+	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
+	"github.com/kanggu12/zellij-reaper/internal/settings/config"
+	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
 
 // App is a loaded configuration and everything built from it.

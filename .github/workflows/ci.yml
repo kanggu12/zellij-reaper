@@ -58,7 +58,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: release --snapshot --clean
+          args: release --snapshot --clean --config .github/goreleaser.yaml
       - uses: actions/upload-artifact@v7
         with:
           name: dist
