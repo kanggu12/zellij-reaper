@@ -33,9 +33,8 @@ type Backend interface {
 	// Rename renames one session by hand. The text, when not empty, is a
 	// warning to show instead of the usual "renamed".
 	Rename(ctx context.Context, name, to string) (string, error)
-	// KeepName makes a name auto_rename gave someone's choice, so passes leave it
-	// alone, and reports whether it was such a name.
-	KeepName(name string) (bool, error)
+	// KeepName keeps a session's name as it is: passes leave it alone from then on.
+	KeepName(name string) error
 	// SetProtected adds a name to the protected list or removes it.
 	SetProtected(name string, on bool) error
 	// Protected reports whether a name is on the protected list.
@@ -152,12 +151,17 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 	return note, err
 }
 
-func (r real) KeepName(name string) (bool, error) {
-	g := r.a.Reaper.Given
-	if g == nil || !g.Has(name) {
-		return false, nil
+func (r real) KeepName(name string) error {
+	// On the kept list, a name stays whatever else says a pass gave it.
+	if k := r.a.Reaper.Kept; k != nil {
+		if err := k.Set(name, true); err != nil {
+			return err
+		}
 	}
-	return true, g.Set(name, false)
+	if g := r.a.Reaper.Given; g != nil {
+		_ = g.Set(name, false)
+	}
+	return nil
 }
 
 // renameByHand does a rename asked for in the dashboard, and returns what the person

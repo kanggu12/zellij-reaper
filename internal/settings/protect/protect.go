@@ -1,6 +1,6 @@
 // Package protect keeps the lists of names in the state directory, one name per
-// line: the sessions protected by name from the TUI or `zellij-reaper protect`, and
-// the names auto_rename gave.
+// line: the sessions protected by name from the TUI or `zellij-reaper protect`, the
+// names auto_rename gave, and the names someone kept from it.
 //
 // Several processes share the file (the timer's pass, the dashboard, the
 // command line), so a change is made to the file as it is on disk at that
@@ -44,7 +44,8 @@ type kind struct{ header, noun string }
 
 var (
 	protectedKind = kind{"# Sessions zellij-reaper never reaps or renames, one per line.", "the protected list"}
-	givenKind     = kind{"# Names zellij-reaper gave, which it may change again, one per line. Take one off to keep it.", "the list of given names"}
+	givenKind     = kind{"# Names zellij-reaper gave, which it may change again, one per line.", "the list of given names"}
+	keptKind      = kind{"# Names to keep as they are, one per line: zellij-reaper renames none of them.", "the list of kept names"}
 )
 
 // Load reads the protected list at path; a missing file is an empty list.
@@ -61,6 +62,15 @@ func Load(path string) (*List, error) {
 // are, where a protected list that cannot be read could cost a session.
 func LoadGiven(path string) *List {
 	l := &List{Path: path, kind: givenKind, names: map[string]bool{}}
+	_ = l.Reload()
+	return l
+}
+
+// LoadKept reads the list of names someone kept at path. One that cannot be read
+// starts empty as well, and stops nothing here: a pass reads it again and renames
+// nothing while it cannot.
+func LoadKept(path string) *List {
+	l := &List{Path: path, kind: keptKind, names: map[string]bool{}}
 	_ = l.Reload()
 	return l
 }

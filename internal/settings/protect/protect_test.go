@@ -38,7 +38,8 @@ func TestEachListSaysWhatItHolds(t *testing.T) {
 	dir := t.TempDir()
 	protected, _ := Load(filepath.Join(dir, "protected"))
 	given := LoadGiven(filepath.Join(dir, "named"))
-	for _, l := range []*List{protected, given} {
+	kept := LoadKept(filepath.Join(dir, "kept"))
+	for _, l := range []*List{protected, given, kept} {
 		if err := l.Set("notes", true); err != nil {
 			t.Fatal(err)
 		}
@@ -56,6 +57,9 @@ func TestEachListSaysWhatItHolds(t *testing.T) {
 	}
 	if got := first(given.Path); strings.Contains(got, "never") || !strings.Contains(got, "gave") {
 		t.Errorf("list of given names says %q", got)
+	}
+	if got := first(kept.Path); !strings.Contains(got, "keep") || strings.Contains(got, "reaps") {
+		t.Errorf("list of kept names says %q", got)
 	}
 	// Its file reads back the same way, through either loader.
 	if back := LoadGiven(given.Path); !back.Has("notes") {

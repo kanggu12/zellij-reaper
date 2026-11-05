@@ -6,6 +6,7 @@ package reaper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
@@ -32,7 +33,9 @@ type Env struct {
 	Protected *protect.List
 	// Given holds the names auto_rename gave. It is the same kind of list as
 	// Protected: names in a file, safe to share between processes.
-	Given  *protect.List
+	Given *protect.List
+	// Kept holds the names someone kept with r and Enter in the dashboard.
+	Kept   *protect.List
 	Zellij Zellij
 	// Sources are where inspect reads facts; Sources.Clients is filled from
 	// Zellij when left nil.
@@ -93,6 +96,11 @@ type Report struct {
 	NoSessions bool
 	// Outcomes holds one entry per listed session, in zellij's order.
 	Outcomes []Outcome
+	// NoRenames says why this pass renames nothing, when something stops it:
+	// the list of kept names could not be read.
+	NoRenames error
+	// history is the renames in the decision log, read when a name needs them.
+	history *history
 }
 
 // Counts sums a report: reaped, kept and renamed sessions.
@@ -161,6 +169,9 @@ func (e *Env) rules() inspect.Rules {
 // survey lists, inspects and decides, without acting.
 func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	r := Report{Started: e.Now(), DryRun: e.Config.DryRun || opts.DryRun, Force: opts.Force}
+	if e.Log != nil {
+		r.history = &history{path: e.Log.Path}
+	}
 	r.Thresholds = e.thresholds(opts.Force)
 	if !e.Zellij.Available() {
 		return r, ErrNoZellij
@@ -169,6 +180,13 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	// A list that cannot be read keeps what it held: at worst a name stays.
 	if e.Given != nil {
 		_ = e.Given.Reload()
+	}
+	// Without the kept names nobody can tell which names must stay, so nothing
+	// is renamed; reaping does not depend on them.
+	if e.Kept != nil {
+		if err := e.Kept.Reload(); err != nil {
+			r.NoRenames = fmt.Errorf("could not read the list of kept names: %w", err)
+		}
 	}
 	listed, err := e.Zellij.ListSessions(ctx)
 	if errors.Is(err, zellij.ErrNoSessions) {
@@ -209,8 +227,8 @@ func Plan(ctx context.Context, e *Env, opts Options) (Report, error) {
 			continue
 		}
 		_, o.Suggested = e.nameFor(o.Session, taken)
-		if e.Config.AutoRename {
-			_, o.WouldRename = e.renameTarget(*o, taken)
+		if e.Config.AutoRename && r.NoRenames == nil {
+			_, o.WouldRename = e.renameTarget(*o, taken, r.history)
 			reserve(taken, o.Session.Name(), o.WouldRename)
 		}
 	}

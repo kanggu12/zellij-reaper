@@ -5,6 +5,20 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-06
+
+### Added
+
+- In the dashboard, `r` and Enter on the name a session has keeps that name, whoever gave it, a name zellij made up
+  included. zellij keeps nothing that tells a name it made up from the same words typed with `zellij -s`, so a person who
+  typed one says so once. The names go in `~/.local/state/zellij-reaper/kept`.
+
+### Fixed
+
+- A name 0.2.0 gave follows what the session shows again. Where the list of given names has no word on a name, the
+  renames in the decision log tell whether a pass gave it, for as long as the log holds them. That also covers a list
+  that was lost.
+
 ## [0.3.1] - 2026-11-06
 
 ### Added
@@ -153,7 +167,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.2
 [0.3.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.0
 [0.2.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.2.0

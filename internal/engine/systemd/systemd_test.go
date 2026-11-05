@@ -326,8 +326,11 @@ func TestUninstallPurge(t *testing.T) {
 	if err := pl.Set("notes", true); err != nil {
 		t.Fatal(err)
 	}
-	// So do the names a pass gave.
+	// So do the names a pass gave, and the names someone kept.
 	if err := protect.LoadGiven(config.GivenFile(env)).Set("build-watcher", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := protect.LoadKept(config.KeptFile(env)).Set("brave-peach", true); err != nil {
 		t.Fatal(err)
 	}
 	r, _ = s.Uninstall(true, cfg.LogPath)

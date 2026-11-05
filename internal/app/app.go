@@ -59,6 +59,7 @@ func Load(configPath string) (*App, error) {
 		Config:    cfg,
 		Protected: pl,
 		Given:     protect.LoadGiven(config.GivenFile(env)),
+		Kept:      protect.LoadKept(config.KeptFile(env)),
 		Zellij:    zj,
 		Sources:   a.Sources(),
 		Log:       logfile.New(cfg.LogPath, cfg.LogMaxBytes),

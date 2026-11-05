@@ -36,6 +36,13 @@ func TestAListThatCannotBeReadStopsOnlyWhatItGuards(t *testing.T) {
 			t.Errorf("load: %v", err)
 		}
 	})
+	// Without the kept names, a pass renames nothing; the rest goes on.
+	t.Run("the kept names", func(t *testing.T) {
+		broken(t, config.KeptFile(home(t)))
+		if _, err := Load(""); err != nil {
+			t.Errorf("load: %v", err)
+		}
+	})
 	// Without the protected list, nobody can tell which sessions it protects.
 	t.Run("the protected list", func(t *testing.T) {
 		broken(t, config.ProtectedFile(home(t)))

@@ -155,6 +155,7 @@ func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 	}
 	logp := filepath.Join(home, "reaper.log")
 	env := &reaper.Env{
+		Kept:      protect.LoadKept(config.KeptFile(cenv)),
 		Config:    cfg,
 		Protected: pl,
 		Given:     names,
@@ -611,12 +612,27 @@ func TestAnUnconfirmedRenameIsRemembered(t *testing.T) {
 
 func TestWhichNamesAPassMayReplace(t *testing.T) {
 	const fromZellij = "brave-peach"
+	pass := func(from, to string) string { return "[2026-11-01 10:00:00]   -> renamed: " + from + " → " + to }
+	hand := func(from, to string) string {
+		return "[2026-11-01 11:00:00] " + from + " :: renamed from the dashboard to " + to
+	}
 	for _, c := range []struct {
 		what, name, startedAs string
-		given                 bool
+		given, kept           bool
 		stamp                 string
+		log                   []string
 		want                  string
 	}{
+		// Kept with r and Enter: whatever else says the name may go.
+		{what: "a name zellij made up, kept", name: fromZellij, startedAs: fromZellij, kept: true},
+		{what: "a name a pass gave, kept", name: "build-watcher", startedAs: fromZellij, given: true, kept: true},
+		{what: "a name the log says a pass gave, kept", name: "build-watcher", startedAs: fromZellij, kept: true, log: []string{pass(fromZellij, "build-watcher")}},
+		// No list has the name, as after 0.2.0, and the decision log still tells.
+		{what: "the log says a pass gave it", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "build-watcher")}, want: "htop"},
+		{what: "the log says a pass gave it, by two renames", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "notes"), pass("notes", "build-watcher")}, want: "htop"},
+		{what: "the log says a person gave it", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "notes"), hand("notes", "build-watcher")}},
+		{what: "the log's rename was another session's", name: "build-watcher", startedAs: fromZellij, log: []string{pass("lucky-duck", "build-watcher")}},
+		{what: "a dry run's line says nothing", name: "build-watcher", startedAs: fromZellij, log: []string{"[2026-11-01 10:00:00]   -> DRY_RUN: would rename '" + fromZellij + "' → 'build-watcher'"}},
 		{what: "a name zellij made up", name: fromZellij, startedAs: fromZellij, want: "htop"},
 		{what: "a name someone started it under", name: "my-project", startedAs: "my-project"},
 		{what: "a name a pass gave", name: "build-watcher", startedAs: fromZellij, given: true, want: "htop"},
@@ -641,6 +657,16 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 			if c.stamp != "" {
 				w.env.Config.AutoRenameStamp = c.stamp
 			}
+			if c.kept {
+				if err := w.env.Kept.Set(c.name, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if c.log != nil {
+				if err := os.WriteFile(w.logp, []byte(strings.Join(c.log, "\n")+"\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
 			if err != nil {
 				t.Fatal(err)
@@ -661,6 +687,39 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 			}
 			t.Fatal("the session is not in the plan")
 		})
+	}
+}
+
+func TestAKeptListThatCannotBeReadStopsRenamesOnly(t *testing.T) {
+	// A directory where the file should be: nobody can tell which names to keep.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	path := filepath.Join(t.TempDir(), "kept")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	w.env.Kept = protect.LoadKept(path)
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.WouldRename != "" {
+			t.Errorf("plan would rename %s to %s", o.Session.Name(), o.WouldRename)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 0 {
+		t.Errorf("renamed %v", w.zj.renamed)
+	}
+	// Reaping does not need the list.
+	if strings.Join(w.zj.deleted, ",") != "idle-old,gone" {
+		t.Errorf("deleted %v", w.zj.deleted)
+	}
+	if !strings.Contains(w.log(t), "could not read the list of kept names: ") || !strings.Contains(w.log(t), ", so no session is renamed\n") {
+		t.Errorf("log:\n%s", w.log(t))
 	}
 }
 
@@ -739,17 +798,21 @@ func TestGivenNamesOfGoneSessionsAreForgotten(t *testing.T) {
 	// A session someone starts later under such a name was named by them.
 	w := newWorld(t)
 	w.env.Config.AutoRename = true
-	if err := w.env.Given.Set("long-gone", true); err != nil {
-		t.Fatal(err)
+	for _, l := range []*protect.List{w.env.Given, w.env.Kept} {
+		if err := l.Set("long-gone", true); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	back, err := protect.Load(w.env.Given.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if back.Has("long-gone") {
-		t.Errorf("given names: %v", back.Names())
+	for _, path := range []string{w.env.Given.Path, w.env.Kept.Path} {
+		back, err := protect.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if back.Has("long-gone") {
+			t.Errorf("%s: %v", path, back.Names())
+		}
 	}
 }

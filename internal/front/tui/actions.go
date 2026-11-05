@@ -58,19 +58,15 @@ func (m model) rename(name, to string) tea.Cmd {
 	}
 }
 
-// keepName makes a session's name someone's choice, when Enter in the rename field
-// leaves it as it is. A name no pass gave has nothing to change, and nothing to say.
+// keepName keeps a session's name as it is, when Enter in the rename field leaves
+// the name unchanged: the person wants that name, whoever gave it.
 func (m model) keepName(name string) tea.Cmd {
 	b := m.b
 	return func() tea.Msg {
-		kept, err := b.KeepName(name)
-		switch {
-		case err != nil:
+		if err := b.KeepName(name); err != nil {
 			return doneMsg{text: i18n.T("toast.rename.failed", err), cat: ui.CatUnknown}
-		case kept:
-			return doneMsg{text: i18n.T("toast.kept", name), cat: ui.CatBusy}
 		}
-		return nil
+		return doneMsg{text: i18n.T("toast.kept", name), cat: ui.CatBusy}
 	}
 }
 

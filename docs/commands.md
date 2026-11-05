@@ -70,7 +70,7 @@ window changed. `--shallow` signals the clients only.
 
 **`install`** writes the systemd units and a settings file, enables the timer and lingering, and says when the first
 pass runs. **`uninstall`** removes the timer and the service; `--purge` also removes the settings, the log and the
-lists of protected and given names. See [setup](setup.md#install).
+lists of protected, given and kept names. See [setup](setup.md#install).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`
 prints the file's path, `init` writes the file with every key at its default, and `edit` opens it in `$VISUAL` or
@@ -110,7 +110,7 @@ The color of a row says what will happen to it:
 | `⏎` | attach to it; inside zellij, switch this client to it |
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
-| `r` | rename it; the field starts with [the name it shows](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused, and an exited session cannot be renamed. Enter on the name it has keeps a name a pass gave: passes leave it alone from then on |
+| `r` | rename it; the field starts with [the name it shows](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused, and an exited session cannot be renamed. Enter on the name it has keeps that name: passes leave it alone from then on |
 | `f` | run a pass now; it asks first when the pass would delete something |
 | `F` | run a pass without the idle and exited waits, after asking |
 | `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` returns |

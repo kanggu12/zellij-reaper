@@ -330,6 +330,36 @@ func TestStamped(t *testing.T) {
 	}
 }
 
+func TestGivenByPass(t *testing.T) {
+	pass := func(from, to string) Change { return Change{From: from, To: to} }
+	hand := func(from, to string) Change { return Change{From: from, To: to, ByHand: true} }
+	for _, c := range []struct {
+		what      string
+		changes   []Change
+		name      string
+		startedAs string
+		want      bool
+	}{
+		{"a pass renamed it", []Change{pass("brave-peach", "build-watcher")}, "build-watcher", "brave-peach", true},
+		{"a pass renamed it twice", []Change{pass("brave-peach", "notes"), pass("notes", "build-watcher")}, "build-watcher", "brave-peach", true},
+		{"a person renamed it, then a pass", []Change{hand("brave-peach", "notes"), pass("notes", "build-watcher")}, "build-watcher", "brave-peach", true},
+		{"a pass renamed it, then a person", []Change{pass("brave-peach", "notes"), hand("notes", "build-watcher")}, "build-watcher", "brave-peach", false},
+		// The rename to that name was another session's: it started elsewhere.
+		{"another session had the name", []Change{pass("lucky-duck", "build-watcher")}, "build-watcher", "brave-peach", false},
+		// The log no longer holds where the history starts.
+		{"the start rotated away", []Change{pass("notes", "build-watcher")}, "build-watcher", "brave-peach", false},
+		{"no rename to it", []Change{pass("brave-peach", "notes")}, "build-watcher", "brave-peach", false},
+		{"never renamed", nil, "brave-peach", "brave-peach", false},
+		{"no start known", []Change{pass("brave-peach", "build-watcher")}, "build-watcher", "", false},
+		// The newest rename to a name is the one that counts.
+		{"given, then given by hand again later", []Change{pass("brave-peach", "build-watcher"), hand("x", "build-watcher")}, "build-watcher", "brave-peach", false},
+	} {
+		if got := GivenByPass(c.changes, c.name, c.startedAs); got != c.want {
+			t.Errorf("%s: %v, want %v", c.what, got, c.want)
+		}
+	}
+}
+
 // TestKnowsTheWordsOfARelease compares the word lists with a release's own source.
 // `make integration` downloads that file for every release it tests and names it in
 // ZELLIJ_SESSIONS_RS, so a new word in any release fails there, every time.

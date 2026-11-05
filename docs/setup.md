@@ -108,7 +108,7 @@ curl -fsSLO "$base/checksums.txt"
 Then on the closed machine, with the version you carried across:
 
 ```sh
-version=0.3.1
+version=0.3.2
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
@@ -141,7 +141,7 @@ install` rewrites the units. After moving the binary by hand, run `zellij-reaper
 timer that still runs an old path.
 
 **Uninstall** with `zellij-reaper uninstall`, which stops and removes the timer and the service. `--purge` also removes
-the settings, the log and the lists of protected and given names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
+the settings, the log and the lists of protected, given and kept names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
 binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and fails every hour.
 
 ## Settings
@@ -203,13 +203,14 @@ client is attached, if nobody chose its name:
 With `auto_rename = true`, every pass names the sessions it keeps after what they show, if nobody chose their name: a name
 zellij made up (`brave-peach`), or one zellij-reaper gave earlier. A name you gave a session stays, and so does a session
 that is attached, exited, protected by name or uncertain. Press `r` in the dashboard for the suggested name by hand, with
-`auto_rename` on or off, or `r` and Enter on the name a pass gave to keep it.
+`auto_rename` on or off. `r` and Enter on the name a session has keeps that name as it is, whoever gave it.
 
 zellij keeps the name a session started under on its server's command line, which is how a pass tells these apart. A
 session that still has that name was never renamed, so it is replaced only if the name is two words from zellij's own
-lists. That makes a session you start yourself as `zellij -s quiet-mouse` read as made up: give it another name once and
-it stays, or protect it. A session renamed since keeps its name unless a pass gave it, and passes write down the names they
-give. Nothing wrote them down before 0.3.0, so a name 0.2.0 gave stays too, until someone changes it.
+lists. Nothing zellij keeps tells such a name from one you typed (`zellij -s quiet-mouse`): its command line, environment
+and files are the same. Keep it with `r` and Enter, and it stays. A session renamed since keeps its name unless a pass
+gave it. Passes write down the names they give, and where that list has no word on a name, as for one 0.2.0 gave, the
+renames in the decision log tell, for as long as the log holds them.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
@@ -263,6 +264,7 @@ session in use once more a day, and `"time"` gives `web-app_1104-0931`, which re
 | `~/.local/state/zellij-reaper/protected` | the protected list, one name per line |
 | `~/.local/state/zellij-reaper/protected.lock` | held while the protected list is changed |
 | `~/.local/state/zellij-reaper/named`, `named.lock` | the names `auto_rename` gave, so it knows them from a name someone chose |
+| `~/.local/state/zellij-reaper/kept`, `kept.lock` | the names kept with `r` and Enter, which `auto_rename` leaves alone |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. zellij-reaper reads zellij's files under `$XDG_CACHE_HOME/zellij`

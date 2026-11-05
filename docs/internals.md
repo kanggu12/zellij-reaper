@@ -164,6 +164,15 @@ and the demo's `agent-refactor` became `claude`.
 
 The list holds names, not sessions, and an entry can outlive its session for up to one pass. The command line is what keeps
 that from costing anyone a name: a session someone starts under a name on the list still has the name it started under.
+Where the list has no word on a name, because 0.2.0 gave it or the list was lost, the decision log does: a pass logs every
+rename it makes, and the dashboard every rename by hand. `rename.GivenByPass` follows a name back through those renames;
+the last one to it has to be a pass's, and the first has to start from the name the session started under, or a rename
+another session made to the same name would count.
+
+zellij keeps nothing that tells a name it made up from the same words typed by a person: the server's command line,
+environment and files differ only in the name, for a session started in a terminal or in the background. So a person says
+so once, with `r` and Enter in the dashboard, and the name goes on a list of kept names that every pass reads first. A
+pass that cannot read that list renames nothing.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's

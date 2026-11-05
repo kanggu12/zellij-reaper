@@ -151,6 +151,7 @@ func (s System) Uninstall(purge bool, logPath string) (Result, error) {
 		// keep the state directory from being removed.
 		for _, p := range []string{config.ConfigFile(s.Env), logPath, logPath + ".1", config.ProtectedFile(s.Env),
 			protect.LockPath(config.ProtectedFile(s.Env)), config.GivenFile(s.Env), protect.LockPath(config.GivenFile(s.Env)),
+			config.KeptFile(s.Env), protect.LockPath(config.KeptFile(s.Env)),
 			config.LockFile(s.Env)} {
 			if err := os.Remove(p); err == nil {
 				r.Removed = append(r.Removed, p)

@@ -80,6 +80,10 @@ func ProtectedFile(env Env) string { return filepath.Join(StateDir(env), "protec
 // A name that is not on it, and that zellij did not make up, was chosen by someone.
 func GivenFile(env Env) string { return filepath.Join(StateDir(env), "named") }
 
+// KeptFile lists the session names someone kept with r and Enter in the dashboard,
+// which auto_rename never replaces.
+func KeptFile(env Env) string { return filepath.Join(StateDir(env), "kept") }
+
 // UnitDir is where systemd looks for the user's own unit files.
 func UnitDir(env Env) string {
 	return filepath.Join(xdg(env, "XDG_CONFIG_HOME", ".config"), "systemd", "user")

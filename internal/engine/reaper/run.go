@@ -46,9 +46,12 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		}
 		return r, err
 	}
+	if r.NoRenames != nil && e.Config.AutoRename {
+		e.Log.Printf("%v, so no session is renamed", r.NoRenames)
+	}
 	taken := takenNames(r)
 	for i := range r.Outcomes {
-		e.act(ctx, &r.Outcomes[i], dry, taken)
+		e.act(ctx, &r, &r.Outcomes[i], dry, taken)
 	}
 	if !dry {
 		e.forgetGone(taken)
@@ -77,7 +80,7 @@ func (e *Env) stopsHere(r Report, err error) bool {
 }
 
 // act logs a session's verdict and does what the verdict calls for.
-func (e *Env) act(ctx context.Context, o *Outcome, dry bool, taken map[string]bool) {
+func (e *Env) act(ctx context.Context, r *Report, o *Outcome, dry bool, taken map[string]bool) {
 	s := o.Session
 	state := "RUNNING"
 	if s.Listed.Exited {
@@ -89,7 +92,7 @@ func (e *Env) act(ctx context.Context, o *Outcome, dry bool, taken map[string]bo
 		return
 	}
 	// A survivor: give it a name that says what it is doing.
-	e.name(ctx, o, dry, taken)
+	e.name(ctx, r, o, dry, taken)
 }
 
 // reap deletes a session the policy let go, unless something changed since.
@@ -116,12 +119,12 @@ func (e *Env) reap(ctx context.Context, o *Outcome, dry bool, taken map[string]b
 }
 
 // name renames a survivor after what it shows, when auto_rename is on.
-func (e *Env) name(ctx context.Context, o *Outcome, dry bool, taken map[string]bool) {
-	if !e.Config.AutoRename {
+func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry bool, taken map[string]bool) {
+	if !e.Config.AutoRename || r.NoRenames != nil {
 		return
 	}
 	s := o.Session
-	desired, target := e.renameTarget(*o, taken)
+	desired, target := e.renameTarget(*o, taken, r.history)
 	if target == "" {
 		return
 	}

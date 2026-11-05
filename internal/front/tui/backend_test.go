@@ -320,22 +320,22 @@ func TestAnUnconfirmedRenameByHandCountsAsChosen(t *testing.T) {
 	}
 }
 
-func TestKeepNameTakesAGivenNameOffTheList(t *testing.T) {
+func TestKeepNameKeepsAnyName(t *testing.T) {
 	b, a := backendFor(t, &fakeZellij{}, "")
-	given := protect.LoadGiven(filepath.Join(t.TempDir(), "named"))
-	a.Reaper.Given = given
+	dir := t.TempDir()
+	given, kept := protect.LoadGiven(filepath.Join(dir, "named")), protect.LoadKept(filepath.Join(dir, "kept"))
+	a.Reaper.Given, a.Reaper.Kept = given, kept
 	if err := given.Set("build-watcher", true); err != nil {
 		t.Fatal(err)
 	}
-	// A name no pass gave has nothing to keep.
-	if kept, err := b.KeepName("my-project"); kept || err != nil {
-		t.Errorf("a name no pass gave: %v, %v", kept, err)
+	// One a pass gave, and one zellij made up, which no list has.
+	for _, name := range []string{"build-watcher", "brave-peach"} {
+		if err := b.KeepName(name); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if kept, err := b.KeepName("build-watcher"); !kept || err != nil {
-		t.Errorf("a name a pass gave: %v, %v", kept, err)
-	}
-	if given.Has("build-watcher") {
-		t.Errorf("list after it: %v", given.Names())
+	if strings.Join(kept.Names(), ",") != "brave-peach,build-watcher" || given.Has("build-watcher") {
+		t.Errorf("kept %v, given %v", kept.Names(), given.Names())
 	}
 }
 

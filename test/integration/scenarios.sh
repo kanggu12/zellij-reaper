@@ -175,7 +175,7 @@ echo "-- sessions in every state"
 # only when no session is running, so this comes first, and it runs something so the
 # forced pass keeps it. The scenarios below start sessions under a few such names of
 # their own, so a pick among those is made again.
-reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck '
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda '
 mkdir -p /srv/own-pick
 own=""
 for _ in 1 2 3 4 5; do
@@ -311,7 +311,9 @@ start my-project /tmp/watcher.kdl
 start hand-picked /tmp/watcher.kdl && rename_to hand-picked lucky-duck
 start yearly /tmp/watcher.kdl && rename_to yearly report_2025-2026
 start started_1104-0931 /tmp/watcher.kdl
-check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher'"
+# A name zellij could have made up, which someone kept with r and Enter.
+start kind-panda /tmp/watcher.kdl && printf 'kind-panda\n' >>~/.local/state/zellij-reaper/kept
+check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher' && wait_title kind-panda 'build watcher'"
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a made-up name goes" gone quiet-mouse
 check "a session is named after its pane" listed build-watcher
@@ -319,6 +321,7 @@ check "a name someone chose stays" listed my-project
 check "zellij's words given by hand stay" listed lucky-duck
 check "a name in the shape of a stamp stays" listed report_2025-2026
 check "a stamped name a session started under stays" listed started_1104-0931
+check "a name someone kept stays" listed kind-panda
 check "the stamp of an earlier version goes" gone old-title_1104-0931
 check "a dot stays in a word" listed notes-v1.2.md
 check "a name with a dot still reaches its server" $Z --session notes-v1.2.md action list-clients
@@ -353,6 +356,9 @@ check "and it is gone" gone notes-v1.2.md
 
 # zellij remembers the names a session has had and refuses them, so a session
 # that goes back to a name it had before takes a tail. Its name then stays.
+# The list of given names is lost, as it is to an upgrade from 0.2.0, which kept none:
+# the log still says which renames were a pass's, so those names still follow.
+check "the list of given names can be lost" rm ~/.local/state/zellij-reaper/named
 check "a stamp can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=date $R run --quiet
 check "the name ends in the day of last use" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}\$'"
 check "a stamp leaves a chosen name alone" listed my-project
