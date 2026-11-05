@@ -24,9 +24,10 @@ func cmdRun() *cobra.Command {
 		Use:   "run",
 		Short: "Run one pass now: reap what is due, log every decision",
 		Long: `Run one pass, as the timer does: every session is judged, the ones that pass every
-check are deleted, survivors are renamed if auto_rename is on, and each decision
-is written to the log. --dry-run logs without changing anything; --force skips
-the waits (idle_after, exited_after) but keeps every other check.`,
+check are deleted, the rest are named after what they show if auto_rename is on
+and nobody chose their name, and each decision is written to the log. --dry-run
+logs without changing anything; --force skips the waits (idle_after, exited_after)
+but keeps every other check.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()

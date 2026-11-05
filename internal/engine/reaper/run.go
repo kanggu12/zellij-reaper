@@ -40,6 +40,10 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 
 	r, err := e.survey(ctx, opts)
 	if e.stopsHere(r, err) {
+		// No session left, so no given name belongs to anyone.
+		if r.NoSessions && !dry {
+			e.forgetGone(nil)
+		}
 		return r, err
 	}
 	taken := takenNames(r)

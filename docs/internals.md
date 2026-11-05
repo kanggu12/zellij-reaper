@@ -154,10 +154,16 @@ whenever one runs.
 
 ### Names
 
-A name someone chose stays. `auto_rename` replaces only what nobody chose: a name zellij made up, told by zellij's own word
-lists because `web-app` has the same shape as `brave-peach`; a name with the stamp earlier versions added; and a name it gave
-itself, kept in a small list so it can follow what the session shows next. Before, keeping a name took the protected list,
-which keeps the session from being reaped as well, and the demo's `agent-refactor` became `claude`.
+A name someone chose stays, and zellij leaves a way to tell: a server's command line keeps the name its session started
+under through every rename. A session that still has that name was never renamed, so the only name to replace is one zellij
+made up, told by zellij's own word lists because `web-app` has the same shape as `brave-peach`. A session with another name
+was renamed, by a pass or by someone. A pass writes the names it gives in a small list, so it can follow what the session
+shows next, and versions from before that list stamped every name with a date; `report_2025-2026` has the shape of that
+stamp, and no month 20. Before, keeping a name took the protected list, which keeps the session from being reaped as well,
+and the demo's `agent-refactor` became `claude`.
+
+The list holds names, not sessions, and an entry can outlive its session for up to one pass. The command line is what keeps
+that from costing anyone a name: a session someone starts under a name on the list still has the name it started under.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
@@ -238,8 +244,9 @@ make demo                                # the dashboard on demo sessions in a c
 The integration scenarios make sessions in a container: idle ones with their terminals' times moved back, a shell
 running a command, a command pane, a stand-in coding agent, a client attached through `script(1)`, exited sessions
 (their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
-long Korean title, a name with a dot in it, a name zellij picks itself and one a person chose. Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`,
-`recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
+long Korean title, a name with a dot in it, a name zellij picks itself, and names people chose by starting a session or
+by renaming one, some of them looking like a name zellij made up or a stamp. Then they check `plan`, a dry run, a pass,
+a forced pass, `auto_rename`, `recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
 pass in the log, so a rare failure leaves its evidence in the test output.
 
 <picture>

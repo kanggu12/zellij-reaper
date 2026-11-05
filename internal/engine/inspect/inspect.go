@@ -97,6 +97,15 @@ type Session struct {
 // Name is the session's name.
 func (s Session) Name() string { return s.Listed.Name }
 
+// StartedAs is the name the session's server was started under, which its command
+// line keeps through every rename; "" when its server was not found.
+func (s Session) StartedAs() string {
+	if s.Server == nil || s.Server.Socket == "" {
+		return ""
+	}
+	return filepath.Base(s.Server.Socket)
+}
+
 // Titles returns the session's terminal pane titles.
 func (s Session) Titles() []string { return s.Files.Metadata.TerminalTitles() }
 

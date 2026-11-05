@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +31,62 @@ func TestSetLoadRoundTrip(t *testing.T) {
 	}
 	if err := back.Rename("notes", "journal"); err != nil || !back.Has("journal") || back.Has("notes") {
 		t.Errorf("rename: %v %v", back.Names(), err)
+	}
+}
+
+func TestEachListSaysWhatItHolds(t *testing.T) {
+	dir := t.TempDir()
+	protected, _ := Load(filepath.Join(dir, "protected"))
+	given := LoadGiven(filepath.Join(dir, "named"))
+	for _, l := range []*List{protected, given} {
+		if err := l.Set("notes", true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := func(path string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		line, _, _ := strings.Cut(string(b), "\n")
+		return line
+	}
+	if got := first(protected.Path); !strings.Contains(got, "never reaps") {
+		t.Errorf("protected list says %q", got)
+	}
+	if got := first(given.Path); strings.Contains(got, "never") || !strings.Contains(got, "gave") {
+		t.Errorf("list of given names says %q", got)
+	}
+	// Its file reads back the same way, through either loader.
+	if back := LoadGiven(given.Path); !back.Has("notes") {
+		t.Errorf("read back %v", back.Names())
+	}
+	// Whoever waits for the lock hears which list it is.
+	held, err := lock.Acquire(LockPath(given.Path), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Release()
+	old := lockWait
+	lockWait = 50 * time.Millisecond
+	defer func() { lockWait = old }()
+	if err := given.Set("other", true); err == nil || !strings.Contains(err.Error(), "given names") {
+		t.Errorf("waiting for the lock: %v", err)
+	}
+}
+
+func TestAListOfGivenNamesThatCannotBeReadStartsEmpty(t *testing.T) {
+	// A directory where the file should be: reading it fails.
+	path := filepath.Join(t.TempDir(), "named")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l := LoadGiven(path)
+	if len(l.Names()) != 0 {
+		t.Errorf("names %v", l.Names())
+	}
+	if err := l.Set("x", true); err == nil {
+		t.Error("a list that cannot be read took a change")
 	}
 }
 

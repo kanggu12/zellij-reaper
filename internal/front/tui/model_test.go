@@ -36,6 +36,9 @@ type fake struct {
 	log       []string
 	// renameNote is the warning Rename returns.
 	renameNote string
+	// given are the names KeepName finds on the list; kept are those it took off.
+	given map[string]bool
+	kept  []string
 }
 
 func (f *fake) Plan(context.Context) (reaper.Report, error) { return f.report, f.planErr }
@@ -50,6 +53,13 @@ func (f *fake) Delete(_ context.Context, name string) error {
 func (f *fake) Rename(_ context.Context, name, to string) (string, error) {
 	f.renamed = append(f.renamed, name+"->"+to)
 	return f.renameNote, nil
+}
+func (f *fake) KeepName(name string) (bool, error) {
+	if !f.given[name] {
+		return false, nil
+	}
+	f.kept = append(f.kept, name)
+	return true, nil
 }
 func (f *fake) SetProtected(name string, on bool) error { f.protected[name] = on; return nil }
 func (f *fake) Protected(name string) bool              { return f.protected[name] }
@@ -496,6 +506,30 @@ func TestDeleteDecidesOnTheReportAsItIsNow(t *testing.T) {
 	m := press(t, pick(t, loaded(t, b, 120, 40), "scratch"), "d")
 	if m.mode == modeConfirm {
 		t.Error("d offered to reap a session whose attach state is unknown")
+	}
+}
+
+func TestEnterOnTheNameASessionHasKeepsIt(t *testing.T) {
+	i18n.Set(i18n.English)
+	b := sample()
+	b.given = map[string]bool{"notes": true}
+	m := press(t, pick(t, loaded(t, b, 120, 40), "notes"), "r")
+	m.input.set("notes")
+	m = press(t, m, "enter")
+	if len(b.renamed) != 0 {
+		t.Errorf("renamed a session to the name it has: %v", b.renamed)
+	}
+	if strings.Join(b.kept, ",") != "notes" || !strings.Contains(m.statusLine(), "keeps this name") {
+		t.Errorf("kept %v, status %q", b.kept, m.statusLine())
+	}
+	// A name no pass gave: nothing changes, and nothing is said.
+	before := m.statusLine()
+	b.given = nil
+	m = press(t, m, "r")
+	m.input.set("notes")
+	m = press(t, m, "enter")
+	if len(b.kept) != 1 || m.statusLine() != before {
+		t.Errorf("kept %v, status %q", b.kept, m.statusLine())
 	}
 }
 

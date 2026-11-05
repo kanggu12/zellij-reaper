@@ -16,18 +16,21 @@ func Generated(name string) bool {
 	return ok && slices.Contains(zellijAdjectives, adjective) && slices.Contains(zellijNouns, noun)
 }
 
-// stampedRe matches the names the shell version and earlier releases gave: a
-// base, the time of last use, and perhaps a collision tail.
-var stampedRe = regexp.MustCompile(`_\d{4}-\d{4}(-\d{1,2})?$`)
+// stampedRe matches the names the shell version and releases before 0.2 gave: a
+// base, the time of last use as a real month, day, hour and minute, and perhaps a
+// collision tail. "report_2025-2026" and "ticket_1234-5678" have the shape of one
+// without being a date.
+var stampedRe = regexp.MustCompile(`_(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])-([01]\d|2[0-3])[0-5]\d(-\d{1,2})?$`)
 
 // Stamped reports whether a name carries that stamp. Nothing recorded those names,
 // so the stamp is how they are told from a name someone chose.
 func Stamped(name string) bool { return stampedRe.MatchString(name) }
 
 // zellijAdjectives and zellijNouns are the words zellij makes names from, in
-// zellij-utils/src/sessions.rs (MIT). The adjectives are the same in every release
-// from 0.43.1 to 0.45.1; the nouns are all those releases' together. An integration
-// scenario lets zellij pick a name on each tested release and checks it is known here.
+// zellij-utils/src/sessions.rs (MIT, zellij-LICENSE.md next to this file). The
+// adjectives are the same in every release from 0.43.1 to 0.45.1; the nouns are all
+// those releases' together. `make integration` compares them with the source of each
+// release it tests, through TestKnowsTheWordsOfARelease.
 var zellijAdjectives = []string{
 	"adamant", "adept", "adventurous", "arcadian", "auspicious", "awesome", "blossoming", "brave",
 	"charming", "chatty", "circular", "considerate", "cubic", "curious", "delighted", "didactic",

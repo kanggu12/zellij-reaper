@@ -1,5 +1,6 @@
-// Package protect keeps the list of sessions protected by name from the TUI or
-// `zellij-reaper protect`: one name per line in the state directory.
+// Package protect keeps the lists of names in the state directory, one name per
+// line: the sessions protected by name from the TUI or `zellij-reaper protect`, and
+// the names auto_rename gave.
 //
 // Several processes share the file (the timer's pass, the dashboard, the
 // command line), so a change is made to the file as it is on disk at that
@@ -30,19 +31,38 @@ var lockWait = 5 * time.Second
 type List struct {
 	// Path is the file.
 	Path string
+	// kind says what the list holds.
+	kind kind
 	// mu guards names.
 	mu sync.RWMutex
 	// names holds the entries.
 	names map[string]bool
 }
 
-// Load reads the list at path; a missing file is an empty list.
+// kind is what a list holds, as its file's first line and its messages say it.
+type kind struct{ header, noun string }
+
+var (
+	protectedKind = kind{"# Sessions zellij-reaper never reaps or renames, one per line.", "the protected list"}
+	givenKind     = kind{"# Names zellij-reaper gave, which it may change again, one per line. Take one off to keep it.", "the list of given names"}
+)
+
+// Load reads the protected list at path; a missing file is an empty list.
 func Load(path string) (*List, error) {
 	names, err := read(path)
 	if err != nil {
 		return nil, err
 	}
-	return &List{Path: path, names: names}, nil
+	return &List{Path: path, kind: protectedKind, names: names}, nil
+}
+
+// LoadGiven reads the list of names auto_rename gave at path. A list that cannot be
+// read starts empty and stops nothing: all it costs is that those names stay as they
+// are, where a protected list that cannot be read could cost a session.
+func LoadGiven(path string) *List {
+	l := &List{Path: path, kind: givenKind, names: map[string]bool{}}
+	_ = l.Reload()
+	return l
 }
 
 // LockPath is the lock file that serializes changes to the list at path.
@@ -188,7 +208,7 @@ func (l *List) Rename(from, to string) error {
 func (l *List) update(change func(names map[string]bool) (changed bool, err error)) error {
 	lk, err := lock.Acquire(LockPath(l.Path), lockWait)
 	if errors.Is(err, lock.ErrBusy) {
-		return fmt.Errorf("another zellij-reaper is changing the protected list; try again")
+		return fmt.Errorf("another zellij-reaper is changing %s; try again", l.kind.noun)
 	}
 	if err != nil {
 		return err
@@ -215,7 +235,7 @@ func (l *List) update(change func(names map[string]bool) (changed bool, err erro
 		return err
 	}
 	if changed {
-		if err := save(l.Path, next); err != nil {
+		if err := save(l.Path, l.kind.header, next); err != nil {
 			l.names = disk
 			return err
 		}
@@ -225,18 +245,18 @@ func (l *List) update(change func(names map[string]bool) (changed bool, err erro
 }
 
 // save writes the file atomically: a reader never sees half a list.
-func save(path string, names map[string]bool) error {
+func save(path, header string, names map[string]bool) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	var b strings.Builder
-	b.WriteString("# Sessions zellij-reaper never reaps or renames, one per line.\n")
+	b.WriteString(header + "\n")
 	for _, n := range sorted(names) {
 		b.WriteString(n + "\n")
 	}
 	// A temporary file of its own, so two writers never write into the same
 	// one, renamed over the list in one step.
-	f, err := os.CreateTemp(filepath.Dir(path), ".protected-*")
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
 	if err != nil {
 		return err
 	}

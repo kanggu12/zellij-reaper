@@ -29,6 +29,12 @@ var ErrNameTaken = errors.New("a session by this name already exists")
 // one, so a caller must not act as if nothing happened.
 var ErrUnconfirmed = errors.New("zellij took the rename but does not list the new name")
 
+// cutShort is a command stopped before it finished, by the time limit or by the
+// caller. It may have done what it was asked all the same.
+type cutShort string
+
+func (e cutShort) Error() string { return string(e) }
+
 // errNoAnswer is list-clients exiting 0 with nothing printed: no answer, which
 // must not read as "nobody attached".
 var errNoAnswer = errors.New("list-clients printed nothing")
@@ -72,9 +78,9 @@ func (c *CLI) call(parent context.Context, args ...string) (string, string, erro
 	// tell this call's limit apart from the caller giving up.
 	switch {
 	case parent.Err() != nil:
-		return out.String(), "", fmt.Errorf("zellij %s: cancelled", strings.Join(args, " "))
+		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: cancelled", strings.Join(args, " ")))
 	case ctx.Err() == context.DeadlineExceeded:
-		return out.String(), "", fmt.Errorf("zellij %s: no answer within %s", strings.Join(args, " "), c.Timeout)
+		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: no answer within %s", strings.Join(args, " "), c.Timeout))
 	}
 	return out.String(), errOut.String(), err
 }
@@ -198,6 +204,10 @@ func (c *CLI) Rename(ctx context.Context, name, to string) error {
 	if err != nil {
 		if strings.Contains(errOut+out, "already exists") {
 			return ErrNameTaken
+		}
+		// Stopped before it finished: the server may have taken it all the same.
+		if errors.As(err, new(cutShort)) {
+			return fmt.Errorf("%w: %v", ErrUnconfirmed, err)
 		}
 		return fmt.Errorf("zellij rename-session %s: %s", name, oneLine(errOut, err))
 	}

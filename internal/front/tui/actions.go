@@ -58,6 +58,22 @@ func (m model) rename(name, to string) tea.Cmd {
 	}
 }
 
+// keepName makes a session's name someone's choice, when Enter in the rename field
+// leaves it as it is. A name no pass gave has nothing to change, and nothing to say.
+func (m model) keepName(name string) tea.Cmd {
+	b := m.b
+	return func() tea.Msg {
+		kept, err := b.KeepName(name)
+		switch {
+		case err != nil:
+			return doneMsg{text: i18n.T("toast.rename.failed", err), cat: ui.CatUnknown}
+		case kept:
+			return doneMsg{text: i18n.T("toast.kept", name), cat: ui.CatBusy}
+		}
+		return nil
+	}
+}
+
 // toggleProtect protects the selected session, or lifts its protection.
 func (m model) toggleProtect() tea.Cmd {
 	o, ok := m.selected()

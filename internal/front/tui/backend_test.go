@@ -293,14 +293,49 @@ func TestAnUnconfirmedRenameKeepsBothNamesProtected(t *testing.T) {
 	}
 }
 
+func TestAnUnconfirmedRenameByHandCountsAsChosen(t *testing.T) {
+	i18n.Set(i18n.English)
+	// journal is left on the list from a session now gone, and this one may have
+	// just been given that name by hand: the next pass must not take it for a pass's.
+	z := &fakeZellij{sessions: "work [Created 1h ago]\n", renameUnseen: true}
+	b, a := backendFor(t, z, "")
+	given := protect.LoadGiven(filepath.Join(t.TempDir(), "named"))
+	a.Reaper.Given = given
+	if err := given.Set("journal", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Rename(context.Background(), "work", "journal"); !errors.Is(err, zellij.ErrUnconfirmed) {
+		t.Fatalf("rename: %v", err)
+	}
+	if given.Has("journal") {
+		t.Errorf("list after it: %v", given.Names())
+	}
+}
+
+func TestKeepNameTakesAGivenNameOffTheList(t *testing.T) {
+	b, a := backendFor(t, &fakeZellij{}, "")
+	given := protect.LoadGiven(filepath.Join(t.TempDir(), "named"))
+	a.Reaper.Given = given
+	if err := given.Set("build-watcher", true); err != nil {
+		t.Fatal(err)
+	}
+	// A name no pass gave has nothing to keep.
+	if kept, err := b.KeepName("my-project"); kept || err != nil {
+		t.Errorf("a name no pass gave: %v, %v", kept, err)
+	}
+	if kept, err := b.KeepName("build-watcher"); !kept || err != nil {
+		t.Errorf("a name a pass gave: %v, %v", kept, err)
+	}
+	if given.Has("build-watcher") {
+		t.Errorf("list after it: %v", given.Names())
+	}
+}
+
 func TestANameGivenByHandCountsAsChosen(t *testing.T) {
 	i18n.Set(i18n.English)
 	z := &fakeZellij{sessions: "work [Created 1h ago]\nother [Created 1h ago]\n"}
 	b, a := backendFor(t, z, "")
-	given, err := protect.Load(filepath.Join(t.TempDir(), "named"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	given := protect.LoadGiven(filepath.Join(t.TempDir(), "named"))
 	a.Reaper.Given = given
 	for _, name := range []string{"journal", "other"} {
 		if err := given.Set(name, true); err != nil {

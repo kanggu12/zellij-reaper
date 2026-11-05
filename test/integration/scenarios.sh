@@ -94,7 +94,15 @@ is_code() {
   }
 }
 listed() { $Z list-sessions -n -s 2>/dev/null | grep -qxF "$1"; }
-gone() { ! listed "$1"; }
+# Gone from zellij's list. delete-session says it is done before the server has
+# gone, and on a busy machine the name can be listed a moment longer.
+gone() {
+  for _ in $(seq 50); do
+    listed "$1" || return 0
+    sleep 0.1
+  done
+  return 1
+}
 
 # Rename a session and wait for zellij to list the new name. The command returns
 # before the server has acted, and on a slow machine a session that has only just
@@ -152,17 +160,25 @@ check "and logs 'no sessions'" grep -q '] no sessions$' "$LOG"
 check "plan --json lists nothing" test "$($R plan --json | jq '.sessions | length')" = 0
 
 echo "-- sessions in every state"
-# A name zellij picks itself on this release: the rename further down only happens
-# if the word lists know it, so a release with new words fails there. zellij picks
-# one only when no session is running, so this comes first, and it runs something
-# so the forced pass keeps it.
+# A name zellij picks itself on this release, which a pass further down replaces:
+# the whole way from zellij making a name up to a better one. The picked name is only
+# one word pair of thousands, so run.sh compares the full word lists. zellij picks one
+# only when no session is running, so this comes first, and it runs something so the
+# forced pass keeps it. The scenarios below start sessions under a few such names of
+# their own, so a pick among those is made again.
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck '
 mkdir -p /srv/own-pick
-(cd /srv/own-pick && $Z attach --create-background >/dev/null 2>&1)
 own=""
-for _ in $(seq 100); do
-  own=$($Z list-sessions -n -s 2>/dev/null | head -1)
-  [ -n "$own" ] && break
-  sleep 0.1
+for _ in 1 2 3 4 5; do
+  (cd /srv/own-pick && $Z attach --create-background >/dev/null 2>&1)
+  own=""
+  for _ in $(seq 100); do
+    own=$($Z list-sessions -n -s 2>/dev/null | head -1)
+    [ -n "$own" ] && break
+    sleep 0.1
+  done
+  [[ "$reserved" == *" $own "* ]] || break
+  $Z delete-session "$own" --force >/dev/null 2>&1
 done
 check "zellij picks a name" test -n "$own"
 wait_pane "$own" && wait_reachable "$own" && $Z --session "$own" run -- sleep 99996 >/dev/null
@@ -278,14 +294,22 @@ start kind-viola /tmp/same.kdl
 start rusty-pepper /tmp/dotted.kdl
 start brave-peach /tmp/long.kdl
 (cd /srv/api && start glowing-duck)
-# A stamped name from an earlier version, and a name a person chose.
-start 'old-title_1104-0931' /tmp/watcher.kdl
+# A stamped name from an earlier version, which gave those by renaming. And names
+# people chose, by starting a session or by renaming one: plain, two words from
+# zellij's lists, and two in the shape of a stamp.
+start old-title /tmp/watcher.kdl && rename_to old-title old-title_1104-0931
 start my-project /tmp/watcher.kdl
-check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher'"
+start hand-picked /tmp/watcher.kdl && rename_to hand-picked lucky-duck
+start yearly /tmp/watcher.kdl && rename_to yearly report_2025-2026
+start started_1104-0931 /tmp/watcher.kdl
+check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher'"
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a made-up name goes" gone quiet-mouse
 check "a session is named after its pane" listed build-watcher
 check "a name someone chose stays" listed my-project
+check "zellij's words given by hand stay" listed lucky-duck
+check "a name in the shape of a stamp stays" listed report_2025-2026
+check "a stamped name a session started under stays" listed started_1104-0931
 check "the stamp of an earlier version goes" gone old-title_1104-0931
 check "a dot stays in a word" listed notes-v1.2.md
 check "a name with a dot still reaches its server" $Z --session notes-v1.2.md action list-clients
@@ -303,6 +327,17 @@ before=$(renames)
 check "a second pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "and renames nothing" test "$(renames)" = "$before"
 check "the names stay" sh -c "$Z list-sessions -n -s | grep -qxF same-title-2 && $Z list-sessions -n -s | grep -qxF my-project"
+
+# The list of given names holds names, not sessions. Someone starts a session under
+# a name a pass gave to a session now gone, before any pass has cleared it.
+check "a session a pass named can be deleted" $Z delete-session build-watcher --force
+check "and that name is free" gone build-watcher
+pane_layout 'my own work' /tmp/own.kdl
+start build-watcher /tmp/own.kdl
+check "the new session's title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title build-watcher 'my own work'"
+check "its name is on the list from the one before" grep -qxF build-watcher ~/.local/state/zellij-reaper/named
+check "a pass after that succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "a session started under a name a pass gave keeps it" listed build-watcher
 
 check "zellij deletes a name with a dot" $Z delete-session notes-v1.2.md --force
 check "and it is gone" gone notes-v1.2.md

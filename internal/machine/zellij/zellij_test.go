@@ -270,6 +270,32 @@ func (s *script) count(word string) int {
 
 func (s *script) cli() *CLI { return &CLI{Bin: "zellij", Timeout: time.Second, Run: s.run} }
 
+func TestARenameCutShortIsUnconfirmed(t *testing.T) {
+	// The command reached the server, which may have acted on it, and it never
+	// came back. exec, so the time limit stops the sleep and not just the shell.
+	bin := filepath.Join(t.TempDir(), "zellij")
+	body := "#!/bin/sh\ncase \"$*\" in\n  *rename-session*) exec sleep 30 ;;\n  *) echo 'work [Created 1h ago]' ;;\nesac\n"
+	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &CLI{Bin: bin, Timeout: 200 * time.Millisecond}
+	if err := c.Rename(context.Background(), "work", "journal"); !errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("past the time limit: %v", err)
+	}
+	// The caller giving up while it runs says no more about what the server did.
+	c.Timeout = 10 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	if err := c.Rename(ctx, "work", "journal"); !errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("cancelled: %v", err)
+	}
+	// zellij saying no is an answer: that one was refused.
+	s := &script{listed: "work [Created 1h ago]\n", renameErr: errors.New("exit status 1")}
+	if err := s.cli().Rename(context.Background(), "work", "journal"); err == nil || errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("refused: %v", err)
+	}
+}
+
 func TestRename(t *testing.T) {
 	ctx := context.Background()
 	// A rename returns once zellij lists the new name.

@@ -33,6 +33,9 @@ type Backend interface {
 	// Rename renames one session by hand. The text, when not empty, is a
 	// warning to show instead of the usual "renamed".
 	Rename(ctx context.Context, name, to string) (string, error)
+	// KeepName makes a name auto_rename gave someone's choice, so passes leave it
+	// alone, and reports whether it was such a name.
+	KeepName(name string) (bool, error)
 	// SetProtected adds a name to the protected list or removes it.
 	SetProtected(name string, on bool) error
 	// Protected reports whether a name is on the protected list.
@@ -132,50 +135,64 @@ func (r real) unused(ctx context.Context, name string) error {
 func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 	var note string
 	err := r.handAction(func() error {
-		pl := r.a.Protected
-		// A name past the socket path's limit leaves a session no zellij
-		// command can reach: refuse it before zellij renames anything.
-		if limit := r.nameLimit(); limit > 0 && len(to) > limit {
-			return errors.New(i18n.T("rename.toolong", limit))
+		var err error
+		note, err = r.renameByHand(ctx, name, to)
+		// A name given by hand is someone's choice: from now on auto_rename leaves
+		// it alone, even when it was once on the list of names it gave. That goes for
+		// a rename that could not be confirmed too, in case it happened. A name zellij
+		// refused may belong to another session, whose entry must stay. Under the pass
+		// lock, so a pass waiting for it reads the list with this change in it.
+		if err == nil || errors.Is(err, zellij.ErrUnconfirmed) {
+			if g := r.a.Reaper.Given; g != nil {
+				_ = g.Set(to, false)
+			}
 		}
-		// The list as the file holds it now: a protection added from
-		// another terminal moves with the session too.
-		if err := pl.Reload(); err != nil {
-			return errors.New(i18n.T("rename.nolist", err))
-		}
-		if pl.Has(name) {
-			return r.renameListed(ctx, name, to)
-		}
-		if err := r.a.Zellij.Rename(ctx, name, to); err != nil {
-			return err
-		}
-		// A protection the old name got from another terminal while zellij
-		// renamed it moves to the new name (nothing to move otherwise).
-		if err := pl.Rename(name, to); err != nil {
-			return err
-		}
-		// Only the pattern protected the old name, and it does not cover
-		// the new one: the session is renamed as asked, and loses its
-		// protection, which the person must hear about.
-		if r.a.Config.ProtectMatches(name) && !r.a.Config.ProtectMatches(to) && !pl.Has(to) {
-			note = i18n.T("toast.renamed.unprotected", name, to)
-		}
-		return nil
+		return err
 	}, "%s :: renamed from the dashboard to %s", name, to)
-	// A name given by hand is someone's choice: from now on auto_rename leaves it
-	// alone, even when it was once on the list of names it gave. A name zellij
-	// refused may belong to another session, whose entry must stay.
-	if err == nil {
-		r.chosenByHand(to)
-	}
 	return note, err
 }
 
-// chosenByHand takes a name off the list of names auto_rename gave.
-func (r real) chosenByHand(name string) {
-	if g := r.a.Reaper.Given; g != nil {
-		_ = g.Set(name, false)
+func (r real) KeepName(name string) (bool, error) {
+	g := r.a.Reaper.Given
+	if g == nil || !g.Has(name) {
+		return false, nil
 	}
+	return true, g.Set(name, false)
+}
+
+// renameByHand does a rename asked for in the dashboard, and returns what the person
+// must hear about it, if anything.
+func (r real) renameByHand(ctx context.Context, name, to string) (string, error) {
+	var note string
+	pl := r.a.Protected
+	// A name past the socket path's limit leaves a session no zellij
+	// command can reach: refuse it before zellij renames anything.
+	if limit := r.nameLimit(); limit > 0 && len(to) > limit {
+		return "", errors.New(i18n.T("rename.toolong", limit))
+	}
+	// The list as the file holds it now: a protection added from
+	// another terminal moves with the session too.
+	if err := pl.Reload(); err != nil {
+		return "", errors.New(i18n.T("rename.nolist", err))
+	}
+	if pl.Has(name) {
+		return "", r.renameListed(ctx, name, to)
+	}
+	if err := r.a.Zellij.Rename(ctx, name, to); err != nil {
+		return "", err
+	}
+	// A protection the old name got from another terminal while zellij
+	// renamed it moves to the new name (nothing to move otherwise).
+	if err := pl.Rename(name, to); err != nil {
+		return "", err
+	}
+	// Only the pattern protected the old name, and it does not cover
+	// the new one: the session is renamed as asked, and loses its
+	// protection, which the person must hear about.
+	if r.a.Config.ProtectMatches(name) && !r.a.Config.ProtectMatches(to) && !pl.Has(to) {
+		note = i18n.T("toast.renamed.unprotected", name, to)
+	}
+	return note, nil
 }
 
 // nameLimit is the longest session name, in bytes, whose socket path fits in

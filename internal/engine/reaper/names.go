@@ -33,18 +33,35 @@ func takenNames(r Report) map[string]bool {
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
 func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
-	if !mayRename(o) || !e.replaceable(o.Session.Name()) {
+	if !mayRename(o) || !e.replaceable(o.Session) {
 		return "", ""
 	}
 	return e.nameFor(o.Session, taken)
 }
 
-// replaceable reports whether auto_rename may replace a name: one zellij made up,
-// one with the stamp earlier versions added, or one it gave itself. Any other name
-// was chosen by someone, and stays. Keeping such a name used to take the protected
-// list, which keeps the session from being reaped as well.
-func (e *Env) replaceable(name string) bool {
-	return rename.Generated(name) || rename.Stamped(name) || (e.Given != nil && e.Given.Has(name))
+// replaceable reports whether auto_rename may replace a session's name. A name
+// someone chose stays, and the server's command line, which keeps the name a session
+// started under through every rename, is what tells them apart:
+//
+//   - A session that still has that name was never renamed, so no pass gave it. Only
+//     two words from zellij's lists can go, since that is what zellij makes up.
+//     Someone starting `zellij -s quiet-mouse` looks the same, and nothing can tell.
+//   - A session with another name was renamed, by a pass or by someone. A pass writes
+//     its names down. Versions from before that list stamped every name, so the stamp
+//     tells those, unless stamps are on now: `r` in the dashboard then offers stamped
+//     names too, and one taken there was chosen by hand.
+//
+// Keeping a name used to take the protected list, which keeps the session from being
+// reaped as well.
+func (e *Env) replaceable(s inspect.Session) bool {
+	name := s.Name()
+	if s.StartedAs() == name {
+		return rename.Generated(name)
+	}
+	if e.Given.Has(name) {
+		return true
+	}
+	return rename.Stamped(name) && rename.Stamp(e.Config.AutoRenameStamp) != rename.StampTime
 }
 
 // nameFor returns the name a running session's panes point to (desired) and
@@ -91,7 +108,9 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target
 }
 
 // rename renames a session to target, stepping through desired-2, -3, ...
-// when zellij refuses a name it still remembers but does not list.
+// when zellij refuses a name it still remembers but does not list. The end of the
+// pass clears from the list of given names what did not stick: the session's old
+// name, and any name zellij refused.
 func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, taken map[string]bool) {
 	name := o.Session.Name()
 	for attempt := target; ; {
@@ -104,18 +123,17 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			o.RenamedTo = attempt
 			delete(taken, name)
 			taken[attempt] = true
-			e.forget(name)
 			e.Log.Printf("  -> renamed: %s → %s", name, attempt)
 			return
 		}
-		// Refused means it is not this session's name. A rename that could not
-		// be confirmed may have happened, so that entry stays until a pass that
-		// does not see the name clears it.
-		if !errors.Is(err, zellij.ErrUnconfirmed) {
-			e.forget(attempt)
-		}
 		// Anything but a taken name is a real failure: stop and say so.
 		if !errors.Is(err, zellij.ErrNameTaken) {
+			// A rename that could not be confirmed may have happened, so the session
+			// may have either name until a pass sees which. Both stay on the list,
+			// and out of reach of the sessions after this one.
+			if errors.Is(err, zellij.ErrUnconfirmed) {
+				taken[attempt] = true
+			}
 			o.RenameErr = err
 			e.Log.Printf("  -> rename FAILED: %s → %s :: %v", name, attempt, err)
 			return
@@ -145,22 +163,15 @@ func (e *Env) remember(name string) {
 	}
 }
 
-// forget takes a name off the list of given names.
-func (e *Env) forget(name string) {
-	if e.Given != nil {
-		_ = e.Given.Set(name, false)
-	}
-}
-
-// forgetGone clears given names no session has any more, at the end of a pass. A
-// session someone later starts under such a name was named by them.
+// forgetGone clears given names no session has any more, at the end of a pass: a
+// session's old name, a name zellij refused, a session that is gone.
 func (e *Env) forgetGone(listed map[string]bool) {
 	if e.Given == nil {
 		return
 	}
 	for _, name := range e.Given.Names() {
 		if !listed[name] {
-			e.forget(name)
+			_ = e.Given.Set(name, false)
 		}
 	}
 }

@@ -143,6 +143,7 @@ Every line the log can hold:
 | `  -> kept: NAME :: REASON` | something changed just before the delete |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
 | `  -> kept name: NAME :: REASON` | a client attached before the rename |
+| `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and that name stays once it is given |
 | `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename |
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |
 | `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run |

@@ -1,8 +1,8 @@
 # Third-party notices
 
 zellij-reaper's own code is under the MIT License ([LICENSE](../LICENSE)). Its binary is built from the Go modules
-and the Go standard library below, and its logo and figures are drawn from the JetBrains Mono font. Their licenses
-follow.
+and the Go standard library below and holds word lists copied from zellij, and its logo and figures are drawn from
+the JetBrains Mono font. Their licenses follow.
 `scripts/third-party-notices.sh` writes this file from what the binary is built from (`make notices`).
 
 | Component | Version | License | Source |
@@ -28,10 +28,8 @@ follow.
 | `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sync |
 | `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
 | Go standard library | 1.26.0 | BSD-3-Clause | https://go.dev |
+| zellij (the word lists in `internal/core/rename/generated.go`, which tell a name it made up from one someone chose) | 0.45.1 | MIT | https://github.com/zellij-org/zellij |
 | JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
-
-The word lists in `internal/core/rename/generated.go`, which tell a name zellij made up from one someone chose, are
-copied from zellij (MIT, https://github.com/zellij-org/zellij).
 
 The demo image `ghcr.io/kanggu12/zellij-reaper-demo` also carries zellij itself (MIT) and a Debian base
 image; their licenses are in the image, under `/usr/share/licenses/`.
@@ -744,6 +742,32 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## zellij
+
+```text
+MIT License
+
+Copyright (c) 2020 Zellij contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## JetBrains Mono 2.211

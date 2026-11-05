@@ -187,8 +187,12 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = modeMain
-		if value == "" || value == m.target {
+		if value == "" {
 			return m, nil
+		}
+		// Enter on the name it has: that is the name the person wants.
+		if value == m.target {
+			return m, m.keepName(value)
 		}
 		return m, m.rename(m.target, value)
 	}

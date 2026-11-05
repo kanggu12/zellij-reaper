@@ -5,19 +5,47 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-06
+
+### Added
+
+- In the dashboard, `r` and Enter on the name a session has keeps a name a pass gave: passes leave it alone from then on.
+- [Setup](docs/setup.md#without-systemd) says what a crontab needs to run the passes without systemd.
+- `make integration` compares zellij's word lists with the source of each release it tests, and a test holds the code to
+  importing no networking package.
+
+### Fixed
+
+- `auto_rename` tells who chose a name from what the session started under, which zellij keeps on the server's command
+  line. Each of these used to lose its name at the next pass: a session someone started under a name a pass gave to a session
+  now gone, two words from zellij's lists given by hand (`lucky-duck`), a name in the shape of the old stamp that is no date
+  (`report_2025-2026`) or that a session started under, and, with `auto_rename_stamp = "time"`, a stamped name taken from `r`.
+  A session started under two words from zellij's lists still reads as made up, since nothing tells them apart.
+- A pass that finds no sessions clears the list of given names.
+- A rename that timed out, or that zellij took without it showing in time, no longer counts as refused. Its name stays on the
+  list of given names, so it can still follow what the session shows, and the dashboard keeps such a session's protection
+  on both names.
+- A list of given names that cannot be read no longer stops every command, the timer's passes included. Its file now says
+  what it holds.
+- The steps for machines with no internet access: a failed checksum stops the install, the demo image is pulled before it
+  is saved, `rpm -U` also upgrades, and building from source names the Go it needs. The install script's advice for a network
+  that cannot reach GitHub works when followed.
+- The third-party notices carry zellij's license, since its word lists are copied. `uninstall --purge`, the `run` help and the
+  settings file say what they do now.
+
 ## [0.3.0] - 2026-11-05
 
 ### Changed
 
 - `auto_rename` leaves a name someone chose alone. It replaces only a name zellij made up (`brave-peach`), a name with the
   stamp earlier versions added, and a name it gave itself, which it now keeps in `~/.local/state/zellij-reaper/named`.
-  Keeping a name used to take the protected list, which keeps the session from being reaped as well.
+  Keeping a name used to take the protected list, which keeps the session from being reaped as well. A name 0.2.0 gave
+  is on no list and has no stamp, so it stays until someone changes it.
 
 ### Added
 
 - Setup has a section on [machines with no internet access](docs/setup.md#without-internet-access).
-- The integration scenarios run with no network, which holds zellij-reaper to making no connection, and let zellij pick a
-  name on each release, so new words in its lists are caught.
+- The integration scenarios run with no network, and let zellij pick a name on each release.
 
 ### Fixed
 
@@ -122,7 +150,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.0
 [0.2.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.2.0
 [0.1.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.1

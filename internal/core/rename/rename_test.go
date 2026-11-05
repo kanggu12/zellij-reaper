@@ -1,6 +1,9 @@
 package rename
 
 import (
+	"os"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -310,14 +313,57 @@ func TestGenerated(t *testing.T) {
 }
 
 func TestStamped(t *testing.T) {
-	for _, n := range []string{"web-app_1104-0931", "web-app-notes_1105-0931", "web-app_1104-0931-2"} {
+	for _, n := range []string{"web-app_1104-0931", "web-app-notes_1105-0931", "web-app_1104-0931-2", "a_0101-0000", "a_1231-2359"} {
 		if !Stamped(n) {
 			t.Errorf("%q should read as stamped", n)
 		}
 	}
-	for _, n := range []string{"web-app", "web-app_1104", "release_2026", "a_1104-093"} {
+	// The shape of a stamp without being a date: someone chose these.
+	for _, n := range []string{
+		"web-app", "web-app_1104", "release_2026", "a_1104-093",
+		"report_2025-2026", "release_2026-1105", "ticket_1234-5678",
+		"a_0001-0000", "a_1301-0000", "a_0100-0000", "a_0132-0000", "a_0101-2400", "a_0101-0060",
+	} {
 		if Stamped(n) {
 			t.Errorf("%q should not read as stamped", n)
 		}
 	}
+}
+
+// TestKnowsTheWordsOfARelease compares the word lists with a release's own source.
+// `make integration` downloads that file for every release it tests and names it in
+// ZELLIJ_SESSIONS_RS, so a new word in any release fails there, every time.
+func TestKnowsTheWordsOfARelease(t *testing.T) {
+	path := os.Getenv("ZELLIJ_SESSIONS_RS")
+	if path == "" {
+		t.Skip("ZELLIJ_SESSIONS_RS names no file of zellij's source")
+	}
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for list, known := range map[string][]string{"ADJECTIVES": zellijAdjectives, "NOUNS": zellijNouns} {
+		words := wordsOf(string(src), list)
+		// Far fewer words than ever means the source is laid out differently now,
+		// and that a list read as short would pass for one with nothing new.
+		if len(words) < 50 {
+			t.Fatalf("%s: read %d words from %s", list, len(words), path)
+		}
+		for _, w := range words {
+			if !slices.Contains(known, w) {
+				t.Errorf("%s: zellij has %q, internal/core/rename/generated.go does not", list, w)
+			}
+		}
+	}
+}
+
+// wordsOf reads a Rust list of strings: `const NOUNS: &[&'static str] = &[ "a", "b", ];`.
+func wordsOf(src, list string) []string {
+	_, rest, _ := strings.Cut(src, "const "+list+":")
+	body, _, _ := strings.Cut(rest, "];")
+	var words []string
+	for _, m := range regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(body, -1) {
+		words = append(words, m[1])
+	}
+	return words
 }

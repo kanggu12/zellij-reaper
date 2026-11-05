@@ -77,6 +77,23 @@ func imports(t *testing.T) map[string][]string {
 	return found
 }
 
+// TestNothingMakesAConnection holds the code to what the documents say: it reads this
+// machine and talks to nothing else. The scenarios run with no network, but a program
+// that tries a connection and ignores the failure passes there. testutil only makes
+// sockets for fake sessions, and is not in the binary.
+func TestNothingMakesAConnection(t *testing.T) {
+	for pkg, imps := range imports(t) {
+		if pkg == "testutil" {
+			continue
+		}
+		for _, imp := range imps {
+			if imp == "net" || strings.HasPrefix(imp, "net/") || imp == "crypto/tls" {
+				t.Errorf("%s imports %s", pkg, imp)
+			}
+		}
+	}
+}
+
 // top is the first folder of a path under internal/.
 func top(path string) string {
 	first, _, _ := strings.Cut(path, "/")

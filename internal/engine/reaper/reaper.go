@@ -165,6 +165,11 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if !e.Zellij.Available() {
 		return r, ErrNoZellij
 	}
+	// A pass in another process may have given names since this list was read.
+	// A list that cannot be read keeps what it held: at worst a name stays.
+	if e.Given != nil {
+		_ = e.Given.Reload()
+	}
 	listed, err := e.Zellij.ListSessions(ctx)
 	if errors.Is(err, zellij.ErrNoSessions) {
 		r.NoSessions = true
@@ -172,11 +177,6 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	}
 	if err != nil {
 		return r, err
-	}
-	// A pass in another process may have given names since this list was read.
-	// A list that cannot be read keeps what it held: at worst a name stays.
-	if e.Given != nil {
-		_ = e.Given.Reload()
 	}
 	src := e.Sources
 	if src.Clients == nil {

@@ -14,7 +14,8 @@
 ## Install
 
 zellij-reaper is one static binary for Linux on x86_64 or arm64. It needs zellij and a systemd user instance for its
-timer. Without systemd, `ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and `zellij-reaper run` can go in cron.
+timer. Without systemd, `ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and [cron can run the
+passes](#without-systemd).
 
 ```sh
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
@@ -55,6 +56,21 @@ Other ways:
 Run it again after moving the binary or changing `interval`. It never overwrites a settings file. With
 `--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read that file too.
 
+### Without systemd
+
+cron can run the passes. It starts a job with a short `PATH` and none of your login's variables, so the crontab sets what
+the job needs:
+
+```
+PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin
+XDG_RUNTIME_DIR=/run/user/1000
+5 * * * * zellij-reaper run --quiet
+```
+
+`PATH` has to find both `zellij-reaper` and `zellij`: with no `zellij` on it, a pass logs `zellij not installed, nothing to
+do` and exits 0. `XDG_RUNTIME_DIR` is where zellij keeps its sockets, so copy it from `echo "$XDG_RUNTIME_DIR"` in your
+shell, and leave the line out if that prints nothing. With a different value, a pass does not see your running sessions.
+
 ## Coming from the shell scripts
 
 The earlier version was two shell scripts, `~/.local/bin/zellij-reaper.sh` and `~/.local/bin/zellij-reap`, set up
@@ -92,27 +108,29 @@ curl -fsSLO "$base/checksums.txt"
 Then on the closed machine, with the version you carried across:
 
 ```sh
-version=0.3.0
-grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c -
-tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper
-install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper
-~/.local/bin/zellij-reaper install
+version=0.3.1
+grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
+  tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
+  install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
+  ~/.local/bin/zellij-reaper install
 ```
 
-`sha256sum -c` prints `OK`, and a damaged file makes it fail. With no systemd on that machine, `install` says so; put
-`zellij-reaper run --quiet` in cron instead. The rest works the same way:
+`sha256sum -c` prints `OK`, and a damaged file makes it fail, which stops the lines after it. With no systemd on that
+machine, `install` says so; [run the passes from cron](#without-systemd) instead. The rest works the same way:
 
-- **A package** instead of the archive: copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst`, install it with `dpkg -i`, `rpm -i`,
+- **A package** instead of the archive: copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst`, install it with `dpkg -i`, `rpm -U`,
   `apk add --allow-untrusted` or `pacman -U`, then run `zellij-reaper install` as each user who wants the timer.
 - **Many machines:** put the release's files on an internal web server as `<base>/v<version>/<file>`, and the install script
   works from there: `ZELLIJ_REAPER_BASE_URL=<base> ZELLIJ_REAPER_VERSION=v<version> sh install.sh`. It needs the version,
   because finding the latest one takes GitHub.
 - **zellij itself** is one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
   `zellij-<machine>-unknown-linux-musl.tar.gz`.
-- **The demo image:** `docker save ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz` where there is internet, and
-  `docker load <demo.tar.gz` where there is not. It runs with `--network none`.
-- **From source**, with Go already on the closed machine: run `go mod vendor` in a clone where there is internet and carry
-  the folder across, then `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`.
+- **The demo image:** where there is internet, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then `docker save
+  ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz`. Where there is not, `docker load <demo.tar.gz`. It runs with
+  `--network none`.
+- **From source**, with Go 1.26 or newer already on the closed machine: run `go mod vendor` in a clone where there is
+  internet and carry the folder across, then `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`. The binary is
+  `dist/zellij-reaper`.
 
 A closed network also keeps you from checking for new releases: the steps above are how to upgrade as well.
 
@@ -123,7 +141,7 @@ install` rewrites the units. After moving the binary by hand, run `zellij-reaper
 timer that still runs an old path.
 
 **Uninstall** with `zellij-reaper uninstall`, which stops and removes the timer and the service. `--purge` also removes
-the settings, the log and the protected list. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
+the settings, the log and the lists of protected and given names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
 binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and fails every hour.
 
 ## Settings
@@ -171,8 +189,8 @@ protect_commands  = ["claude", "codex", "gemini", "aider", "opencode"]  # defaul
 
 ## Protecting sessions
 
-Three ways. The first two also stop renaming; a session kept only for a running program is still renamed while no client
-is attached:
+Three ways. The first two also stop renaming. A session kept only for a running program can still be renamed while no
+client is attached, if nobody chose its name:
 
 - **A name pattern** in the settings: `protect = "^(keep-|work-)"`.
 - **One session at a time:** `zellij-reaper protect NAME`, or `p` in the dashboard. `protect` with no name lists them;
@@ -185,7 +203,13 @@ is attached:
 With `auto_rename = true`, every pass names the sessions it keeps after what they show, if nobody chose their name: a name
 zellij made up (`brave-peach`), or one zellij-reaper gave earlier. A name you gave a session stays, and so does a session
 that is attached, exited, protected by name or uncertain. Press `r` in the dashboard for the suggested name by hand, with
-`auto_rename` on or off.
+`auto_rename` on or off, or `r` and Enter on the name a pass gave to keep it.
+
+zellij keeps the name a session started under on its server's command line, which is how a pass tells these apart. A
+session that still has that name was never renamed, so it is replaced only if the name is two words from zellij's own
+lists. That makes a session you start yourself as `zellij -s quiet-mouse` read as made up: give it another name once and
+it stays, or protect it. A session renamed since keeps its name unless a pass gave it, and passes write down the names they
+give. Nothing wrote them down before 0.3.0, so a name 0.2.0 gave stays too, until someone changes it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">

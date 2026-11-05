@@ -42,7 +42,13 @@ for v in "${versions[@]}"; do
     mv "$cache/zellij" "$bin"
   fi
   echo "== zellij $v"
-  # No network: zellij-reaper says it makes no connection, and this holds it to that.
+  # The release's own word lists: a name zellij can make up has to read as made up.
+  words="$cache/sessions-$v.rs"
+  [ -s "$words" ] || curl -fsSL "https://raw.githubusercontent.com/zellij-org/zellij/v$v/zellij-utils/src/sessions.rs" -o "$words"
+  if ! (cd "$root" && ZELLIJ_SESSIONS_RS="$words" go test -count=1 -run '^TestKnowsTheWordsOfARelease$' ./internal/core/rename); then
+    failed=1
+  fi
+  # No network: nothing here may need one.
   if ! docker run --rm --network none \
       -v "$bin:/usr/local/bin/zellij:ro" \
       -v "$cache/zellij-reaper:/usr/local/bin/zellij-reaper:ro" \

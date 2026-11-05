@@ -1,7 +1,7 @@
 #!/bin/sh
 # Write docs/THIRD_PARTY_NOTICES.md: the license of every module compiled into
-# zellij-reaper, of Go itself, and of the font the logo and figures are drawn from. The
-# release archives and packages carry it next to the binary. Run it after
+# zellij-reaper, of Go itself, of zellij, whose word lists it copies, and of the font
+# the logo and figures are drawn from. The release archives and packages carry it next to the binary. Run it after
 # changing dependencies:
 #
 #   make notices
@@ -48,14 +48,16 @@ kind() {
 gover=$(awk '$1 == "go" { print $2 }' go.mod)
 # The lettering of the logo and the figures, with the font's license kept next to it.
 font_license=docs/assets/JetBrainsMono-OFL.txt
+# The word lists copied from zellij, with zellij's license kept next to them.
+zellij_license=internal/core/rename/zellij-LICENSE.md
 
 out="$tmp/notices.md"
 {
   echo "# Third-party notices"
   echo
   echo "zellij-reaper's own code is under the MIT License ([LICENSE](../LICENSE)). Its binary is built from the Go modules"
-  echo "and the Go standard library below, and its logo and figures are drawn from the JetBrains Mono font. Their licenses"
-  echo "follow."
+  echo "and the Go standard library below and holds word lists copied from zellij, and its logo and figures are drawn from"
+  echo "the JetBrains Mono font. Their licenses follow."
   echo "\`scripts/third-party-notices.sh\` writes this file from what the binary is built from (\`make notices\`)."
   echo
   echo "| Component | Version | License | Source |"
@@ -67,10 +69,8 @@ out="$tmp/notices.md"
     echo "| \`$mod\` | $ver | $(kind "$file") | https://pkg.go.dev/$mod |"
   done <"$tmp/deps"
   echo "| Go standard library | $gover | $(kind "$(go env GOROOT)/LICENSE") | https://go.dev |"
+  echo "| zellij (the word lists in \`internal/core/rename/generated.go\`, which tell a name it made up from one someone chose) | 0.45.1 | $(kind "$zellij_license") | https://github.com/zellij-org/zellij |"
   echo "| JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |"
-  echo
-  echo "The word lists in \`internal/core/rename/generated.go\`, which tell a name zellij made up from one someone chose, are"
-  echo "copied from zellij (MIT, https://github.com/zellij-org/zellij)."
   echo
   echo "The demo image \`ghcr.io/kanggu12/zellij-reaper-demo\` also carries zellij itself (MIT) and a Debian base"
   echo "image; their licenses are in the image, under \`/usr/share/licenses/\`."
@@ -89,6 +89,12 @@ out="$tmp/notices.md"
   echo
   echo '```text'
   cat "$(go env GOROOT)/LICENSE"
+  echo '```'
+  echo
+  echo "## zellij"
+  echo
+  echo '```text'
+  cat "$zellij_license"
   echo '```'
   echo
   echo "## JetBrains Mono 2.211"

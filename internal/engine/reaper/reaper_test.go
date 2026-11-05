@@ -37,9 +37,11 @@ type fakeZellij struct {
 	refuse  map[string]bool
 	// unseen makes a rename come back unconfirmed: zellij took it, and the new
 	// name did not show in time.
-	unseen  bool
-	deleted []string
-	renamed []string
+	unseen bool
+	// onRename runs as zellij is asked for a rename.
+	onRename func(to string)
+	deleted  []string
+	renamed  []string
 }
 
 func (f *fakeZellij) Available() bool { return true }
@@ -70,6 +72,9 @@ func (f *fakeZellij) Delete(_ context.Context, name string) error {
 	return nil
 }
 func (f *fakeZellij) Rename(_ context.Context, name, to string) error {
+	if f.onRename != nil {
+		f.onRename(to)
+	}
 	// A name zellij remembers but does not list.
 	if f.refuse[to] {
 		return zellij.ErrNameTaken
@@ -96,6 +101,14 @@ type world struct {
 
 func newWorld(t *testing.T) *world {
 	t.Helper()
+	// An earlier pass renamed quiet-mouse to busy, so it may get another name.
+	return newWorldWith(t, "busy", "quiet-mouse", true)
+}
+
+// newWorldWith is that world with the busy session's name, the name its server
+// started under, and whether a pass wrote its name down.
+func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
+	t.Helper()
 	now := time.Now()
 	fp := testutil.NewFakeProc(t)
 	sockDir := testutil.SocketDir(t)
@@ -108,12 +121,17 @@ func newWorld(t *testing.T) *world {
 		servers[name] = pid
 		ino, dev, _ := procfs.FileID(sock)
 		socks = append(socks, procfs.UnixSocket{Inode: uint32(pid), State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
-		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", sock}, Sockets: []uint32{uint32(pid)}})
+		// zellij keeps a server's command line through a rename.
+		first := sock
+		if name == busy {
+			first = filepath.Join(sockDir, startedAs)
+		}
+		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}})
 		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used)})
 		testutil.SessionFiles(t, info, name, testutil.Metadata(0, title), "", now)
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")
-	add("busy", 200, "htop", []string{"htop"}, now.Add(-5*time.Hour), "htop")
+	add(busy, 200, "htop", []string{"htop"}, now.Add(-5*time.Hour), "htop")
 	add("fresh", 300, "bash", []string{"-bash"}, now.Add(-time.Minute), "Pane #1")
 	testutil.SessionFiles(t, info, "gone", testutil.Metadata(0, "x"), "layout {\n}\n", now.Add(-120*time.Hour))
 
@@ -125,20 +143,21 @@ func newWorld(t *testing.T) *world {
 		t.Fatal(err)
 	}
 	zj := &fakeZellij{
-		listed: []zellij.Listed{{Name: "idle-old"}, {Name: "busy"}, {Name: "fresh"}, {Name: "gone", Exited: true}},
+		listed: []zellij.Listed{{Name: "idle-old"}, {Name: busy}, {Name: "fresh"}, {Name: "gone", Exited: true}},
 		refuse: map[string]bool{},
 	}
 	pl, _ := protect.Load(config.ProtectedFile(cenv))
-	// busy goes by a name an earlier pass gave it, so it may get another.
-	given, _ := protect.Load(config.GivenFile(cenv))
-	if err := given.Set("busy", true); err != nil {
-		t.Fatal(err)
+	names := protect.LoadGiven(config.GivenFile(cenv))
+	if given {
+		if err := names.Set(busy, true); err != nil {
+			t.Fatal(err)
+		}
 	}
 	logp := filepath.Join(home, "reaper.log")
 	env := &reaper.Env{
 		Config:    cfg,
 		Protected: pl,
-		Given:     given,
+		Given:     names,
 		Zellij:    zj,
 		Sources: inspect.Sources{
 			ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
@@ -583,8 +602,136 @@ func TestAnUnconfirmedRenameIsRemembered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !back.Has("busy") {
-		t.Errorf("the old name left the list: %v", back.Names())
+	// The session has one of the two: whichever it is must not read as chosen by
+	// hand at the next pass, and the next pass clears the other.
+	if !back.Has("busy") || !back.Has("htop") {
+		t.Errorf("a name left the list: %v", back.Names())
+	}
+}
+
+func TestWhichNamesAPassMayReplace(t *testing.T) {
+	const fromZellij = "brave-peach"
+	for _, c := range []struct {
+		what, name, startedAs string
+		given                 bool
+		stamp                 string
+		want                  string
+	}{
+		{what: "a name zellij made up", name: fromZellij, startedAs: fromZellij, want: "htop"},
+		{what: "a name someone started it under", name: "my-project", startedAs: "my-project"},
+		{what: "a name a pass gave", name: "build-watcher", startedAs: fromZellij, given: true, want: "htop"},
+		{what: "a name given by hand", name: "my-project", startedAs: fromZellij},
+		// The list holds names, not sessions: this one is on it from a session now
+		// gone, and whoever started this one under that name chose it.
+		{what: "started under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true},
+		// Two words from zellij's lists, and nothing made them up.
+		{what: "zellij's words given by hand", name: "lucky-duck", startedAs: "my-notes"},
+		{what: "zellij's words a pass gave", name: "lucky-duck", startedAs: "my-notes", given: true, want: "htop"},
+		// The stamp of a version from before the list, which only a rename gave.
+		{what: "an earlier version's stamp", name: "web-app_1104-0931", startedAs: fromZellij, want: "htop"},
+		{what: "started with that stamp", name: "web-app_1104-0931", startedAs: "web-app_1104-0931"},
+		{what: "the shape of a stamp and no date", name: "report_2025-2026", startedAs: fromZellij},
+		// With stamps on, r offers stamped names: one taken there is off the list.
+		{what: "a stamped name taken from r", name: "web-app_1104-0931", startedAs: fromZellij, stamp: "time"},
+		{what: "a stamped name a pass gave", name: "web-app_1104-0931", startedAs: fromZellij, given: true, stamp: "time", want: "htop_"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			w := newWorldWith(t, c.name, c.startedAs, c.given)
+			w.env.Config.AutoRename = true
+			if c.stamp != "" {
+				w.env.Config.AutoRenameStamp = c.stamp
+			}
+			plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, o := range plan.Outcomes {
+				if o.Session.Name() != c.name {
+					continue
+				}
+				got := o.WouldRename
+				// A stamp holds the time of last use: its base is what counts.
+				if c.want == "htop_" && strings.HasPrefix(got, c.want) {
+					got = c.want
+				}
+				if got != c.want {
+					t.Errorf("a pass would rename it to %q, want %q", got, c.want)
+				}
+				return
+			}
+			t.Fatal("the session is not in the plan")
+		})
+	}
+}
+
+func TestANameIsWrittenDownBeforeTheRename(t *testing.T) {
+	// A pass that dies right after the rename must leave a name the next pass knows
+	// as given: the other order leaves one that looks chosen by hand, for good.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	asked := false
+	w.zj.onRename = func(to string) {
+		asked = true
+		back, err := protect.Load(w.env.Given.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !back.Has(to) {
+			t.Errorf("%q is not on the list as zellij is asked for it: %v", to, back.Names())
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if !asked {
+		t.Fatal("nothing was renamed")
+	}
+}
+
+func TestAPassWithNoSessionsForgetsTheGivenNames(t *testing.T) {
+	// The last session went: nothing may read as given to a session started later.
+	for _, c := range []struct {
+		what string
+		opts reaper.Options
+		want string
+	}{
+		{"a pass", reaper.Options{}, ""},
+		{"a dry run", reaper.Options{DryRun: true}, "busy"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			w := newWorld(t)
+			w.zj.listed = nil
+			r, err := reaper.Run(context.Background(), w.env, c.opts)
+			if err != nil || !r.NoSessions {
+				t.Fatalf("no sessions %v, error %v", r.NoSessions, err)
+			}
+			back, err := protect.Load(w.env.Given.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Join(back.Names(), ","); got != c.want {
+				t.Errorf("list after it: %q", got)
+			}
+		})
+	}
+}
+
+func TestAPlanReadsTheNamesAnotherProcessGave(t *testing.T) {
+	// The dashboard holds one list for as long as it runs, and the timer's pass
+	// writes the file from another process.
+	w := newWorldWith(t, "busy", "quiet-mouse", false)
+	w.env.Config.AutoRename = true
+	if err := protect.LoadGiven(w.env.Given.Path).Set("busy", true); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && o.WouldRename != "htop" {
+			t.Errorf("next name %q", o.WouldRename)
+		}
 	}
 }
 
