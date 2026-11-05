@@ -164,15 +164,10 @@ and the demo's `agent-refactor` became `claude`.
 
 The list holds names, not sessions, and an entry can outlive its session for up to one pass. The command line is what keeps
 that from costing anyone a name: a session someone starts under a name on the list still has the name it started under.
-Where the list has no word on a name, because 0.2.0 gave it or the list was lost, the decision log does: a pass logs every
-rename it makes, and the dashboard every rename by hand. `rename.GivenByPass` follows a name back through those renames;
-the last one to it has to be a pass's, and the first has to start from the name the session started under, or a rename
-another session made to the same name would count.
-
 zellij keeps nothing that tells a name it made up from the same words typed by a person: the server's command line,
 environment and files differ only in the name, for a session started in a terminal or in the background. So a person says
-so once, with `r` and Enter in the dashboard, and the name goes on a list of kept names that every pass reads first. A
-pass that cannot read that list renames nothing.
+so, once for each session, with `r` and Enter in the dashboard, and the name goes on a list of kept names that every
+pass reads first. A pass that cannot read that list renames nothing.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
@@ -236,7 +231,7 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 |:---|:---|:---|
 | Layers | `internal/layers_test.go` | no import goes up a layer, no I/O in the core layer, no folder outside the layers |
 | Rules | `internal/core/policy` | every code, the order, the waits at their boundary, force, clock skew |
-| Names | `internal/core/rename` | every kind of title, what says nothing, cuts by columns and bytes, stamps, collision tails |
+| Names | `internal/core/rename` | every kind of title, what says nothing, English only, cuts at a word and by bytes, stamps, collision tails |
 | Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), KDL strings, log lines, settings and their errors |
 | The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
 | Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |

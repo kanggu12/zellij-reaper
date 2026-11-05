@@ -61,10 +61,10 @@ func (m model) rename(name, to string) tea.Cmd {
 // keepName keeps a session's name as it is, when Enter in the rename field leaves
 // the name unchanged: the person wants that name, whoever gave it.
 func (m model) keepName(name string) tea.Cmd {
-	b := m.b
+	b, ctx := m.b, m.ctx
 	return func() tea.Msg {
-		if err := b.KeepName(name); err != nil {
-			return doneMsg{text: i18n.T("toast.rename.failed", err), cat: ui.CatUnknown}
+		if err := b.KeepName(ctx, name); err != nil {
+			return doneMsg{text: i18n.T("toast.keep.failed", err), cat: ui.CatUnknown}
 		}
 		return doneMsg{text: i18n.T("toast.kept", name), cat: ui.CatBusy}
 	}

@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/core/rename"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
-	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
@@ -24,19 +22,31 @@ func mayRename(o Outcome) bool {
 	return !s.Listed.Exited && o.Verdict.MayRename() && s.Server != nil && s.Facts.Attached == policy.No
 }
 
-// takenNames is the set of names zellij lists, which a rename must avoid.
+// takenNames is the set of names a session has: the ones zellij lists, and the
+// socket files in the sessions' socket directories. zellij once left a session it
+// had just renamed out of its list for a moment, and its socket file stayed put, so
+// a rename steers clear of it and its entries on the name lists stay.
 func takenNames(r Report) map[string]bool {
 	taken := map[string]bool{}
+	dirs := map[string]bool{}
 	for _, o := range r.Outcomes {
 		taken[o.Session.Name()] = true
+		if o.Session.Socket != "" {
+			dirs[filepath.Dir(o.Session.Socket)] = true
+		}
+	}
+	for dir := range dirs {
+		for _, name := range zellij.Sockets(dir) {
+			taken[name] = true
+		}
 	}
 	return taken
 }
 
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
-func (e *Env) renameTarget(o Outcome, taken map[string]bool, h *history) (desired, target string) {
-	if !mayRename(o) || !e.replaceable(o.Session, h) {
+func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
+	if !mayRename(o) || !e.replaceable(o.Session) {
 		return "", ""
 	}
 	return e.nameFor(o.Session, taken)
@@ -52,15 +62,14 @@ func (e *Env) renameTarget(o Outcome, taken map[string]bool, h *history) (desire
 //     quiet-mouse`): its command line, environment and files are the same. So a
 //     person says so, with r and Enter in the dashboard, and the name is kept.
 //   - A session with another name was renamed, by a pass or by someone. A pass writes
-//     its names down. When the list does not have a name, because a version from
-//     before it gave the name or the list was lost, the decision log's renames still
-//     tell. Versions from before the log stamped every name, so the stamp tells those,
-//     unless stamps are on now: `r` in the dashboard then offers stamped names too, and
-//     one taken there was chosen by hand.
+//     its names down, and only those go. Versions from before that list stamped every
+//     name, so the stamp tells those, unless stamps are on now: `r` in the dashboard
+//     then offers stamped names too, and one taken there was chosen by hand.
 //
-// Keeping a name used to take the protected list, which keeps the session from being
-// reaped as well.
-func (e *Env) replaceable(s inspect.Session, h *history) bool {
+// The decision log is no evidence: its lines name sessions, not which session, and
+// zellij gives a name out again once a session is gone. 0.3.2 read it, and replaced
+// names people chose.
+func (e *Env) replaceable(s inspect.Session) bool {
 	name := s.Name()
 	if e.Kept.Has(name) {
 		return false
@@ -71,28 +80,7 @@ func (e *Env) replaceable(s inspect.Session, h *history) bool {
 	if e.Given.Has(name) {
 		return true
 	}
-	if rename.Stamped(name) && rename.Stamp(e.Config.AutoRenameStamp) != rename.StampTime {
-		return true
-	}
-	return rename.GivenByPass(h.get(), name, s.StartedAs())
-}
-
-// history is the renames in the decision log, read the first time a name needs them:
-// only a session renamed since it started, whose name no list accounts for, does.
-type history struct {
-	path    string
-	once    sync.Once
-	changes []rename.Change
-}
-
-// get reads the renames once. A log that cannot be read says no pass gave a name, so
-// the name stays.
-func (h *history) get() []rename.Change {
-	if h == nil {
-		return nil
-	}
-	h.once.Do(func() { h.changes, _ = logfile.Changes(h.path) })
-	return h.changes
+	return rename.Stamped(name) && rename.Stamp(e.Config.AutoRenameStamp) != rename.StampTime
 }
 
 // nameFor returns the name a running session's panes point to (desired) and

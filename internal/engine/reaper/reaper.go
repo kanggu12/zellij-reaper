@@ -99,8 +99,6 @@ type Report struct {
 	// NoRenames says why this pass renames nothing, when something stops it:
 	// the list of kept names could not be read.
 	NoRenames error
-	// history is the renames in the decision log, read when a name needs them.
-	history *history
 }
 
 // Counts sums a report: reaped, kept and renamed sessions.
@@ -169,9 +167,6 @@ func (e *Env) rules() inspect.Rules {
 // survey lists, inspects and decides, without acting.
 func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	r := Report{Started: e.Now(), DryRun: e.Config.DryRun || opts.DryRun, Force: opts.Force}
-	if e.Log != nil {
-		r.history = &history{path: e.Log.Path}
-	}
 	r.Thresholds = e.thresholds(opts.Force)
 	if !e.Zellij.Available() {
 		return r, ErrNoZellij
@@ -228,7 +223,7 @@ func Plan(ctx context.Context, e *Env, opts Options) (Report, error) {
 		}
 		_, o.Suggested = e.nameFor(o.Session, taken)
 		if e.Config.AutoRename && r.NoRenames == nil {
-			_, o.WouldRename = e.renameTarget(*o, taken, r.history)
+			_, o.WouldRename = e.renameTarget(*o, taken)
 			reserve(taken, o.Session.Name(), o.WouldRename)
 		}
 	}

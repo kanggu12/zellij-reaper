@@ -361,9 +361,6 @@ check "and it is gone" gone notes-v1.2.md
 
 # zellij remembers the names a session has had and refuses them, so a session
 # that goes back to a name it had before takes a tail. Its name then stays.
-# The list of given names is lost, as it is to an upgrade from 0.2.0, which kept none:
-# the log still says which renames were a pass's, so those names still follow.
-check "the list of given names can be lost" rm ~/.local/state/zellij-reaper/named
 check "a stamp can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=date $R run --quiet
 check "the name ends in the day of last use" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}\$'"
 check "a stamp leaves a chosen name alone" listed my-project

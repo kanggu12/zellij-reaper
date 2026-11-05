@@ -124,7 +124,7 @@ func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry bool, taken m
 		return
 	}
 	s := o.Session
-	desired, target := e.renameTarget(*o, taken, r.history)
+	desired, target := e.renameTarget(*o, taken)
 	if target == "" {
 		return
 	}

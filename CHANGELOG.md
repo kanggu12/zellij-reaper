@@ -5,6 +5,22 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-06
+
+### Fixed
+
+- A name someone chose could be replaced in 0.3.2 and 0.3.3. For a name on no list, those read the decision log, whose
+  lines say which name a pass gave but not to which session, and zellij gives a name out again once a session is gone. A
+  name kept with `r` and Enter in 0.3.1, and one given with `zellij action rename-session` where an earlier session had
+  started under the same name and been renamed to it, read as given by a pass. The log is no longer read for names: a
+  name stays unless a list says otherwise, and a name 0.2.0 gave stays, as in 0.3.1.
+- Keeping a name in the dashboard takes the pass lock, so a pass that had just read the list of kept names cannot rename
+  the session after all, and it refuses a name no session has any more, as when the dialog stayed open across a rename.
+  It goes in the decision log as `NAME :: name kept from the dashboard`.
+- A session zellij leaves out of its list for a moment keeps its places on the lists of given and kept names, since its
+  socket file is still there. `plan`, the dashboard and dry runs now avoid a name whose socket file is there, as a pass
+  does, so they name the same names.
+
 ## [0.3.3] - 2026-11-06
 
 ### Changed
@@ -181,7 +197,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.4
 [0.3.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.3
 [0.3.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.2
 [0.3.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.1

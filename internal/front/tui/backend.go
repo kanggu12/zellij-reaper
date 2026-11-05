@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
@@ -34,7 +35,7 @@ type Backend interface {
 	// warning to show instead of the usual "renamed".
 	Rename(ctx context.Context, name, to string) (string, error)
 	// KeepName keeps a session's name as it is: passes leave it alone from then on.
-	KeepName(name string) error
+	KeepName(ctx context.Context, name string) error
 	// SetProtected adds a name to the protected list or removes it.
 	SetProtected(name string, on bool) error
 	// Protected reports whether a name is on the protected list.
@@ -151,17 +152,30 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 	return note, err
 }
 
-func (r real) KeepName(name string) error {
-	// On the kept list, a name stays whatever else says a pass gave it.
-	if k := r.a.Reaper.Kept; k != nil {
-		if err := k.Set(name, true); err != nil {
+// KeepName runs under the pass lock: a pass that read the list a moment before
+// would rename the session anyway.
+func (r real) KeepName(ctx context.Context, name string) error {
+	return r.handAction(func() error {
+		// The dialog may have stayed open while a pass renamed the session: a
+		// name no session has is nothing to keep.
+		listed, err := r.a.Zellij.ListSessions(ctx)
+		if err != nil && !errors.Is(err, zellij.ErrNoSessions) {
 			return err
 		}
-	}
-	if g := r.a.Reaper.Given; g != nil {
-		_ = g.Set(name, false)
-	}
-	return nil
+		if !slices.ContainsFunc(listed, func(l zellij.Listed) bool { return l.Name == name }) {
+			return errors.New(i18n.T("keep.gone", name))
+		}
+		// On the kept list, a name stays whatever else says it may go.
+		if k := r.a.Reaper.Kept; k != nil {
+			if err := k.Set(name, true); err != nil {
+				return err
+			}
+		}
+		if g := r.a.Reaper.Given; g != nil {
+			_ = g.Set(name, false)
+		}
+		return nil
+	}, "%s :: name kept from the dashboard", name)
 }
 
 // renameByHand does a rename asked for in the dashboard, and returns what the person

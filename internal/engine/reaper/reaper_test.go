@@ -628,13 +628,12 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 		// Kept with r and Enter: whatever else says the name may go.
 		{what: "a name zellij made up, kept", name: fromZellij, startedAs: fromZellij, kept: true},
 		{what: "a name a pass gave, kept", name: "build-watcher", startedAs: fromZellij, given: true, kept: true},
-		{what: "a name the log says a pass gave, kept", name: "build-watcher", startedAs: fromZellij, kept: true, log: []string{pass(fromZellij, "build-watcher")}},
-		// No list has the name, as after 0.2.0, and the decision log still tells.
-		{what: "the log says a pass gave it", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "build-watcher")}, want: "htop"},
-		{what: "the log says a pass gave it, by two renames", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "notes"), pass("notes", "build-watcher")}, want: "htop"},
-		{what: "the log says a person gave it", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "notes"), hand("notes", "build-watcher")}},
-		{what: "the log's rename was another session's", name: "build-watcher", startedAs: fromZellij, log: []string{pass("lucky-duck", "build-watcher")}},
-		{what: "a dry run's line says nothing", name: "build-watcher", startedAs: fromZellij, log: []string{"[2026-11-01 10:00:00]   -> DRY_RUN: would rename '" + fromZellij + "' → 'build-watcher'"}},
+		// The decision log says which name a pass gave, not to which session: zellij
+		// gives a name out again once a session is gone. A name no list has stays,
+		// whatever the log holds: kept with r and Enter in 0.3.1, which took it off
+		// the list, or given by hand where an earlier session had the same names.
+		{what: "only the log says a pass gave it", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "build-watcher")}},
+		{what: "the log has a person's rename", name: "build-watcher", startedAs: fromZellij, log: []string{pass(fromZellij, "notes"), hand("notes", "build-watcher")}},
 		{what: "a name zellij made up", name: fromZellij, startedAs: fromZellij, want: "htop"},
 		{what: "a name someone started it under", name: "my-project", startedAs: "my-project"},
 		{what: "a name a pass gave", name: "build-watcher", startedAs: fromZellij, given: true, want: "htop"},
@@ -689,6 +688,54 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 			}
 			t.Fatal("the session is not in the plan")
 		})
+	}
+}
+
+func TestANameWhoseSocketIsThereIsAvoidedEverywhere(t *testing.T) {
+	// zellij does not list htop at this moment and its socket file is there. A plan,
+	// the dashboard and a dry run pick the name a pass would.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	testutil.Socket(t, w.sockDir, "htop")
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && o.WouldRename != "htop-2" {
+			t.Errorf("plan: %q", o.WouldRename)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{DryRun: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(w.log(t), "DRY_RUN: would rename 'busy' → 'htop-2'") {
+		t.Errorf("log:\n%s", w.log(t))
+	}
+}
+
+func TestNamesOfASessionLeftOffTheListStay(t *testing.T) {
+	// zellij left a session out of its list for a moment; its socket file is there.
+	// Its kept name must not go, or the next pass would rename it.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	testutil.Socket(t, w.sockDir, "my-notes")
+	for _, l := range []*protect.List{w.env.Given, w.env.Kept} {
+		if err := l.Set("my-notes", true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{w.env.Given.Path, w.env.Kept.Path} {
+		back, err := protect.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !back.Has("my-notes") {
+			t.Errorf("%s lost my-notes: %v", path, back.Names())
+		}
 	}
 }
 

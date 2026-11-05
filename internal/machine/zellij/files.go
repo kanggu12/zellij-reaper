@@ -80,6 +80,22 @@ func NameRoom(socketDir string) int {
 	return SocketPathLimit - len(socketDir) - 1
 }
 
+// Sockets lists the names of the socket files in dir: one per session zellij
+// serves there, whether it lists that session at this moment or not.
+func Sockets(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type()&os.ModeSocket != 0 {
+			names = append(names, e.Name())
+		}
+	}
+	return names
+}
+
 // SocketTaken reports whether a file sits at dir/name. zellij moves a session's
 // socket file to its new name on a rename, so a file there is another session's,
 // whether zellij lists that session at this moment or not.

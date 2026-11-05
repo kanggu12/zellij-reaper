@@ -14,6 +14,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
+	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -343,7 +344,9 @@ func TestAnUnconfirmedRenameByHandCountsAsChosen(t *testing.T) {
 }
 
 func TestKeepNameKeepsAnyName(t *testing.T) {
-	b, a := backendFor(t, &fakeZellij{}, "")
+	i18n.Set(i18n.English)
+	z := &fakeZellij{sessions: "build-watcher [Created 1h ago]\nbrave-peach [Created 1h ago]\n"}
+	b, a := backendFor(t, z, "")
 	dir := t.TempDir()
 	given, kept := protect.LoadGiven(filepath.Join(dir, "named")), protect.LoadKept(filepath.Join(dir, "kept"))
 	a.Reaper.Given, a.Reaper.Kept = given, kept
@@ -352,12 +355,42 @@ func TestKeepNameKeepsAnyName(t *testing.T) {
 	}
 	// One a pass gave, and one zellij made up, which no list has.
 	for _, name := range []string{"build-watcher", "brave-peach"} {
-		if err := b.KeepName(name); err != nil {
+		if err := b.KeepName(context.Background(), name); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if strings.Join(kept.Names(), ",") != "brave-peach,build-watcher" || given.Has("build-watcher") {
 		t.Errorf("kept %v, given %v", kept.Names(), given.Names())
+	}
+	b2, err := os.ReadFile(a.Reaper.Log.Path)
+	if err != nil || !strings.Contains(string(b2), "brave-peach :: name kept from the dashboard") {
+		t.Errorf("log: %s, %v", b2, err)
+	}
+	// The dialog stayed open while a pass renamed the session: nothing to keep.
+	if err := b.KeepName(context.Background(), "quiet-mouse"); err == nil || !strings.Contains(err.Error(), "no session is called quiet-mouse") {
+		t.Errorf("a name no session has: %v", err)
+	}
+	if kept.Has("quiet-mouse") {
+		t.Errorf("kept a name no session has: %v", kept.Names())
+	}
+}
+
+func TestKeepNameWaitsForAPass(t *testing.T) {
+	// A pass holds the lock: it may have read the list of kept names already, so the
+	// name cannot be kept until it is done.
+	z := &fakeZellij{sessions: "brave-peach [Created 1h ago]\n"}
+	b, a := backendFor(t, z, "")
+	a.Reaper.Kept = protect.LoadKept(filepath.Join(t.TempDir(), "kept"))
+	held, err := lock.Acquire(a.Reaper.LockPath, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Release()
+	if err := b.KeepName(context.Background(), "brave-peach"); !errors.Is(err, lock.ErrBusy) {
+		t.Errorf("during a pass: %v", err)
+	}
+	if a.Reaper.Kept.Has("brave-peach") {
+		t.Error("kept a name while a pass held the lock")
 	}
 }
 

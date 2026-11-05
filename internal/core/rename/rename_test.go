@@ -197,6 +197,11 @@ func TestFit(t *testing.T) {
 	if got := Fit("snapshot_disk_session_20260101_phase_a", MaxBase); got != "snapshot_disk_session_20260101" {
 		t.Errorf("underscores: %q", got)
 	}
+	// A word's end too early in the name would throw most of it away: the long word
+	// after it is cut instead.
+	if got := Fit("ab-"+strings.Repeat("x", 40), MaxBase); got != "ab-"+strings.Repeat("x", MaxWidth-3) {
+		t.Errorf("long word after a short one: %q", got)
+	}
 	// One long word is cut rather than lost.
 	got = Fit(strings.Repeat("x", 40), MaxBase)
 	if got != strings.Repeat("x", MaxWidth) {
@@ -347,36 +352,6 @@ func TestStamped(t *testing.T) {
 	} {
 		if Stamped(n) {
 			t.Errorf("%q should not read as stamped", n)
-		}
-	}
-}
-
-func TestGivenByPass(t *testing.T) {
-	pass := func(from, to string) Change { return Change{From: from, To: to} }
-	hand := func(from, to string) Change { return Change{From: from, To: to, ByHand: true} }
-	for _, c := range []struct {
-		what      string
-		changes   []Change
-		name      string
-		startedAs string
-		want      bool
-	}{
-		{"a pass renamed it", []Change{pass("brave-peach", "build-watcher")}, "build-watcher", "brave-peach", true},
-		{"a pass renamed it twice", []Change{pass("brave-peach", "notes"), pass("notes", "build-watcher")}, "build-watcher", "brave-peach", true},
-		{"a person renamed it, then a pass", []Change{hand("brave-peach", "notes"), pass("notes", "build-watcher")}, "build-watcher", "brave-peach", true},
-		{"a pass renamed it, then a person", []Change{pass("brave-peach", "notes"), hand("notes", "build-watcher")}, "build-watcher", "brave-peach", false},
-		// The rename to that name was another session's: it started elsewhere.
-		{"another session had the name", []Change{pass("lucky-duck", "build-watcher")}, "build-watcher", "brave-peach", false},
-		// The log no longer holds where the history starts.
-		{"the start rotated away", []Change{pass("notes", "build-watcher")}, "build-watcher", "brave-peach", false},
-		{"no rename to it", []Change{pass("brave-peach", "notes")}, "build-watcher", "brave-peach", false},
-		{"never renamed", nil, "brave-peach", "brave-peach", false},
-		{"no start known", []Change{pass("brave-peach", "build-watcher")}, "build-watcher", "", false},
-		// The newest rename to a name is the one that counts.
-		{"given, then given by hand again later", []Change{pass("brave-peach", "build-watcher"), hand("x", "build-watcher")}, "build-watcher", "brave-peach", false},
-	} {
-		if got := GivenByPass(c.changes, c.name, c.startedAs); got != c.want {
-			t.Errorf("%s: %v, want %v", c.what, got, c.want)
 		}
 	}
 }

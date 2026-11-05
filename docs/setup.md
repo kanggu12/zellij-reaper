@@ -108,7 +108,7 @@ curl -fsSLO "$base/checksums.txt"
 Then on the closed machine, with the version you carried across:
 
 ```sh
-version=0.3.3
+version=0.3.4
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
@@ -208,9 +208,9 @@ that is attached, exited, protected by name or uncertain. Press `r` in the dashb
 zellij keeps the name a session started under on its server's command line, which is how a pass tells these apart. A
 session that still has that name was never renamed, so it is replaced only if the name is two words from zellij's own
 lists. Nothing zellij keeps tells such a name from one you typed (`zellij -s quiet-mouse`): its command line, environment
-and files are the same. Keep it with `r` and Enter, and it stays. A session renamed since keeps its name unless a pass
-gave it. Passes write down the names they give, and where that list has no word on a name, as for one 0.2.0 gave, the
-renames in the decision log tell, for as long as the log holds them.
+and files are the same. Keep it with `r` and Enter, once for each session, and it stays. A session renamed since keeps
+its name unless a pass gave it, and passes write down the names they give. Nothing wrote them down before 0.3.0, so a
+name 0.2.0 gave stays too, until someone changes it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">

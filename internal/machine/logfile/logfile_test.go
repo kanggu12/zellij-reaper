@@ -9,50 +9,6 @@ import (
 	"time"
 )
 
-func TestChangesReadsTheRenamesInOrder(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "reaper.log")
-	older := strings.Join([]string{
-		"[2026-11-01 10:00:00] === reaper start (dry_run=false idle_after=1h exited_after=3d) ===",
-		"[2026-11-01 10:00:00] brave-peach [RUNNING] panes={build watcher} :: SKIP running in a pane: sleep 100000",
-		"[2026-11-01 10:00:00]   -> renamed: brave-peach → build-watcher",
-		"[2026-11-01 10:00:00] === reaper end (0 reaped, 1 kept, 1 renamed) ===",
-	}, "\n") + "\n"
-	newer := strings.Join([]string{
-		"[2026-11-02 10:00:00] build-watcher :: renamed from the dashboard to my work",
-		"[2026-11-02 11:00:00]   -> DRY_RUN: would rename 'quiet-mouse' → 'notes'",
-		"[2026-11-02 11:00:00]   -> rename FAILED: quiet-mouse → notes :: zellij took the rename but does not list the new name",
-		// A pane title cannot pass for a pass's line.
-		"[2026-11-02 11:00:00] x [RUNNING] panes={  -> renamed: a → b} :: SKIP running in a pane: vim",
-		"[2026-11-02 12:00:00]   -> renamed: lucky-duck → api",
-	}, "\n") + "\n"
-	if err := os.WriteFile(path+".1", []byte(older), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(newer), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	got, err := Changes(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "brave-peach→build-watcher pass, build-watcher→my work hand, lucky-duck→api pass"
-	var parts []string
-	for _, c := range got {
-		by := "pass"
-		if c.ByHand {
-			by = "hand"
-		}
-		parts = append(parts, c.From+"→"+c.To+" "+by)
-	}
-	if strings.Join(parts, ", ") != want {
-		t.Errorf("changes:\n %s\nwant\n %s", strings.Join(parts, ", "), want)
-	}
-	// No log yet: no renames, and nothing wrong.
-	if got, err := Changes(filepath.Join(t.TempDir(), "none.log")); len(got) != 0 || err != nil {
-		t.Errorf("no log: %v, %v", got, err)
-	}
-}
-
 func newLog(t *testing.T, max int64) *Log {
 	t.Helper()
 	l := New(filepath.Join(t.TempDir(), "reaper.log"), max)

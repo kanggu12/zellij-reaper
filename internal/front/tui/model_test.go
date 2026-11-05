@@ -53,7 +53,7 @@ func (f *fake) Rename(_ context.Context, name, to string) (string, error) {
 	f.renamed = append(f.renamed, name+"->"+to)
 	return f.renameNote, nil
 }
-func (f *fake) KeepName(name string) error {
+func (f *fake) KeepName(_ context.Context, name string) error {
 	f.kept = append(f.kept, name)
 	return nil
 }

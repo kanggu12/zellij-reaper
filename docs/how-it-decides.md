@@ -151,7 +151,7 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
-| `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW` | done by hand in the dashboard |
+| `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 
 The words stay the same across releases, so months of the log can be grepped. New kinds of lines may be added.
