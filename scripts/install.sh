@@ -4,7 +4,7 @@
 #   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 #
 # Settings, all optional:
-#   ZELLIJ_REAPER_VERSION   release to install, like v0.2.0 (default: the latest)
+#   ZELLIJ_REAPER_VERSION   release to install, like v0.3.0 (default: the latest)
 #   ZELLIJ_REAPER_BIN_DIR   where the binary goes (default: ~/.local/bin)
 #   ZELLIJ_REAPER_NO_TIMER  set to 1 to install the binary only
 #   ZELLIJ_REAPER_BASE_URL  where releases are downloaded from (mirrors, tests)
@@ -34,7 +34,7 @@ command -v tar >/dev/null 2>&1 || fail "tar is needed"
 version=${ZELLIJ_REAPER_VERSION:-}
 if [ -z "$version" ]; then
   url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest") ||
-    fail "could not find the latest release"
+    fail "could not find the latest release; set ZELLIJ_REAPER_VERSION on a network that cannot reach GitHub"
   # A release redirects to its tag. With none published yet, GitHub lands on
   # the list of releases instead, whose last word is not a version.
   case "$url" in

@@ -69,6 +69,9 @@ out="$tmp/notices.md"
   echo "| Go standard library | $gover | $(kind "$(go env GOROOT)/LICENSE") | https://go.dev |"
   echo "| JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |"
   echo
+  echo "The word lists in \`internal/core/rename/generated.go\`, which tell a name zellij made up from one someone chose, are"
+  echo "copied from zellij (MIT, https://github.com/zellij-org/zellij)."
+  echo
   echo "The demo image \`ghcr.io/kanggu12/zellij-reaper-demo\` also carries zellij itself (MIT) and a Debian base"
   echo "image; their licenses are in the image, under \`/usr/share/licenses/\`."
   while read -r mod ver; do

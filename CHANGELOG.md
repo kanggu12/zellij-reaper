@@ -5,6 +5,25 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-05
+
+### Changed
+
+- `auto_rename` leaves a name someone chose alone. It replaces only a name zellij made up (`brave-peach`), a name with the
+  stamp earlier versions added, and a name it gave itself, which it now keeps in `~/.local/state/zellij-reaper/named`.
+  Keeping a name used to take the protected list, which keeps the session from being reaped as well.
+
+### Added
+
+- Setup has a section on [machines with no internet access](docs/setup.md#without-internet-access).
+- The integration scenarios run with no network, which holds zellij-reaper to making no connection, and let zellij pick a
+  name on each release, so new words in its lists are caught.
+
+### Fixed
+
+- The scenarios wait for zellij to list a session before using it: on 0.43.1 a session that has only just started can
+  answer "not found" with exit status 0, and a command sent then is lost.
+
 ## [0.2.0] - 2026-11-05
 
 ### Changed
@@ -103,7 +122,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.0
 [0.2.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.2.0
 [0.1.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.0

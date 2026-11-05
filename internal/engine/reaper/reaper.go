@@ -30,7 +30,10 @@ type Zellij interface {
 type Env struct {
 	Config    *config.Config
 	Protected *protect.List
-	Zellij    Zellij
+	// Given holds the names auto_rename gave. It is the same kind of list as
+	// Protected: names in a file, safe to share between processes.
+	Given  *protect.List
+	Zellij Zellij
 	// Sources are where inspect reads facts; Sources.Clients is filled from
 	// Zellij when left nil.
 	Sources  inspect.Sources
@@ -169,6 +172,11 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	}
 	if err != nil {
 		return r, err
+	}
+	// A pass in another process may have given names since this list was read.
+	// A list that cannot be read keeps what it held: at worst a name stays.
+	if e.Given != nil {
+		_ = e.Given.Reload()
 	}
 	src := e.Sources
 	if src.Clients == nil {

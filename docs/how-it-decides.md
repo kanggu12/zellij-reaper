@@ -40,8 +40,8 @@ its wait over:
    again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
    protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
    it runs `zellij delete-session NAME --force`.
-8. **Renames a session it kept** when `auto_rename` is on and its panes point to another name. It asks the session for
-   its clients first.
+8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
+   another name. It asks the session for its clients first.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.

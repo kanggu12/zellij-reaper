@@ -30,6 +30,9 @@ follow.
 | Go standard library | 1.26.0 | BSD-3-Clause | https://go.dev |
 | JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
 
+The word lists in `internal/core/rename/generated.go`, which tell a name zellij made up from one someone chose, are
+copied from zellij (MIT, https://github.com/zellij-org/zellij).
+
 The demo image `ghcr.io/kanggu12/zellij-reaper-demo` also carries zellij itself (MIT) and a Debian base
 image; their licenses are in the image, under `/usr/share/licenses/`.
 

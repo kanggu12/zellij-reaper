@@ -293,3 +293,31 @@ func itoa(n int) string {
 	}
 	return itoa(n/10) + string(rune('0'+n%10))
 }
+
+func TestGenerated(t *testing.T) {
+	// Names zellij made up, from the log of real sessions.
+	for _, n := range []string{"brave-peach", "glowing-duck", "excellent-muskrat", "rusty-pepper", "exquisite-xylophone", "polished-duck", "quiet-mouse", "loyal-mountain"} {
+		if !Generated(n) {
+			t.Errorf("%q should read as made up by zellij", n)
+		}
+	}
+	// Names of that shape someone chose, and other shapes.
+	for _, n := range []string{"web-app", "api-server", "claude-code", "quiet-room", "lucky-branch", "work", "brave", "brave-peach-2", "Brave-Peach", "fix-the-login-bug", "brave-peach_1104"} {
+		if Generated(n) {
+			t.Errorf("%q should read as chosen", n)
+		}
+	}
+}
+
+func TestStamped(t *testing.T) {
+	for _, n := range []string{"web-app_1104-0931", "web-app-notes_1105-0931", "web-app_1104-0931-2"} {
+		if !Stamped(n) {
+			t.Errorf("%q should read as stamped", n)
+		}
+	}
+	for _, n := range []string{"web-app", "web-app_1104", "release_2026", "a_1104-093"} {
+		if Stamped(n) {
+			t.Errorf("%q should not read as stamped", n)
+		}
+	}
+}

@@ -2,13 +2,14 @@
 
 1. [Install](#install)
 2. [Coming from the shell scripts](#coming-from-the-shell-scripts)
-3. [Upgrade and uninstall](#upgrade-and-uninstall)
-4. [Settings](#settings)
-5. [Protecting sessions](#protecting-sessions)
-6. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
-7. [Files](#files)
-8. [zellij versions](#zellij-versions)
-9. [WSL 2](#wsl-2)
+3. [Without internet access](#without-internet-access)
+4. [Upgrade and uninstall](#upgrade-and-uninstall)
+5. [Settings](#settings)
+6. [Protecting sessions](#protecting-sessions)
+7. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
+8. [Files](#files)
+9. [zellij versions](#zellij-versions)
+10. [WSL 2](#wsl-2)
 
 ## Install
 
@@ -28,7 +29,7 @@ These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPE
 
 | Variable | Default | Effect |
 |:---|:---:|:---|
-| `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.2.0` |
+| `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.3.0` |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
 | `ZELLIJ_REAPER_BASE_URL` | GitHub releases | download from a mirror |
@@ -75,6 +76,44 @@ settings were not moved. The scripts are removed only when they are recognizably
 version ran as a dry run unless its service set `DRY_RUN=0`, and the moved-over settings keep that: check `dry_run`
 with `zellij-reaper config show`.
 
+## Without internet access
+
+zellij-reaper needs no network to run: it makes no connection, and its integration tests run in a container with none.
+Only the install script downloads anything, so on a closed network, skip it. On a machine with internet access, fetch the
+archive for the target's architecture and the checksums, and carry both across:
+
+```sh
+base=https://github.com/kanggu12/zellij-reaper/releases/latest/download
+version=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/kanggu12/zellij-reaper/releases/latest | sed 's|.*/v||')
+curl -fsSLO "$base/zellij-reaper_${version}_linux_amd64.tar.gz"
+curl -fsSLO "$base/checksums.txt"
+```
+
+Then on the closed machine:
+
+```sh
+grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c -
+tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper
+install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper
+~/.local/bin/zellij-reaper install
+```
+
+The rest works the same way:
+
+- **A package** instead of the archive: copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst`, install it with `dpkg -i`, `rpm -i`,
+  `apk add --allow-untrusted` or `pacman -U`, then run `zellij-reaper install` as each user who wants the timer.
+- **Many machines:** put the release's files on an internal web server as `<base>/v<version>/<file>`, and the install script
+  works from there: `ZELLIJ_REAPER_BASE_URL=<base> ZELLIJ_REAPER_VERSION=v<version> sh install.sh`. It needs the version,
+  because finding the latest one takes GitHub.
+- **zellij itself** is one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
+  `zellij-<machine>-unknown-linux-musl.tar.gz`.
+- **The demo image:** `docker save ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz` where there is internet, and
+  `docker load <demo.tar.gz` where there is not. It runs with `--network none`.
+- **From source**, with Go already on the closed machine: run `go mod vendor` in a clone where there is internet and carry
+  the folder across, then `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`.
+
+A closed network also keeps you from checking for new releases: the steps above are how to upgrade as well.
+
 ## Upgrade and uninstall
 
 **Upgrade** by running the install script again, or with your package manager. The settings stay; `zellij-reaper
@@ -99,7 +138,7 @@ in `1d12h`; `"0"` means no wait.
 | `protect` | `""` | a regular expression ([Go syntax](https://pkg.go.dev/regexp/syntax)); matching names are never reaped or renamed |
 | `protect_commands` | `["claude", "codex", "gemini", "aider", "opencode"]` | programs that keep a running session |
 | `shells` | `[]` | extra programs that count as a prompt |
-| `auto_rename` | `false` | rename survivors after what they show |
+| `auto_rename` | `false` | name the sessions nobody named after what they show |
 | `auto_rename_stamp` | `"none"` | what those names end in: `"none"`, `"date"` or `"time"` |
 | `interval` | `"1h"` | how often the timer runs, up to five minutes late; at least `1m`; run `install` again after changing it |
 | `zellij` | `""` | the zellij binary; empty means the first one in `PATH` |
@@ -141,8 +180,10 @@ is attached:
 
 ## Naming sessions after what they show
 
-With `auto_rename = true`, every pass renames the sessions it keeps (except attached, exited, name-protected and uncertain
-ones) after what they show. Press `r` in the dashboard for the same name by hand, with `auto_rename` on or off.
+With `auto_rename = true`, every pass names the sessions it keeps after what they show, if nobody chose their name: a name
+zellij made up (`brave-peach`), or one zellij-reaper gave earlier. A name you gave a session stays, and so does a session
+that is attached, exited, protected by name or uncertain. Press `r` in the dashboard for the suggested name by hand, with
+`auto_rename` on or off.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
@@ -181,8 +222,7 @@ a file. Names stop at 32 columns at the end of a word, and within what the sessi
 
 A name changes only when what the session shows changes, so a script that attaches by name keeps working until then.
 When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij refuses a name a session has had before,
-so a title that comes back gives a tail too. A name you gave a session by hand is renamed like any other unless you
-protect it by name.
+so a title that comes back gives a tail too.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session in use once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
@@ -196,6 +236,7 @@ session in use once more a day, and `"time"` gives `web-app_1104-0931`, which re
 | `~/.local/state/zellij-reaper/reaper.log` and `.1` | the decision log |
 | `~/.local/state/zellij-reaper/protected` | the protected list, one name per line |
 | `~/.local/state/zellij-reaper/protected.lock` | held while the protected list is changed |
+| `~/.local/state/zellij-reaper/named`, `named.lock` | the names `auto_rename` gave, so it knows them from a name someone chose |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. zellij-reaper reads zellij's files under `$XDG_CACHE_HOME/zellij`

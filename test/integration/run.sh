@@ -42,7 +42,8 @@ for v in "${versions[@]}"; do
     mv "$cache/zellij" "$bin"
   fi
   echo "== zellij $v"
-  if ! docker run --rm \
+  # No network: zellij-reaper says it makes no connection, and this holds it to that.
+  if ! docker run --rm --network none \
       -v "$bin:/usr/local/bin/zellij:ro" \
       -v "$cache/zellij-reaper:/usr/local/bin/zellij-reaper:ro" \
       -v "$here/scenarios.sh:/scenarios.sh:ro" \

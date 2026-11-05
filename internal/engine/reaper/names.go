@@ -33,10 +33,18 @@ func takenNames(r Report) map[string]bool {
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
 func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
-	if !mayRename(o) {
+	if !mayRename(o) || !e.replaceable(o.Session.Name()) {
 		return "", ""
 	}
 	return e.nameFor(o.Session, taken)
+}
+
+// replaceable reports whether auto_rename may replace a name: one zellij made up,
+// one with the stamp earlier versions added, or one it gave itself. Any other name
+// was chosen by someone, and stays. Keeping such a name used to take the protected
+// list, which keeps the session from being reaped as well.
+func (e *Env) replaceable(name string) bool {
+	return rename.Generated(name) || rename.Stamped(name) || (e.Given != nil && e.Given.Has(name))
 }
 
 // nameFor returns the name a running session's panes point to (desired) and
@@ -87,13 +95,24 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target
 func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, taken map[string]bool) {
 	name := o.Session.Name()
 	for attempt := target; ; {
+		// Written down first: a pass that dies right after the rename leaves a
+		// name the next pass knows as given. The other order would leave one
+		// that looks chosen by hand, and it would never change again.
+		e.remember(attempt)
 		err := e.Zellij.Rename(ctx, name, attempt)
 		if err == nil {
 			o.RenamedTo = attempt
 			delete(taken, name)
 			taken[attempt] = true
+			e.forget(name)
 			e.Log.Printf("  -> renamed: %s → %s", name, attempt)
 			return
+		}
+		// Refused means it is not this session's name. A rename that could not
+		// be confirmed may have happened, so that entry stays until a pass that
+		// does not see the name clears it.
+		if !errors.Is(err, zellij.ErrUnconfirmed) {
+			e.forget(attempt)
 		}
 		// Anything but a taken name is a real failure: stop and say so.
 		if !errors.Is(err, zellij.ErrNameTaken) {
@@ -112,5 +131,36 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			return
 		}
 		attempt = next
+	}
+}
+
+// remember records a name auto_rename is about to give. A list that cannot be
+// written costs little: the session keeps that name until someone changes it.
+func (e *Env) remember(name string) {
+	if e.Given == nil {
+		return
+	}
+	if err := e.Given.Set(name, true); err != nil {
+		e.Log.Printf("  -> could not record the name %s: %v", name, err)
+	}
+}
+
+// forget takes a name off the list of given names.
+func (e *Env) forget(name string) {
+	if e.Given != nil {
+		_ = e.Given.Set(name, false)
+	}
+}
+
+// forgetGone clears given names no session has any more, at the end of a pass. A
+// session someone later starts under such a name was named by them.
+func (e *Env) forgetGone(listed map[string]bool) {
+	if e.Given == nil {
+		return
+	}
+	for _, name := range e.Given.Names() {
+		if !listed[name] {
+			e.forget(name)
+		}
 	}
 }

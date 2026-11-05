@@ -32,6 +32,6 @@ body:
     id: versions
     attributes:
       label: Versions
-      placeholder: zellij-reaper v0.1.1, zellij 0.45.1, Ubuntu 24.04 (or WSL 2)
+      placeholder: zellij-reaper v0.3.0, zellij 0.45.1, Ubuntu 24.04 (or WSL 2)
     validations:
       required: true

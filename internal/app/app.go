@@ -47,6 +47,10 @@ func Load(configPath string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	given, err := protect.Load(config.GivenFile(env))
+	if err != nil {
+		return nil, err
+	}
 	zj := zellij.New(cfg.ZellijPath)
 	// The data directory's name depends on the zellij version (0.43 and
 	// earlier name it after the version), so ask zellij first.
@@ -58,6 +62,7 @@ func Load(configPath string) (*App, error) {
 	a.Reaper = &reaper.Env{
 		Config:    cfg,
 		Protected: pl,
+		Given:     given,
 		Zellij:    zj,
 		Sources:   a.Sources(),
 		Log:       logfile.New(cfg.LogPath, cfg.LogMaxBytes),

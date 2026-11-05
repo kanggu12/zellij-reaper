@@ -152,6 +152,20 @@ check "and logs 'no sessions'" grep -q '] no sessions$' "$LOG"
 check "plan --json lists nothing" test "$($R plan --json | jq '.sessions | length')" = 0
 
 echo "-- sessions in every state"
+# A name zellij picks itself on this release: the rename further down only happens
+# if the word lists know it, so a release with new words fails there. zellij picks
+# one only when no session is running, so this comes first, and it runs something
+# so the forced pass keeps it.
+mkdir -p /srv/own-pick
+(cd /srv/own-pick && $Z attach --create-background >/dev/null 2>&1)
+own=""
+for _ in $(seq 100); do
+  own=$($Z list-sessions -n -s 2>/dev/null | head -1)
+  [ -n "$own" ] && break
+  sleep 0.1
+done
+check "zellij picks a name" test -n "$own"
+wait_pane "$own" && wait_reachable "$own" && $Z --session "$own" run -- sleep 99996 >/dev/null
 # Started first: the auto_rename scenario needs its metadata settled.
 start named /tmp/named.kdl
 start idle-old && age_ptys idle-old '-3 hours'
@@ -249,23 +263,30 @@ for s in shell-busy cmd-pane agent attached keepme named; do
 done
 
 echo "-- auto_rename"
-# Sessions that show something to be named after: a title, one with a dot in it,
-# the same title twice, a long Korean title, and a shell whose title says nothing,
-# working in a directory that does.
+# Sessions zellij could have named, showing something to be named after: a title,
+# one with a dot in it, the same title twice, a long Korean title, and a shell whose
+# title says nothing, working in a directory that does. And one a person named.
 pane_layout() { printf 'layout {\n    pane name="%s" command="sleep" {\n        args "100000"\n    }\n}\n' "$1" >"$2"; }
+pane_layout 'build watcher' /tmp/watcher.kdl
 pane_layout 'same title' /tmp/same.kdl
 pane_layout 'notes v1.2.md' /tmp/dotted.kdl
 pane_layout 'notes from the long planning meeting about the next release' /tmp/long.kdl
 mkdir -p /srv/api
-start twin-a /tmp/same.kdl
-start twin-b /tmp/same.kdl
-start dotted /tmp/dotted.kdl
-start long /tmp/long.kdl
-(cd /srv/api && start here)
-check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title named 'build watcher' && wait_title twin-a 'same title' && wait_title twin-b 'same title' && wait_title dotted 'notes v1.2.md' && wait_title long 'notes from the long planning meeting about the next release'"
+start quiet-mouse /tmp/watcher.kdl
+start adept-magpie /tmp/same.kdl
+start kind-viola /tmp/same.kdl
+start rusty-pepper /tmp/dotted.kdl
+start brave-peach /tmp/long.kdl
+(cd /srv/api && start glowing-duck)
+# A stamped name from an earlier version, and a name a person chose.
+start 'old-title_1104-0931' /tmp/watcher.kdl
+start my-project /tmp/watcher.kdl
+check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher'"
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "a made-up name goes" gone quiet-mouse
 check "a session is named after its pane" listed build-watcher
-check "the old name is gone" gone named
+check "a name someone chose stays" listed my-project
+check "the stamp of an earlier version goes" gone old-title_1104-0931
 check "a dot stays in a word" listed notes-v1.2.md
 check "a name with a dot still reaches its server" $Z --session notes-v1.2.md action list-clients
 check "a shell is named after its directory" listed api
@@ -273,12 +294,15 @@ check "the same title takes a tail" sh -c "$Z list-sessions -n -s | grep -qxF sa
 long_name='notes-from-the-long-planning'
 check "a long title is cut at a word" listed "$long_name"
 check "a cut name still reaches its server" $Z --session "$long_name" action list-clients
+check "a name zellij picked itself goes" gone "$own"
+check "and the session is named after what it runs, where" listed own-pick-sleep-99996
+check "the names given are remembered" grep -qxF build-watcher ~/.local/state/zellij-reaper/named
 
 renames() { grep -c -- '-> renamed:' "$LOG"; }
 before=$(renames)
 check "a second pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "and renames nothing" test "$(renames)" = "$before"
-check "the names stay" sh -c "$Z list-sessions -n -s | grep -qxF build-watcher && $Z list-sessions -n -s | grep -qxF same-title-2"
+check "the names stay" sh -c "$Z list-sessions -n -s | grep -qxF same-title-2 && $Z list-sessions -n -s | grep -qxF my-project"
 
 check "zellij deletes a name with a dot" $Z delete-session notes-v1.2.md --force
 check "and it is gone" gone notes-v1.2.md
@@ -287,6 +311,7 @@ check "and it is gone" gone notes-v1.2.md
 # that goes back to a name it had before takes a tail. Its name then stays.
 check "a stamp can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=date $R run --quiet
 check "the name ends in the day of last use" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}\$'"
+check "a stamp leaves a chosen name alone" listed my-project
 check "the minute can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=time $R run --quiet
 check "the name ends in its minute" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}-[0-9]{4}\$'"
 check "without a stamp the name comes back" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet

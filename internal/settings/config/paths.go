@@ -76,6 +76,10 @@ func LockFile(env Env) string { return filepath.Join(StateDir(env), "lock") }
 // ProtectedFile lists session names protected from the TUI or `protect`.
 func ProtectedFile(env Env) string { return filepath.Join(StateDir(env), "protected") }
 
+// GivenFile lists the session names auto_rename gave, which it may replace again.
+// A name that is not on it, and that zellij did not make up, was chosen by someone.
+func GivenFile(env Env) string { return filepath.Join(StateDir(env), "named") }
+
 // UnitDir is where systemd looks for the user's own unit files.
 func UnitDir(env Env) string {
 	return filepath.Join(xdg(env, "XDG_CONFIG_HOME", ".config"), "systemd", "user")

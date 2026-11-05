@@ -31,14 +31,13 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 
 Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
 stays, because a name changes only when what the session shows changes. With `r` you can give it the name without the
-tail, unless this session had that name before. Any other name also needs `zellij-reaper protect`, or the next pass with
-`auto_rename` on renames it again.
+tail, unless this session had that name before. A name given by hand stays as it is from then on.
 
 ## A session is named after the wrong thing
 
-The name follows the focused pane of the active tab when the last client left. Its row in `plan --json` lists
-`would_rename`, and `r` in the dashboard shows the name its panes point to. To keep a name, protect the session by name:
-such a session is never renamed. `auto_rename = false` turns renaming off.
+The name follows the focused pane when the last client left. Its row in `plan --json` lists `would_rename`, and `r` in the
+dashboard shows the name its panes point to. Give it a name with `r` or `zellij action rename-session`, and passes leave
+that name alone. `auto_rename = false` turns renaming off.
 
 ## `plan` and the timer disagree
 

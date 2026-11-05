@@ -35,6 +35,9 @@ type fakeZellij struct {
 	// lateErr makes that second look fail: zellij no longer answers.
 	lateErr map[string]error
 	refuse  map[string]bool
+	// unseen makes a rename come back unconfirmed: zellij took it, and the new
+	// name did not show in time.
+	unseen  bool
 	deleted []string
 	renamed []string
 }
@@ -70,6 +73,9 @@ func (f *fakeZellij) Rename(_ context.Context, name, to string) error {
 	// A name zellij remembers but does not list.
 	if f.refuse[to] {
 		return zellij.ErrNameTaken
+	}
+	if f.unseen {
+		return zellij.ErrUnconfirmed
 	}
 	f.renamed = append(f.renamed, name+"->"+to)
 	return nil
@@ -123,10 +129,16 @@ func newWorld(t *testing.T) *world {
 		refuse: map[string]bool{},
 	}
 	pl, _ := protect.Load(config.ProtectedFile(cenv))
+	// busy goes by a name an earlier pass gave it, so it may get another.
+	given, _ := protect.Load(config.GivenFile(cenv))
+	if err := given.Set("busy", true); err != nil {
+		t.Fatal(err)
+	}
 	logp := filepath.Join(home, "reaper.log")
 	env := &reaper.Env{
 		Config:    cfg,
 		Protected: pl,
+		Given:     given,
 		Zellij:    zj,
 		Sources: inspect.Sources{
 			ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
@@ -473,5 +485,124 @@ func TestAProtectionAddedDuringThePassKeepsTheSession(t *testing.T) {
 	}
 	if !strings.Contains(w.log(t), "  -> kept: idle-old :: protected since the check\n") {
 		t.Errorf("log:\n%s", w.log(t))
+	}
+}
+
+func TestANameSomeoneChoseStays(t *testing.T) {
+	// busy is on the list of given names, and fresh shows nothing to go by. Take
+	// busy off the list: nothing else says its name came from a pass.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	if err := w.env.Given.Set("busy", false); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() != "busy" {
+			continue
+		}
+		if o.WouldRename != "" {
+			t.Errorf("a pass would rename a chosen name to %q", o.WouldRename)
+		}
+		// The dashboard still offers the name by hand.
+		if o.Suggested != "htop" {
+			t.Errorf("suggested %q", o.Suggested)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 0 {
+		t.Errorf("renamed a chosen name: %v", w.zj.renamed)
+	}
+}
+
+func TestAGivenNameIsRememberedAndCanChangeAgain(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(w.zj.renamed, ",") != "busy->htop" {
+		t.Fatalf("renamed %v", w.zj.renamed)
+	}
+	// The new name is on the list in the file, the old one is not.
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !back.Has("htop") || back.Has("busy") {
+		t.Errorf("given names after the pass: %v", back.Names())
+	}
+}
+
+func TestADryRunRemembersNothing(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{DryRun: true}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(back.Names(), ",") != "busy" {
+		t.Errorf("a dry run changed the list: %v", back.Names())
+	}
+}
+
+func TestARefusedNameIsNotRemembered(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	w.zj.refuse["htop"] = true
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Has("htop") || !back.Has("htop-2") {
+		t.Errorf("given names: %v", back.Names())
+	}
+}
+
+func TestAnUnconfirmedRenameIsRemembered(t *testing.T) {
+	// zellij took it and the new name did not show in time. If the session has
+	// that name, it must not read as chosen by hand at the next pass.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	w.zj.unseen = true
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !back.Has("busy") {
+		t.Errorf("the old name left the list: %v", back.Names())
+	}
+}
+
+func TestGivenNamesOfGoneSessionsAreForgotten(t *testing.T) {
+	// A session someone starts later under such a name was named by them.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	if err := w.env.Given.Set("long-gone", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Has("long-gone") {
+		t.Errorf("given names: %v", back.Names())
 	}
 }

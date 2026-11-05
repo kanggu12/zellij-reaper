@@ -105,7 +105,8 @@ zellij-reaper · zellij 0.45.1 · reaping on · reaps after 1h idle, 3d exited �
 
 `zellij-reaper protect NAME` keeps a session out of every pass. To start with passes that only log, run `zellij-reaper
 config edit` and set `dry_run = true`. Packages (`.deb`, `.rpm`, `.apk`, Arch), release archives and `go install` are
-in [setup](docs/setup.md), with upgrading, uninstalling and WSL 2.
+in [setup](docs/setup.md), with upgrading, uninstalling, WSL 2 and [machines with no internet
+access](docs/setup.md#without-internet-access).
 
 ## Try it in a sandbox
 
@@ -123,17 +124,17 @@ From a clone, `make demo` stages the same sessions from the working tree (it nee
 
 ## Names that say what a session is
 
-zellij names a session `brave-peach`. With `auto_rename = true`, every pass names the sessions it keeps after what they
-show, so the list of sessions reads like a list of what you were doing:
+zellij names a session `brave-peach` when you do not. With `auto_rename = true`, every pass names such sessions after what
+they show, so the list of sessions reads like a list of what you were doing:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/names-dark.svg">
   <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A name stays until what the session shows changes. An attached session is never renamed, and a session you protect by
-name keeps its name. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules. In the dashboard, `r`
-offers the same name for any running session, with `auto_rename` on or off.
+A name you chose stays: only the names zellij makes up and the ones zellij-reaper gave earlier change, and only when what
+the session shows changes. An attached session is never renamed. [Setup](docs/setup.md#naming-sessions-after-what-they-show)
+has the rules. In the dashboard, `r` offers the same name for any running session, with `auto_rename` on or off.
 
 ## The dashboard
 
@@ -177,7 +178,7 @@ change:
 idle_after = "4h"            # reap idle sessions after 4 hours (default 12h)
 exited_after = "1d"          # and exited ones after a day (default 3d)
 protect = "^(keep-|work-)"   # names that are never reaped or renamed
-auto_rename = true           # name the sessions it keeps after what they show
+auto_rename = true           # name the sessions zellij named after what they show
 ```
 
 `zellij-reaper config show` prints the values in effect and where each one comes from. [Setup](docs/setup.md#settings)
@@ -189,27 +190,23 @@ Every pass writes one line per session, in words that stay the same across relea
 
 ```
 $ zellij-reaper logs
-11-05 02:49:17  === reaper start (dry_run=false idle_after=1h exited_after=3d) ===
-11-05 02:49:17  old-experiment [EXITED] panes={Pane #1|sleep 5000} :: REAP EXITED, 5d since last activity
-11-05 02:49:17    -> deleted: old-experiment
-11-05 02:49:17  k8s-debug [EXITED] panes={Pane #1|sleep 5000} :: SKIP EXITED 1d ago, reaped after 3d
-11-05 02:49:17  api-server [RUNNING] panes={Pane #1|npm run dev} :: SKIP running in a pane: npm run dev
-11-05 02:49:17    -> renamed: api-server → npm-run-dev
-11-05 02:49:17  notes [RUNNING] panes={Pane #1} :: SKIP client attached (1 client(s) attached)
-11-05 02:49:17  agent-refactor [RUNNING] panes={Pane #1|claude} :: SKIP protected command running (claude)
-11-05 02:49:17    -> renamed: agent-refactor → claude
-11-05 02:49:17  db-shell [RUNNING] panes={Pane #1|psql app_dev} :: SKIP running in a pane: psql app_dev
-11-05 02:49:17    -> renamed: db-shell → psql-app_dev
-11-05 02:49:17  monitoring [RUNNING] panes={Pane #1|watch df -h} :: SKIP running in a pane: watch df -h
-11-05 02:49:17    -> renamed: monitoring → watch-df
-11-05 02:49:17  logs [RUNNING] panes={Pane #1|tail -f app.log} :: SKIP running in a pane: tail -f app.log
-11-05 02:49:17    -> renamed: logs → tail-app.log
-11-05 02:49:17  scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 3h since last activity
-11-05 02:49:17    -> deleted: scratch
-11-05 02:49:17  docs-review [RUNNING] panes={Pane #1} :: SKIP IDLE for 25m, reaped after 1h
-11-05 02:49:17  release-v2 [RUNNING] panes={Pane #1} :: SKIP IDLE for 50m, reaped after 1h
-11-05 02:49:17  dotfiles [RUNNING] panes={Pane #1} :: SKIP protected by protected list
-11-05 02:49:17  === reaper end (2 reaped, 10 kept, 5 renamed) ===
+11-05 11:49:05  === reaper start (dry_run=false idle_after=1h exited_after=3d) ===
+11-05 11:49:05  old-experiment [EXITED] panes={Pane #1|sleep 5000} :: REAP EXITED, 5d since last activity
+11-05 11:49:05    -> deleted: old-experiment
+11-05 11:49:05  k8s-debug [EXITED] panes={Pane #1|sleep 5000} :: SKIP EXITED 1d ago, reaped after 3d
+11-05 11:49:05  api-server [RUNNING] panes={Pane #1|npm run dev} :: SKIP running in a pane: npm run dev
+11-05 11:49:05  notes [RUNNING] panes={Pane #1} :: SKIP client attached (1 client(s) attached)
+11-05 11:49:05  agent-refactor [RUNNING] panes={Pane #1|claude} :: SKIP protected command running (claude)
+11-05 11:49:05  db-shell [RUNNING] panes={Pane #1|psql app_dev} :: SKIP running in a pane: psql app_dev
+11-05 11:49:05  monitoring [RUNNING] panes={Pane #1|watch df -h} :: SKIP running in a pane: watch df -h
+11-05 11:49:05  quiet-mouse [RUNNING] panes={Pane #1|tail -f app.log} :: SKIP running in a pane: tail -f app.log
+11-05 11:49:05    -> renamed: quiet-mouse → tail-app.log
+11-05 11:49:05  scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 3h since last activity
+11-05 11:49:05    -> deleted: scratch
+11-05 11:49:05  docs-review [RUNNING] panes={Pane #1} :: SKIP IDLE for 25m, reaped after 1h
+11-05 11:49:05  release-v2 [RUNNING] panes={Pane #1} :: SKIP IDLE for 50m, reaped after 1h
+11-05 11:49:05  dotfiles [RUNNING] panes={Pane #1} :: SKIP protected by protected list
+11-05 11:49:05  === reaper end (2 reaped, 10 kept, 1 renamed) ===
 ```
 
 It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `log.max_bytes` (1 MiB).

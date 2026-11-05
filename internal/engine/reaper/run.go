@@ -46,6 +46,9 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	for i := range r.Outcomes {
 		e.act(ctx, &r.Outcomes[i], dry, taken)
 	}
+	if !dry {
+		e.forgetGone(taken)
+	}
 	reaped, kept, renamed := r.Counts()
 	e.Log.Printf("=== reaper end (%d reaped, %d kept, %d renamed) ===", reaped, kept, renamed)
 	return r, nil

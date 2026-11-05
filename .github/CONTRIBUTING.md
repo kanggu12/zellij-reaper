@@ -96,7 +96,8 @@ title that says nothing about the session goes in `agentTitles`. Try a change on
 
 ### A zellij release
 
-Run `make integration ZELLIJ_VERSIONS=x.y.z`. If it passes, add it to the matrix in `.github/workflows/ci.yml` and to
+Run `make integration ZELLIJ_VERSIONS=x.y.z`. A scenario lets zellij pick a name, so new words in its lists fail there:
+they go in `internal/core/rename/generated.go`. If it passes, add it to the matrix in `.github/workflows/ci.yml` and to
 `default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in
 `internal/front/cli/doctor.go`, or `doctor` warns it is untested, and update `README.md` and `docs/setup.md`. If it fails,
 record what changed (`list-sessions -n`, `action list-clients`, a `session-metadata.kdl`) under

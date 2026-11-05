@@ -154,6 +154,11 @@ whenever one runs.
 
 ### Names
 
+A name someone chose stays. `auto_rename` replaces only what nobody chose: a name zellij made up, told by zellij's own word
+lists because `web-app` has the same shape as `brave-peach`; a name with the stamp earlier versions added; and a name it gave
+itself, kept in a small list so it can follow what the session shows next. Before, keeping a name took the protected list,
+which keeps the session from being reaped as well, and the demo's `agent-refactor` became `claude`.
+
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
 log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
@@ -225,7 +230,7 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
-make integration                         # each tested zellij release, in Docker
+make integration                         # each tested zellij release, in Docker, with no network
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
 make demo                                # the dashboard on demo sessions in a container, to try by hand
 ```
@@ -233,7 +238,7 @@ make demo                                # the dashboard on demo sessions in a c
 The integration scenarios make sessions in a container: idle ones with their terminals' times moved back, a shell
 running a command, a command pane, a stand-in coding agent, a client attached through `script(1)`, exited sessions
 (their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
-long Korean title and a name with a dot in it. Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`,
+long Korean title, a name with a dot in it, a name zellij picks itself and one a person chose. Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`,
 `recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
 pass in the log, so a rare failure leaves its evidence in the test output.
 
