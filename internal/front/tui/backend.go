@@ -174,6 +174,10 @@ func (r real) renameByHand(ctx context.Context, name, to string) (string, error)
 	if limit := r.nameLimit(); limit > 0 && len(to) > limit {
 		return "", errors.New(i18n.T("rename.toolong", limit))
 	}
+	// A file at that name is another session's socket, listed or not.
+	if dir := r.socketDir(); dir != "" && zellij.SocketTaken(dir, to) {
+		return "", zellij.ErrNameTaken
+	}
 	// The list as the file holds it now: a protection added from
 	// another terminal moves with the session too.
 	if err := pl.Reload(); err != nil {
@@ -202,11 +206,16 @@ func (r real) renameByHand(ctx context.Context, name, to string) (string, error)
 // nameLimit is the longest session name, in bytes, whose socket path fits in
 // zellij's socket directory here; 0 when the directory is not known.
 func (r real) nameLimit() int {
-	dir := zellij.SocketDir(os.LookupEnv, os.Getuid(), r.a.ZellijVersion)
+	dir := r.socketDir()
 	if dir == "" {
 		return 0
 	}
 	return zellij.NameRoom(dir)
+}
+
+// socketDir is zellij's socket directory here; "" when it is not known.
+func (r real) socketDir() string {
+	return zellij.SocketDir(os.LookupEnv, os.Getuid(), r.a.ZellijVersion)
 }
 
 // renameListed renames a session on the protected list without a moment in

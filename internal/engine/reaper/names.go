@@ -145,11 +145,7 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target
 func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, taken map[string]bool) {
 	name := o.Session.Name()
 	for attempt := target; ; {
-		// Written down first: a pass that dies right after the rename leaves a
-		// name the next pass knows as given. The other order would leave one
-		// that looks chosen by hand, and it would never change again.
-		e.remember(attempt)
-		err := e.Zellij.Rename(ctx, name, attempt)
+		err := e.renameTo(ctx, o.Session, attempt)
 		if err == nil {
 			o.RenamedTo = attempt
 			delete(taken, name)
@@ -181,6 +177,20 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 		}
 		attempt = next
 	}
+}
+
+// renameTo renames a session to one name. A file at that name in the session's
+// socket directory is another session's, listed or not: zellij would move this
+// session's socket over it and cut the other one off, so it counts as taken.
+func (e *Env) renameTo(ctx context.Context, s inspect.Session, to string) error {
+	if s.Socket != "" && zellij.SocketTaken(filepath.Dir(s.Socket), to) {
+		return zellij.ErrNameTaken
+	}
+	// Written down first: a pass that dies right after the rename leaves a name
+	// the next pass knows as given. The other order would leave one that looks
+	// chosen by hand, and it would never change again.
+	e.remember(to)
+	return e.Zellij.Rename(ctx, s.Name(), to)
 }
 
 // remember records a name auto_rename is about to give. A list that cannot be

@@ -13,6 +13,12 @@ the project uses [semantic versioning](https://semver.org/).
   another script, or with an accent, is left out whole, and a title left with nothing gives way to the directory and the
   program. A name a pass gave in another script before changes to its English one at the next pass.
 
+### Fixed
+
+- A rename refuses a name whose socket file is already there, whether zellij lists that session at that moment or not.
+  Since zellij 0.44 a rename onto it cuts the other session off. In the integration scenarios, zellij once left a session
+  it had just renamed out of its list for a moment, and a pass checked the list alone.
+
 ## [0.3.2] - 2026-11-06
 
 ### Added

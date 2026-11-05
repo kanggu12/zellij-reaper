@@ -80,6 +80,14 @@ func NameRoom(socketDir string) int {
 	return SocketPathLimit - len(socketDir) - 1
 }
 
+// SocketTaken reports whether a file sits at dir/name. zellij moves a session's
+// socket file to its new name on a rename, so a file there is another session's,
+// whether zellij lists that session at this moment or not.
+func SocketTaken(dir, name string) bool {
+	_, err := os.Lstat(filepath.Join(dir, name))
+	return err == nil
+}
+
 // PaneMeta is one pane as session-metadata.kdl describes it.
 type PaneMeta struct {
 	// Title is the pane's title as zellij shows it.

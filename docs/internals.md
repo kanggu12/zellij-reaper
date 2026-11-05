@@ -194,7 +194,9 @@ way to end up with a tail.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file over
 the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at the list
-first and refuses, then waits until zellij lists the new name before calling the rename done. When zellij took the request
+first and refuses, then waits until zellij lists the new name before calling the rename done. A pass and the dashboard also
+refuse a name whose socket file is already there, since zellij once left a session it had just renamed out of its list for
+a moment. When zellij took the request
 and the new name does not show in time, the dashboard keeps both names on the protected list, since the session may have
 either.
 

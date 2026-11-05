@@ -95,6 +95,8 @@ type world struct {
 	env  *reaper.Env
 	zj   *fakeZellij
 	logp string
+	// sockDir is where the sessions' sockets are.
+	sockDir string
 	// attach connects a client to a session, as the kernel would show it.
 	attach func(name string)
 }
@@ -177,7 +179,7 @@ func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 			procfs.UnixSocket{Inode: conn, State: 1, Name: filepath.Join(sockDir, name), Peer: peer},
 			procfs.UnixSocket{Inode: peer, State: 1, Peer: conn})
 	}
-	return &world{env: env, zj: zj, logp: logp, attach: attach}
+	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach}
 }
 
 func (w *world) log(t *testing.T) string {
@@ -720,6 +722,22 @@ func TestAKeptListThatCannotBeReadStopsRenamesOnly(t *testing.T) {
 	}
 	if !strings.Contains(w.log(t), "could not read the list of kept names: ") || !strings.Contains(w.log(t), ", so no session is renamed\n") {
 		t.Errorf("log:\n%s", w.log(t))
+	}
+}
+
+func TestASocketFileAtTheNameCountsAsTaken(t *testing.T) {
+	// A session zellij does not list at this moment still has its socket there:
+	// renaming onto it would move busy's socket over it.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	testutil.Socket(t, w.sockDir, "htop")
+	var asked []string
+	w.zj.onRename = func(to string) { asked = append(asked, to) }
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(asked, ",") != "htop-2" || strings.Join(w.zj.renamed, ",") != "busy->htop-2" {
+		t.Errorf("asked zellij for %v, renamed %v", asked, w.zj.renamed)
 	}
 }
 

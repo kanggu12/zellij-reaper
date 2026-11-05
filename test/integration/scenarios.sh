@@ -22,6 +22,7 @@ check() {
     # What the reaper saw, so a failure that only happens now and then can be
     # read afterwards instead of guessed at.
     echo "       plan: $($R plan --json 2>&1 | jq -c '[.sessions[] | {name, code}]' 2>/dev/null)"
+    echo "       zellij lists: $($Z list-sessions -n 2>&1 | tr '\n' ';')"
     echo "       the last pass in the log:"
     awk '/=== reaper start/ { pass = "" } { pass = pass "         " $0 "\n" } END { printf "%s", pass }' "$LOG" 2>/dev/null
   fi

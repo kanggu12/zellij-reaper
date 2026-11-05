@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
+	"github.com/kanggu12/zellij-reaper/internal/testutil"
 )
 
 // fakeZellij answers zellij's command line for the real backend, without
@@ -281,6 +283,26 @@ func TestRenameByHandRefusesATakenName(t *testing.T) {
 	}
 	if z.did("--session work action rename-session") {
 		t.Errorf("zellij was asked to rename onto a taken name: %v", z.calls)
+	}
+}
+
+func TestARenameByHandOntoASocketFileIsRefused(t *testing.T) {
+	i18n.Set(i18n.English)
+	// zellij does not list notes at this moment, and its socket file is there.
+	dir := testutil.SocketDir(t)
+	t.Setenv("ZELLIJ_SOCKET_DIR", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "contract_version_1"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	testutil.Socket(t, filepath.Join(dir, "contract_version_1"), "notes")
+	z := &fakeZellij{sessions: "work [Created 1h ago]\n"}
+	b, a := backendFor(t, z, "")
+	a.ZellijVersion = "0.45.1"
+	if _, err := b.Rename(context.Background(), "work", "notes"); !errors.Is(err, zellij.ErrNameTaken) {
+		t.Fatalf("rename onto a socket file: %v", err)
+	}
+	if z.did("--session work action rename-session") {
+		t.Errorf("zellij was asked to rename onto a socket file: %v", z.calls)
 	}
 }
 
