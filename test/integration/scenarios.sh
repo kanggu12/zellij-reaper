@@ -94,11 +94,20 @@ is_code() {
   }
 }
 listed() { $Z list-sessions -n -s 2>/dev/null | grep -qxF "$1"; }
-# Gone from zellij's list. delete-session says it is done before the server has
-# gone, and on a busy machine the name can be listed a moment longer.
-gone() {
+gone() { ! listed "$1"; }
+
+# Delete a session and wait for it to leave the list, as a pass does. A server caught
+# saving its layout writes that data back as it stops, and the session lists as exited.
+delete_it() {
+  $Z delete-session "$1" --force >/dev/null 2>&1 || return 1
   for _ in $(seq 50); do
-    listed "$1" || return 0
+    case "$($Z list-sessions -n 2>/dev/null | awk -v n="$1" '$1 == n { print (/EXITED/ ? "exited" : "running") }')" in
+      "") return 0 ;;
+      exited)
+        $Z delete-session "$1" >/dev/null 2>&1
+        return
+        ;;
+    esac
     sleep 0.1
   done
   return 1
@@ -330,7 +339,7 @@ check "the names stay" sh -c "$Z list-sessions -n -s | grep -qxF same-title-2 &&
 
 # The list of given names holds names, not sessions. Someone starts a session under
 # a name a pass gave to a session now gone, before any pass has cleared it.
-check "a session a pass named can be deleted" $Z delete-session build-watcher --force
+check "a session a pass named can be deleted" delete_it build-watcher
 check "and that name is free" gone build-watcher
 pane_layout 'my own work' /tmp/own.kdl
 start build-watcher /tmp/own.kdl
@@ -339,7 +348,7 @@ check "its name is on the list from the one before" grep -qxF build-watcher ~/.l
 check "a pass after that succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a session started under a name a pass gave keeps it" listed build-watcher
 
-check "zellij deletes a name with a dot" $Z delete-session notes-v1.2.md --force
+check "zellij deletes a name with a dot" delete_it notes-v1.2.md
 check "and it is gone" gone notes-v1.2.md
 
 # zellij remembers the names a session has had and refuses them, so a session

@@ -139,7 +139,7 @@ Every line the log can hold:
 | `could not rotate PATH (N bytes) to PATH.1: ERROR` | the log could not move aside; the pass goes on |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
-| `  -> FAILED: NAME :: ERROR` | zellij refused the delete |
+| `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
 | `  -> kept: NAME :: REASON` | something changed just before the delete |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
 | `  -> kept name: NAME :: REASON` | a client attached before the rename |

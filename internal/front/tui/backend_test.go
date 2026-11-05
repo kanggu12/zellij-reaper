@@ -50,6 +50,14 @@ func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, err
 		}
 		return f.sessions, "", nil
 	case args[0] == "delete-session":
+		// The session leaves the list, as zellij would.
+		var kept []string
+		for _, line := range strings.SplitAfter(f.sessions, "\n") {
+			if !strings.HasPrefix(line, args[1]+" ") {
+				kept = append(kept, line)
+			}
+		}
+		f.sessions = strings.Join(kept, "")
 		return "", "", nil
 	case len(args) == 4 && args[3] == "list-clients":
 		switch v := f.clients[args[1]].(type) {

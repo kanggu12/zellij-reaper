@@ -270,6 +270,83 @@ func (s *script) count(word string) int {
 
 func (s *script) cli() *CLI { return &CLI{Bin: "zellij", Timeout: time.Second, Run: s.run} }
 
+// deleter answers delete-session, then lists whatever each call scripts next.
+type deleter struct {
+	// after is what list-sessions prints, one answer per call; the last one repeats.
+	after []string
+	// again makes the second delete-session fail.
+	again error
+	calls []string
+}
+
+func (d *deleter) cli() *CLI {
+	return &CLI{Bin: "zellij", Timeout: time.Second, Run: func(_ context.Context, args ...string) (string, string, error) {
+		d.calls = append(d.calls, strings.Join(args, " "))
+		switch args[0] {
+		case "list-sessions":
+			out := d.after[0]
+			if len(d.after) > 1 {
+				d.after = d.after[1:]
+			}
+			return out, "", nil
+		case "delete-session":
+			if len(args) == 2 && d.again != nil {
+				return "", d.again.Error(), d.again
+			}
+			return "", "", nil
+		}
+		return "", "unexpected call", errors.New("exit status 2")
+	}}
+}
+
+func TestDeleteLooksAtWhatIsLeft(t *testing.T) {
+	const (
+		running = "work [Created 1h ago]\n"
+		exited  = "work [Created 1h ago] (EXITED - attach to resurrect)\n"
+		other   = "notes [Created 1h ago]\n"
+	)
+	old := deleteSettles
+	deleteSettles = 80 * time.Millisecond
+	defer func() { deleteSettles = old }()
+	forced, plain := "delete-session work --force", "delete-session work"
+	deletes := func(d *deleter) []string {
+		var got []string
+		for _, c := range d.calls {
+			if strings.HasPrefix(c, "delete-session") {
+				got = append(got, c)
+			}
+		}
+		return got
+	}
+	for _, c := range []struct {
+		what    string
+		after   []string
+		again   error
+		want    []string
+		wantErr string
+	}{
+		{what: "gone at once", after: []string{other}, want: []string{forced}},
+		{what: "no session left", after: []string{""}, want: []string{forced}},
+		{what: "stopping, then gone", after: []string{running, running, other}, want: []string{forced}},
+		// The server wrote its layout back as it stopped.
+		{what: "back as exited", after: []string{exited}, want: []string{forced, plain}},
+		{what: "stopping, then back as exited", after: []string{running, exited}, want: []string{forced, plain}},
+		{what: "someone brought it back as it was deleted again", after: []string{exited}, again: errors.New("exists and is active"), want: []string{forced, plain}, wantErr: "exists and is active"},
+		{what: "never stops", after: []string{running}, want: []string{forced}, wantErr: "still running"},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			d := &deleter{after: c.after, again: c.again}
+			err := d.cli().Delete(context.Background(), "work")
+			if (err != nil) != (c.wantErr != "") || (err != nil && !strings.Contains(err.Error(), c.wantErr)) {
+				t.Errorf("error %v, want %q", err, c.wantErr)
+			}
+			if got := deletes(d); strings.Join(got, ",") != strings.Join(c.want, ",") {
+				t.Errorf("asked zellij for %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestARenameCutShortIsUnconfirmed(t *testing.T) {
 	// The command reached the server, which may have acted on it, and it never
 	// came back. exec, so the time limit stops the sleep and not just the shell.

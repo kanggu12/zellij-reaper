@@ -22,6 +22,9 @@ the project uses [semantic versioning](https://semver.org/).
   (`report_2025-2026`) or that a session started under, and, with `auto_rename_stamp = "time"`, a stamped name taken from `r`.
   A session started under two words from zellij's lists still reads as made up, since nothing tells them apart.
 - A pass that finds no sessions clears the list of given names.
+- A deleted session stays deleted. A server caught saving its layout as it stopped could write the session's data back, so
+  it came back as exited until `exited_after` had passed. A delete now looks at what is left, and reports a session still
+  running five seconds later as `FAILED`.
 - A rename that timed out, or that zellij took without it showing in time, no longer counts as refused. Its name stays on the
   list of given names, so it can still follow what the session shows, and the dashboard keeps such a session's protection
   on both names.

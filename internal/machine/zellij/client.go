@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -175,13 +176,53 @@ func (c *CLI) ListSessions(ctx context.Context) ([]Listed, error) {
 }
 
 // Delete deletes a session: a running one is killed first (-f), an exited one
-// loses its resurrection data.
+// loses its resurrection data. It returns once zellij no longer lists the session.
+//
+// delete-session asks the server to stop and removes the session's data without
+// waiting for it. A server caught saving its layout writes that data back as it stops,
+// and the session then lists as exited. A session saving every second did that in 6
+// deletes of 443 in the integration containers. Asked again, zellij removes the data.
 func (c *CLI) Delete(ctx context.Context, name string) error {
 	_, errOut, err := c.call(ctx, "delete-session", name, "--force")
 	if err != nil {
 		return fmt.Errorf("zellij delete-session %s: %s", name, oneLine(errOut, err))
 	}
-	return nil
+	return c.waitDeleted(ctx, name)
+}
+
+// deleteSettles is how long a server gets to stop once asked. In the integration
+// containers a session is off the list in under 300 ms.
+var deleteSettles = 5 * time.Second
+
+// waitDeleted waits for a deleted session to leave the list, and deletes it again if
+// it came back as exited. A list that cannot be read says nothing against a delete
+// zellij reported as done.
+func (c *CLI) waitDeleted(ctx context.Context, name string) error {
+	deadline := time.Now().Add(deleteSettles)
+	for {
+		sessions, err := c.ListSessions(ctx)
+		if err != nil {
+			return nil
+		}
+		i := slices.IndexFunc(sessions, func(l Listed) bool { return l.Name == name })
+		switch {
+		case i < 0:
+			return nil
+		// Not forced: a session someone brought back meanwhile is theirs to keep.
+		case sessions[i].Exited:
+			if _, errOut, err := c.call(ctx, "delete-session", name); err != nil {
+				return fmt.Errorf("zellij delete-session %s: %s", name, oneLine(errOut, err))
+			}
+			return nil
+		case time.Now().After(deadline):
+			return fmt.Errorf("zellij delete-session %s: still running after %s", name, deleteSettles)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("zellij delete-session %s: cancelled before it stopped", name)
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
 }
 
 // Rename renames a running session, and returns only once zellij lists it
