@@ -6,3 +6,5 @@
 /scratch/
 *.swp
 .DS_Store
+# `go mod vendor` for a build with no internet access; tracked it would read as a changed tree.
+/vendor/
