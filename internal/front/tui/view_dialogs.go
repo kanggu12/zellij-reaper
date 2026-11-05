@@ -74,7 +74,7 @@ func (m model) inputBox() string {
 	t := m.th
 	keys := t.KeyCap("⏎", i18n.T("footer.rename")) + "  " + t.KeyCap("esc", i18n.T("footer.cancel"))
 	prompt := ui.Fg(t.Ink).Render(i18n.T("rename.prompt", m.target))
-	return m.box(lipgloss.NewStyle().BorderForeground(t.Cat[ui.CatBusy]), prompt, m.input.View(), "", keys)
+	return m.box(lipgloss.NewStyle().BorderForeground(t.Cat[ui.CatBusy]), prompt, m.input.view(), "", keys)
 }
 
 // helpView lists the keys and what each color means.

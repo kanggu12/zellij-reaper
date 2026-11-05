@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -84,7 +83,7 @@ type model struct {
 	filter string
 	// before is the filter as it was when "/" was pressed, for esc.
 	before  string
-	input   textinput.Model
+	input   field
 	confirm confirmKind
 	target  string
 
@@ -105,9 +104,7 @@ type model struct {
 
 // newModel builds the dashboard for a backend.
 func newModel(ctx context.Context, b Backend) model {
-	ti := textinput.New()
-	ti.CharLimit = 200
-	return model{b: b, ctx: ctx, th: ui.NewTheme(true), input: ti, now: time.Now(), width: 100, height: 30}
+	return model{b: b, ctx: ctx, th: ui.NewTheme(true), now: time.Now(), width: 100, height: 30}
 }
 
 // Run opens the dashboard on the terminal.
@@ -179,17 +176,25 @@ func (m model) selected() (reaper.Outcome, bool) {
 }
 
 // openInput readies the text field: a filled well in the theme's colors, so
-// it reads as a place to type, its padding filled too.
-func (m *model) openInput(prompt string, width int, value string) tea.Cmd {
-	st := m.input.Styles()
-	st.Focused.Text = lipgloss.NewStyle().Foreground(m.th.Ink).Background(m.th.Selected)
-	st.Focused.Prompt = lipgloss.NewStyle().Foreground(m.th.Muted)
-	m.input.SetStyles(st)
-	m.input.Prompt = prompt
-	m.input.SetWidth(width)
-	m.input.SetValue(value)
-	m.input.CursorEnd()
-	return m.input.Focus()
+// it reads as something to type into on either background.
+func (m *model) openInput(prompt string, width int, value string) {
+	m.input = field{
+		prompt:      prompt,
+		width:       width,
+		textStyle:   lipgloss.NewStyle().Foreground(m.th.Ink).Background(m.th.Selected),
+		promptStyle: lipgloss.NewStyle().Foreground(m.th.Muted),
+	}
+	m.input.set(value)
+}
+
+// inputChanged applies what was typed or pasted: the filter follows the text
+// as it changes. A rename waits for enter.
+func (m *model) inputChanged() {
+	if m.mode == modeFilter {
+		m.filter = m.input.value()
+		m.sel = 0
+		m.reselect()
+	}
 }
 
 // say shows a toast for a few seconds.
@@ -248,12 +253,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
-	}
-	// Anything else goes to the text input when it is open.
-	if m.mode == modeRename || m.mode == modeFilter {
-		var cmd tea.Cmd
-		m.input, cmd = m.input.Update(msg)
-		return m, cmd
+	// A terminal's paste arrives whole. Anywhere but a text field it means
+	// nothing: pasted text must not run as keys.
+	case tea.PasteMsg:
+		if m.mode == modeRename || m.mode == modeFilter {
+			m.input.insert(msg.Content)
+			m.inputChanged()
+		}
+		return m, nil
 	}
 	return m, nil
 }

@@ -7,11 +7,9 @@ follow.
 
 | Component | Version | License | Source |
 |:---|:---:|:---:|:---|
-| `charm.land/bubbles/v2` | v2.2.1 | MIT | https://pkg.go.dev/charm.land/bubbles/v2 |
 | `charm.land/bubbletea/v2` | v2.1.1 | MIT | https://pkg.go.dev/charm.land/bubbletea/v2 |
 | `charm.land/lipgloss/v2` | v2.0.6 | MIT | https://pkg.go.dev/charm.land/lipgloss/v2 |
 | `github.com/BurntSushi/toml` | v1.6.0 | MIT | https://pkg.go.dev/github.com/BurntSushi/toml |
-| `github.com/atotto/clipboard` | v0.1.4 | BSD-3-Clause | https://pkg.go.dev/github.com/atotto/clipboard |
 | `github.com/charmbracelet/colorprofile` | v0.4.3 | MIT | https://pkg.go.dev/github.com/charmbracelet/colorprofile |
 | `github.com/charmbracelet/ultraviolet` | v0.0.0-20261008173134-6b8d4baf91b4 | MIT | https://pkg.go.dev/github.com/charmbracelet/ultraviolet |
 | `github.com/charmbracelet/x/ansi` | v0.11.9 | MIT | https://pkg.go.dev/github.com/charmbracelet/x/ansi |
@@ -34,32 +32,6 @@ follow.
 
 The demo image `ghcr.io/kanggu12/zellij-reaper-demo` also carries zellij itself (MIT) and a Debian base
 image; their licenses are in the image, under `/usr/share/licenses/`.
-
-## charm.land/bubbles/v2 v2.2.1
-
-```text
-MIT License
-
-Copyright (c) 2020-2026 Charmbracelet, Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ## charm.land/bubbletea/v2 v2.1.1
 
@@ -137,38 +109,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-```
-
-## github.com/atotto/clipboard v0.1.4
-
-```text
-Copyright (c) 2013 Ato Araki. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-   * Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-   * Redistributions in binary form must reproduce the above
-copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the
-distribution.
-   * Neither the name of @atotto. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## github.com/charmbracelet/colorprofile v0.4.3

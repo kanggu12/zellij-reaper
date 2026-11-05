@@ -186,7 +186,7 @@ var (
 func (m model) statusLine() string {
 	t := m.th
 	if m.mode == modeFilter {
-		return " " + m.input.View()
+		return " " + m.input.view()
 	}
 	if m.toast != "" && time.Now().Before(m.toastUntil) {
 		return " " + ui.Fg(t.Cat[m.toastCat]).Render(m.toast)

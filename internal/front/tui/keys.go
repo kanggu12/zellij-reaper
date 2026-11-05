@@ -68,7 +68,8 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.mode, m.before = modeFilter, m.filter
 		prompt := i18n.T("filter.prompt")
-		return m, m.openInput(prompt, max(10, min(40, m.width-lipgloss.Width(prompt)-4)), m.filter)
+		m.openInput(prompt, max(10, min(40, m.width-lipgloss.Width(prompt)-4)), m.filter)
+		return m, nil
 	case "f":
 		// A pass that would reap something asks first, like every other
 		// delete from the dashboard.
@@ -108,7 +109,8 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if suggest == "" {
 			suggest = o.Session.Name()
 		}
-		return m, m.openInput("", max(10, min(64, m.width-4)-8), suggest)
+		m.openInput("", max(10, min(64, m.width-4)-8), suggest)
+		return m, nil
 	case "enter":
 		return m.attach()
 	}
@@ -175,11 +177,9 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.reselect()
 		}
 		m.mode = modeMain
-		m.input.Blur()
 		return m, nil
 	case "enter":
-		value := strings.TrimSpace(m.input.Value())
-		m.input.Blur()
+		value := strings.TrimSpace(m.input.value())
 		if m.mode == modeFilter {
 			m.mode, m.filter = modeMain, value
 			m.sel = 0
@@ -192,15 +192,10 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.rename(m.target, value)
 	}
-	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(k)
-	// The filter applies as it is typed.
-	if m.mode == modeFilter {
-		m.filter = m.input.Value()
-		m.sel = 0
-		m.reselect()
+	if m.input.key(k) {
+		m.inputChanged()
 	}
-	return m, cmd
+	return m, nil
 }
 
 // keyLog scrolls the log view.

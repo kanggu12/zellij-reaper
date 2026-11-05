@@ -271,7 +271,7 @@ func TestActions(t *testing.T) {
 	}
 	// r renames through the input.
 	m = press(t, m, "r")
-	m.input.SetValue("journal")
+	m.input.set("journal")
 	m = press(t, m, "enter")
 	if strings.Join(b.renamed, ",") != "notes->journal" {
 		t.Errorf("renamed %v", b.renamed)
@@ -505,7 +505,7 @@ func TestRenameShowsTheBackendsWarning(t *testing.T) {
 	b.renameNote = "Renamed notes to journal, which the name pattern does not cover: it is no longer protected"
 	m := pick(t, loaded(t, b, 120, 40), "notes")
 	m = press(t, m, "r")
-	m.input.SetValue("journal")
+	m.input.set("journal")
 	m = press(t, m, "enter")
 	if !strings.Contains(m.statusLine(), "no longer protected") {
 		t.Errorf("status after a rename that lost a protection: %q", m.statusLine())
