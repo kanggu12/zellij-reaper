@@ -175,7 +175,7 @@ echo "-- sessions in every state"
 # only when no session is running, so this comes first, and it runs something so the
 # forced pass keeps it. The scenarios below start sessions under a few such names of
 # their own, so a pick among those is made again.
-reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda '
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak '
 mkdir -p /srv/own-pick
 own=""
 for _ in 1 2 3 4 5; do
@@ -289,19 +289,22 @@ done
 
 echo "-- auto_rename"
 # Sessions zellij could have named, showing something to be named after: a title,
-# one with a dot in it, the same title twice, a long Korean title, and a shell whose
-# title says nothing, working in a directory that does. And one a person named.
+# one with a dot in it, the same title twice, a long title, one with words in other
+# scripts, and a shell whose title says nothing, working in a directory that does.
+# And one a person named.
 pane_layout() { printf 'layout {\n    pane name="%s" command="sleep" {\n        args "100000"\n    }\n}\n' "$1" >"$2"; }
 pane_layout 'build watcher' /tmp/watcher.kdl
 pane_layout 'same title' /tmp/same.kdl
 pane_layout 'notes v1.2.md' /tmp/dotted.kdl
 pane_layout 'notes from the long planning meeting about the next release' /tmp/long.kdl
+pane_layout 'Déploiement prod 本番' /tmp/scripts.kdl
 mkdir -p /srv/api
 start quiet-mouse /tmp/watcher.kdl
 start adept-magpie /tmp/same.kdl
 start kind-viola /tmp/same.kdl
 start rusty-pepper /tmp/dotted.kdl
 start brave-peach /tmp/long.kdl
+start wise-yak /tmp/scripts.kdl
 (cd /srv/api && start glowing-duck)
 # A stamped name from an earlier version, which gave those by renaming. And names
 # people chose, by starting a session or by renaming one: plain, two words from
@@ -313,7 +316,7 @@ start yearly /tmp/watcher.kdl && rename_to yearly report_2025-2026
 start started_1104-0931 /tmp/watcher.kdl
 # A name zellij could have made up, which someone kept with r and Enter.
 start kind-panda /tmp/watcher.kdl && printf 'kind-panda\n' >>~/.local/state/zellij-reaper/kept
-check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher' && wait_title kind-panda 'build watcher'"
+check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title wise-yak 'Déploiement prod 本番' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher' && wait_title kind-panda 'build watcher'"
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a made-up name goes" gone quiet-mouse
 check "a session is named after its pane" listed build-watcher
@@ -330,6 +333,7 @@ check "the same title takes a tail" sh -c "$Z list-sessions -n -s | grep -qxF sa
 long_name='notes-from-the-long-planning'
 check "a long title is cut at a word" listed "$long_name"
 check "a cut name still reaches its server" $Z --session "$long_name" action list-clients
+check "words in other scripts are left out" listed prod
 check "a name zellij picked itself goes" gone "$own"
 check "and the session is named after what it runs, where" listed own-pick-sleep-99996
 check "the names given are remembered" grep -qxF build-watcher ~/.local/state/zellij-reaper/named

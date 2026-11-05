@@ -137,13 +137,13 @@ func TestParseLayoutFixtures(t *testing.T) {
 
 func TestUnquoteKDL(t *testing.T) {
 	cases := map[string]string{
-		`"plain"`:               "plain",
-		`"say \"hi\""`:          `say "hi"`,
-		`"tab\tand\\slash"`:     "tab\tand\\slash",
-		`"\u{e9}t\u{e9}"`:       "été",
-		`r"raw \n"`:             `raw \n`,
-		`r#"has "quotes""#`:     `has "quotes"`,
-		`#"kdl2 raw"#`:          "kdl2 raw",
+		`"plain"`:                 "plain",
+		`"say \"hi\""`:            `say "hi"`,
+		`"tab\tand\\slash"`:       "tab\tand\\slash",
+		`"\u{e9}t\u{e9}"`:         "été",
+		`r"raw \n"`:               `raw \n`,
+		`r#"has "quotes""#`:       `has "quotes"`,
+		`#"kdl2 raw"#`:            "kdl2 raw",
 		`"✳ Release notes draft"`: "✳ Release notes draft",
 	}
 	for in, want := range cases {

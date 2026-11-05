@@ -5,6 +5,14 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-06
+
+### Changed
+
+- Names hold English letters and digits only, so they type on any keyboard and need no quotes in a shell. A word in
+  another script, or with an accent, is left out whole, and a title left with nothing gives way to the directory and the
+  program. A name a pass gave in another script before changes to its English one at the next pass.
+
 ## [0.3.2] - 2026-11-06
 
 ### Added
@@ -167,7 +175,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.3
 [0.3.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.2
 [0.3.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.1
 [0.3.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.0

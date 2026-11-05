@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/charmbracelet/x/ansi"
+	"unicode/utf8"
 )
 
 // here is a machine: a home, a name, and a session working in a project.
@@ -25,9 +24,16 @@ func TestSuggestFromTitles(t *testing.T) {
 		{"🚀 deploy 🚀", "deploy"},
 		// A variation selector stays with the symbol it came with.
 		{"build⚠️", "build"},
-		// Words of every script stay, and a Thai vowel stays on its letter.
-		{"ÉTÉ 2026", "été-2026"},
-		{"เกม", "เกม"},
+		// A name is English: a word in another script, or with an accent, is
+		// left out whole, and a title with nothing else gives way to the
+		// directory.
+		{"ÉTÉ 2026", "2026"},
+		{"Déploiement prod", "prod"},
+		{"cafe\u0301 menu", "menu"},
+		{"Деплой prod", "prod"},
+		{"本番 deploy 確認", "deploy"},
+		{"เกม", "web-app"},
+		{"ＡＢＣ", "web-app"},
 		// A "." stays inside a word, so a file name still reads as one.
 		{"vim notes.md", "vim-notes.md"},
 		{"draw.io diagrams", "draw.io-diagrams"},
@@ -178,37 +184,52 @@ func TestFit(t *testing.T) {
 	if got := Fit("web-app", MaxBase); got != "web-app" {
 		t.Errorf("short: %q", got)
 	}
-	// Cut at a word's end, by columns: Hangul takes two.
+	// Cut at a word's end.
 	got := Fit("game-server-evolved-local-container-host", MaxBase)
 	if got != "game-server-evolved-local" {
-		t.Errorf("by columns: %q", got)
+		t.Errorf("at a word: %q", got)
 	}
 	// Words that promise more go with the cut.
 	if got := Fit("check-the-cluster-state-and-then-repair-it", MaxBase); got != "check-the-cluster-state" {
-		t.Errorf("dangling and: %q", got)
-	}
-	if got := Fit("node-sshd-issue-analysis-and-monitoring", MaxBase); got != "node-sshd-issue-analysis" {
 		t.Errorf("dangling and: %q", got)
 	}
 	// An underscore is a word's end too.
 	if got := Fit("snapshot_disk_session_20260101_phase_a", MaxBase); got != "snapshot_disk_session_20260101" {
 		t.Errorf("underscores: %q", got)
 	}
-	// One long word is cut rather than lost, on a character.
-	got = Fit(strings.Repeat("x", 30), MaxBase)
-	if ansi.StringWidth(got) != MaxWidth || !strings.HasPrefix(strings.Repeat("x", 30), got) {
+	// One long word is cut rather than lost.
+	got = Fit(strings.Repeat("x", 40), MaxBase)
+	if got != strings.Repeat("x", MaxWidth) {
 		t.Errorf("long word: %q", got)
 	}
-	// The byte budget binds before the width in a tight socket directory.
-	got = Fit(strings.Repeat("x", 30), 10)
-	if len(got) != 9 {
+	// The byte budget binds first in a tight socket directory.
+	if got = Fit(strings.Repeat("x", 40), 10); len(got) != 10 {
 		t.Errorf("tight budget: %q (%d bytes)", got, len(got))
+	}
+	// Anything that is not a name is still cut between two characters.
+	if got = Fit(strings.Repeat("é", 30), 9); !utf8.ValidString(got) || len(got) > 9 {
+		t.Errorf("inside a character: %q", got)
 	}
 	// Nothing is ever past either limit.
 	for _, s := range []string{strings.Repeat("a", 200), strings.Repeat("ab ", 60), strings.Repeat("ab-", 60)} {
 		got := Fit(normalize(s), MaxBase)
-		if len(got) > MaxBase || ansi.StringWidth(got) > MaxWidth || strings.HasSuffix(got, "-") {
+		if len(got) > MaxWidth || strings.HasSuffix(got, "-") {
 			t.Errorf("past a limit: %q", got)
+		}
+	}
+}
+
+func TestNamesAreEnglish(t *testing.T) {
+	// Titles in many scripts, with symbols, accents and wide letters: what comes
+	// out types on any keyboard.
+	english := regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$|^$`)
+	for _, title := range []string{
+		"✳ Fix the login bug", "Déploiement prod", "Деплой на прод", "本番 deploy 確認", "เกมใหม่ v2",
+		"مرحبا world", "ＡＢＣ ｄｅｆ", "naïve-approach.md", "🚀 ship it 🚀", "a\u0301b c", "日本語",
+	} {
+		got := Suggest(Input{Titles: []string{title}}, MaxBase)
+		if !english.MatchString(got) {
+			t.Errorf("%q gave %q", title, got)
 		}
 	}
 }

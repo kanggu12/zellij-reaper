@@ -13,8 +13,6 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // MaxBase is the longest base name in bytes. It leaves room for the longest
@@ -22,9 +20,8 @@ import (
 // /run/user/<uid>/zellij/contract_version_1.
 const MaxBase = 50
 
-// MaxWidth is the widest base name in terminal columns: about what zellij's
-// bars and session list show without crowding, and 16 Hangul syllables. The
-// byte limit alone would allow a 50-column name in English.
+// MaxWidth is the longest base name in characters: about what zellij's bars and
+// session list show without crowding. The byte limit alone would allow 50.
 const MaxWidth = 32
 
 // tailLen is the room kept for the longest stamp ("_MMDD-HHMM") and a "-NN"
@@ -318,62 +315,67 @@ func dropMarks(s string) string {
 	}, s)
 }
 
-// normalize is the shape of every name: lower case, letters of every script
-// and digits, one "-" for each run of anything else. A "." stays between two
+// normalize is the shape of every name: lower-case English letters and digits,
+// with one "-" between words, so a name types on any keyboard and needs no quotes
+// in a shell. A word written in another script, or with an accent, is left out
+// whole: half a word reads worse than none, and a title left with nothing gives
+// way to the next thing that names the session. A "." stays between two
 // characters of a word, so "app.log" and "v1.2" still read as what they are.
 func normalize(s string) string {
 	runes := []rune(s)
-	var b strings.Builder
-	dash := false
+	var words []string
+	var word strings.Builder
+	english := true
+	// end closes the word read so far, and keeps it if it is all English.
+	end := func() {
+		if w := strings.Trim(word.String(), "_."); w != "" && english {
+			words = append(words, w)
+		}
+		word.Reset()
+		english = true
+	}
 	for i, r := range runes {
 		switch {
-		// A combining mark belongs to the letter before it, and means
-		// nothing after a symbol that was dropped.
+		// A combining mark turns the letter before it into another one,
+		// "e" and a mark into "é".
 		case unicode.IsMark(r):
-			if !dash && b.Len() > 0 {
-				b.WriteRune(r)
+			if word.Len() > 0 {
+				english = false
 			}
 		case unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_':
-			b.WriteRune(r)
-			dash = false
-		case r == '.' && i > 0 && i < len(runes)-1 && isWordRune(runes[i-1]) && isWordRune(runes[i+1]):
-			b.WriteRune(r)
-			dash = false
-		default:
-			if !dash && b.Len() > 0 {
-				b.WriteByte('-')
+			if r > unicode.MaxASCII {
+				english = false
 			}
-			dash = true
+			word.WriteRune(r)
+		case r == '.' && i > 0 && i < len(runes)-1 && isWordRune(runes[i-1]) && isWordRune(runes[i+1]):
+			word.WriteRune(r)
+		default:
+			end()
 		}
 	}
-	return strings.ToLower(strings.TrimRight(b.String(), "-_."))
+	end()
+	return strings.ToLower(strings.TrimRight(strings.Join(words, "-"), "-_."))
 }
 
 // isWordRune reports whether a rune is part of a word.
 func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }
 
-// Fit cuts a name to MaxWidth columns and maxBytes bytes, at a word boundary
-// when one leaves something to read, and never inside a character.
+// Fit cuts a name to MaxWidth characters and maxBytes bytes, at a word boundary
+// when one leaves something to read. A name is English, one byte to a character;
+// anything else is still cut between two characters.
 func Fit(s string, maxBytes int) string {
-	if maxBytes > MaxBase {
-		maxBytes = MaxBase
-	}
-	if len(s) <= maxBytes && ansi.StringWidth(s) <= MaxWidth {
+	limit := min(maxBytes, MaxBase, MaxWidth)
+	if len(s) <= limit {
 		return s
 	}
-	// The longest prefix within both limits.
-	end, width := 0, 0
-	for i, r := range s {
-		width += ansi.StringWidth(string(r))
-		if i+utf8.RuneLen(r) > maxBytes || width > MaxWidth {
-			break
-		}
-		end = i + utf8.RuneLen(r)
+	limit = max(limit, 0)
+	for limit > 0 && !utf8.RuneStart(s[limit]) {
+		limit--
 	}
-	cut := s[:end]
+	cut := s[:limit]
 	// Back to the last word's end, unless that throws away most of it: a
 	// long first word is better cut than lost.
-	if at := strings.LastIndexAny(cut, "-_"); at > 0 && ansi.StringWidth(cut[:at]) >= MaxWidth/2 {
+	if at := strings.LastIndexAny(cut, "-_"); at > 0 && at >= MaxWidth/2 {
 		cut = cut[:at]
 	}
 	return strings.TrimRight(dropDangling(cut), "-_.")

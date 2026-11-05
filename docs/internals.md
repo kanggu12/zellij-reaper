@@ -201,7 +201,7 @@ either.
 ### Names and the socket path
 
 A session's name is part of its socket path, and Linux caps a socket path at 107 bytes. Early shell versions cut names
-at 50 characters, which for Korean titles is 150 bytes; renamed past the limit, a session kept a server no command
+at 50 characters, which in some scripts is 150 bytes; renamed past the limit, a session kept a server no command
 could reach. Names are now cut by bytes, at a character boundary, to what the session's own socket directory leaves,
 with room for a stamp and a collision suffix. `recover` repairs sessions broken the old way.
 
@@ -253,7 +253,7 @@ make demo                                # the dashboard on demo sessions in a c
 The integration scenarios make sessions in a container: idle ones with their terminals' times moved back, a shell
 running a command, a command pane, a stand-in coding agent, a client attached through `script(1)`, exited sessions
 (their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
-long Korean title, a name with a dot in it, a name zellij picks itself, and names people chose by starting a session or
+long title, one with words in other scripts, a name with a dot in it, a name zellij picks itself, and names people chose by starting a session or
 by renaming one, some of them looking like a name zellij made up or a stamp. Then they check `plan`, a dry run, a pass,
 a forced pass, `auto_rename`, `recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
 pass in the log, so a rare failure leaves its evidence in the test output.

@@ -108,7 +108,7 @@ curl -fsSLO "$base/checksums.txt"
 Then on the closed machine, with the version you carried across:
 
 ```sh
-version=0.3.2
+version=0.3.3
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
@@ -243,7 +243,9 @@ These parts of a title are dropped or shortened:
 These rows show the title alone. A title that repeats what the pane runs falls under rule 2: `tail -f /var/log/app.log`
 run in `~/web-app` gives `web-app-tail-app.log`.
 
-Letters of every script stay, so two Korean titles make two names. A `.` stays inside a word, so `notes.md` still reads as
+Names hold English letters and digits, so they type on any keyboard and need no quotes in a shell. A word in another
+script, or with an accent, is left out whole (`Déploiement prod` gives `prod`), and a title left with nothing gives way
+to the next rule. A `.` stays inside a word, so `notes.md` still reads as
 a file. Names stop at 32 columns at the end of a word, and within what the session's socket path leaves of Linux's
 107-byte limit.
 
