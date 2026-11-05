@@ -112,6 +112,7 @@ func TestFieldViewIsAlwaysItsWidth(t *testing.T) {
 			// take the one column a wide character cannot be split over.
 			for at := len(f.text); at >= 0; at-- {
 				f.cursor = at
+				f.reveal()
 				got := lipgloss.Width(f.view())
 				if got != width && got != width+1 {
 					t.Errorf("width %d, %q, cursor %d: drew %d columns", width, v, at, got)
@@ -134,6 +135,27 @@ func hasWide(rs []rune) bool {
 	return false
 }
 
+func TestFieldScrollsOnlyWhenItHasTo(t *testing.T) {
+	// The screen is drawn from a copy of the model, so the field must not rely
+	// on what a view keeps. Moving left inside the window moves the cursor and
+	// leaves the text where it is.
+	var f field
+	f.width = 10
+	f.set("abcdefghijklmnopqrstuvwxyz")
+	for range 8 {
+		f.key(keyPress("left"))
+	}
+	if got := ansi.Strip(f.view()); got != "rstuvwxyz " {
+		t.Errorf("the window moved: %q", got)
+	}
+	for range 12 {
+		f.key(keyPress("left"))
+	}
+	if got := ansi.Strip(f.view()); !strings.HasPrefix(got, "g") || f.text[f.cursor] != 'g' {
+		t.Errorf("the cursor left the window: %q at %d", got, f.cursor)
+	}
+}
+
 func TestFieldKeepsTheCursorInSight(t *testing.T) {
 	var f field
 	f.width = 5
@@ -141,7 +163,7 @@ func TestFieldKeepsTheCursorInSight(t *testing.T) {
 	if got := ansi.Strip(f.view()); !strings.Contains(got, "END") {
 		t.Errorf("the end of the text is not in sight: %q", got)
 	}
-	f.cursor = 0
+	f.key(keyPress("home"))
 	if got := ansi.Strip(f.view()); got != "aaaaa" || f.first != 0 {
 		t.Errorf("the start is not in sight: %q, first %d", got, f.first)
 	}

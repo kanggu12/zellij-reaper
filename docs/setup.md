@@ -13,7 +13,7 @@
 ## Install
 
 zellij-reaper is one static binary for Linux on x86_64 or arm64. It needs zellij and a systemd user instance for its
-timer.
+timer. Without systemd, `ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and `zellij-reaper run` can go in cron.
 
 ```sh
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
@@ -24,7 +24,7 @@ opens it on demo sessions in a throwaway container.
 
 The script needs `curl`, `tar` and `sha256sum` (or `shasum`). It downloads the latest release for your architecture,
 checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and runs `zellij-reaper install`.
-These variables change what it does:
+These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPER_BIN_DIR=~/bin sh`):
 
 | Variable | Default | Effect |
 |:---|:---:|:---|
@@ -82,8 +82,8 @@ install` rewrites the units. After moving the binary by hand, run `zellij-reaper
 timer that still runs an old path.
 
 **Uninstall** with `zellij-reaper uninstall`, which stops and removes the timer and the service. `--purge` also removes
-the settings, the log and the protected list. Then remove the binary (`rm ~/.local/bin/zellij-reaper`) or the
-package. Run `uninstall` before removing a package, or the timer stays and fails every hour.
+the settings, the log and the protected list. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
+binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and fails every hour.
 
 ## Settings
 
@@ -91,25 +91,30 @@ The file is `~/.config/zellij-reaper/config.toml` (`$XDG_CONFIG_HOME/zellij-reap
 `ZELLIJ_REAPER_CONFIG` or `--config`). Every key is optional. Durations take `s`, `m`, `h`, `d` and `w`, combined as
 in `1d12h`; `"0"` means no wait.
 
-| Key | Default | Variable | Meaning |
-|:---|:---:|:---:|:---|
-| `dry_run` | `false` | `ZELLIJ_REAPER_DRY_RUN` | log decisions, delete and rename nothing |
-| `idle_after` | `"12h"` | `ZELLIJ_REAPER_IDLE_AFTER` | how long a running session must be idle |
-| `exited_after` | `"3d"` | `ZELLIJ_REAPER_EXITED_AFTER` | how long an exited session is kept for resurrection |
-| `protect` | `""` | `ZELLIJ_REAPER_PROTECT` | a regular expression ([Go syntax](https://pkg.go.dev/regexp/syntax)); matching names are never reaped or renamed |
-| `protect_commands` | `["claude", "codex", "gemini", "aider", "opencode"]` | | programs that keep a running session |
-| `shells` | `[]` | | extra programs that count as a prompt |
-| `auto_rename` | `false` | `ZELLIJ_REAPER_AUTO_RENAME` | rename survivors after what they show |
-| `auto_rename_stamp` | `"none"` | `ZELLIJ_REAPER_AUTO_RENAME_STAMP` | what those names end in: `"none"`, `"date"` or `"time"` |
-| `interval` | `"1h"` | | how often the timer runs; run `install` again after changing it |
-| `zellij` | `""` | `ZELLIJ_REAPER_ZELLIJ` | the zellij binary; empty means the first one in `PATH` |
-| `log.path` | `~/.local/state/zellij-reaper/reaper.log` | `ZELLIJ_REAPER_LOG` | the decision log |
-| `log.max_bytes` | `1048576` | `ZELLIJ_REAPER_LOG_MAX_BYTES` | the size at which the log moves to `.1`; `0` never |
+| Key | Default | Meaning |
+|:---|:---:|:---|
+| `dry_run` | `false` | log decisions, delete and rename nothing |
+| `idle_after` | `"12h"` | how long a running session must be idle |
+| `exited_after` | `"3d"` | how long an exited session is kept for resurrection |
+| `protect` | `""` | a regular expression ([Go syntax](https://pkg.go.dev/regexp/syntax)); matching names are never reaped or renamed |
+| `protect_commands` | `["claude", "codex", "gemini", "aider", "opencode"]` | programs that keep a running session |
+| `shells` | `[]` | extra programs that count as a prompt |
+| `auto_rename` | `false` | rename survivors after what they show |
+| `auto_rename_stamp` | `"none"` | what those names end in: `"none"`, `"date"` or `"time"` |
+| `interval` | `"1h"` | how often the timer runs, up to five minutes late; at least `1m`; run `install` again after changing it |
+| `zellij` | `""` | the zellij binary; empty means the first one in `PATH` |
+| `log.path` | `~/.local/state/zellij-reaper/reaper.log` | the decision log |
+| `log.max_bytes` | `1048576` | the size at which the log moves to `.1`; `0` never |
+
+Most keys also take a variable: `ZELLIJ_REAPER_` and the key in capitals (`ZELLIJ_REAPER_IDLE_AFTER`), except
+`ZELLIJ_REAPER_LOG` for `log.path` and `ZELLIJ_REAPER_LOG_MAX_BYTES` for `log.max_bytes`. `protect_commands`, `shells` and
+`interval` are set in the file only.
 
 A variable wins over the file, and `run --dry-run` and `run --force` win over both. Variables set in your shell apply
 to the commands you run there, not to the timer: `install` and `doctor` warn about each one, so put lasting settings
 in the file. A value that cannot be read (a duration without a unit, a pattern that does not compile) stops the
-command with an error instead of falling back to a default. An unknown key is reported by `config show` and `doctor`.
+command with an error instead of falling back to a default, and so does a key nothing reads: a typo in `protect` must not
+leave a session unprotected. A file with a `[log]` table, as earlier versions wrote it, takes new lines above that table.
 
 `zellij-reaper config show` prints each setting and where its value comes from:
 
@@ -118,13 +123,15 @@ command with an error instead of falling back to a default. An unknown key is re
 dry_run           = false                                               # default
 idle_after        = "4h"                                                # file
 exited_after      = "1d"                                                # file
+protect           = ""                                                  # default
 protect_commands  = ["claude", "codex", "gemini", "aider", "opencode"]  # default
 ...
 ```
 
 ## Protecting sessions
 
-Three ways, and each one also stops renaming:
+Three ways. The first two also stop renaming; a session kept only for a running program is still renamed while no client
+is attached:
 
 - **A name pattern** in the settings: `protect = "^(keep-|work-)"`.
 - **One session at a time:** `zellij-reaper protect NAME`, or `p` in the dashboard. `protect` with no name lists them;
@@ -134,34 +141,39 @@ Three ways, and each one also stops renaming:
 
 ## Naming sessions after what they show
 
-With `auto_rename = true`, every pass renames the sessions it keeps (except attached, protected and uncertain ones) after
-what they show. Press `r` in the dashboard for the same name by hand, with `auto_rename` on or off.
+With `auto_rename = true`, every pass renames the sessions it keeps (except attached, exited, name-protected and uncertain
+ones) after what they show. Press `r` in the dashboard for the same name by hand, with `auto_rename` on or off.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
-  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log becomes tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="assets/names-light.svg">
+  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="assets/names-light.svg">
 </picture>
 
 The name comes from the first of these that says something:
 
-1. **A pane's title**, the focused pane of the active tab first, then the other panes still running.
+1. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
+   tab active, so that is the first tab's focused pane.
 2. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
-   `web-app-claude-code`, `api-npm-run-dev`. The directory is where the first pane works now, so it follows a `cd`.
+   `web-app-claude-code`, `api-npm-run-dev`. The directory is where the first pane works now, so it follows a `cd`. From
+   a command line it takes only the plain words up to the first flag, since arguments can hold a password.
 3. **The directory alone**, for a shell with nothing running.
 
 Your home directory and `/` say nothing, so a shell at home with a title like `Pane #1` keeps its name.
 
-A title loses what is terminal noise:
+These parts of a title are dropped or shortened:
 
 | In the title | Becomes | Example |
 |:---|:---|:---|
 | Spinners, stars, emoji | nothing | `✳ Fix the login bug` is `fix-the-login-bug` |
 | A command's flags | nothing | `docker compose up -d --build` is `docker-compose-up` |
 | A path | its last part | `vim ~/notes/today.md` is `vim-today.md` |
-| A URL | no scheme | `https://github.com/foo/bar` is `github.com-foo-bar` |
+| A URL | no scheme, no password | `https://github.com/foo/bar` is `github.com-foo-bar` |
 | An ssh target | no user | `ssh me@prod-db` is `ssh-prod-db` |
 | A shell's own title | its directory, and the machine if it is another one | `me@laptop: ~/api` is `api`, `me@buildbox:/srv/app$` is `buildbox-app` |
 | `Pane #1`, `Tab #2`, a bare `bash` | nothing | |
+
+These rows show the title alone. A title that repeats what the pane runs falls under rule 2: `tail -f /var/log/app.log`
+run in `~/web-app` gives `web-app-tail-app.log`.
 
 Letters of every script stay, so two Korean titles make two names. A `.` stays inside a word, so `notes.md` still reads as
 a file. Names stop at 32 columns at the end of a word, and within what the session's socket path leaves of Linux's
@@ -170,7 +182,7 @@ a file. Names stop at 32 columns at the end of a word, and within what the sessi
 A name changes only when what the session shows changes, so a script that attaches by name keeps working until then.
 When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij refuses a name a session has had before,
 so a title that comes back gives a tail too. A name you gave a session by hand is renamed like any other unless you
-protect it.
+protect it by name.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session in use once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.

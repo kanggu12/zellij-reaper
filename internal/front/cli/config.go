@@ -47,10 +47,13 @@ func cmdConfig() *cobra.Command {
 				if editor == "" {
 					editor = os.Getenv("EDITOR")
 				}
-				if editor == "" {
+				if strings.TrimSpace(editor) == "" {
 					editor = "vi"
 				}
-				c := exec.Command(editor, p)
+				// $EDITOR may carry arguments ("code --wait"), as shells and
+				// git take it.
+				words := strings.Fields(editor)
+				c := exec.Command(words[0], append(words[1:], p)...)
 				c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 				if err := c.Run(); err != nil {
 					return err
@@ -113,9 +116,6 @@ func showConfig(cmd *cobra.Command) error {
 			src += " " + config.EnvNames[k]
 		}
 		println(w, ui.Fg(t.Ink).Render(fmt.Sprintf("%-*s", width, lines[i]))+"  "+ui.Fg(t.Muted).Render("# "+src))
-	}
-	for _, warning := range a.Config.SortedWarnings() {
-		println(w, warn(t)+i18n.T("doctor.warning", warning))
 	}
 	return nil
 }

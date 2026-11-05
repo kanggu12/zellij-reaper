@@ -143,6 +143,9 @@ start idle-new
 start shell-busy && $Z --session shell-busy run -- bash -c 'sleep 100000; true' >/dev/null 2>&1
 start cmd-pane && $Z --session cmd-pane run -- sleep 99999 >/dev/null 2>&1
 start agent && $Z --session agent run -- claude >/dev/null 2>&1
+# Jobs whose input is not the terminal: still panes, and busy.
+start nohup-job && $Z --session nohup-job run -- nohup sleep 99998 >/dev/null 2>&1
+start redirected && $Z --session redirected run -- sh -c 'exec sleep 99997 </dev/null' >/dev/null 2>&1
 start attached && { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
 start keepme && age_ptys keepme '-3 hours'
 start first && rename_to first second
@@ -162,6 +165,8 @@ touch -d '-4 days' "$INFO"/exited-old/*
 age_ptys shell-busy '-3 hours'
 age_ptys cmd-pane '-3 hours'
 age_ptys agent '-3 hours'
+age_ptys nohup-job '-3 hours'
+age_ptys redirected '-3 hours'
 $R protect keepme >/dev/null
 
 echo "-- the plan"
@@ -170,6 +175,8 @@ check "idle for a moment waits" is_code idle-new idle-recent
 check "a command under the shell keeps it" is_code shell-busy busy
 check "a command pane keeps it" is_code cmd-pane busy
 check "a protected program keeps it" is_code agent protected-command
+check "a job under nohup keeps it" is_code nohup-job busy
+check "a job with its input redirected keeps it" is_code redirected busy
 check "an attached client keeps it" is_code attached attached
 check "it counts one client" clients_are attached 1
 check "the protected list keeps it" is_code keepme protected-name
@@ -188,7 +195,7 @@ check "a pass succeeds" $R run --quiet
 check "the idle session is gone" gone idle-old
 check "the renamed idle session is gone" gone second
 check "the old exited session is gone" gone exited-old
-for s in idle-new shell-busy cmd-pane agent attached keepme exited-new; do
+for s in idle-new shell-busy cmd-pane agent nohup-job redirected attached keepme exited-new; do
   check "$s is kept" listed "$s"
 done
 check "deletions are logged" grep -q '  -> deleted: idle-old' "$LOG"

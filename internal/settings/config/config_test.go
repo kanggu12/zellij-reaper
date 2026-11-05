@@ -87,15 +87,36 @@ max_bytes = 2048
 	}
 }
 
-func TestUnknownKeyWarns(t *testing.T) {
+func TestUnknownKeyStopsLoading(t *testing.T) {
+	// A typo in a setting that protects something must not pass quietly.
 	env := tempEnv(t)
-	writeConfig(t, env, "idle_afer = \"1h\"\n")
+	writeConfig(t, env, "protct = \"^work\"\n")
+	if _, err := Load("", env); err == nil || !strings.Contains(err.Error(), "protct") {
+		t.Errorf("unknown key: %v", err)
+	}
+}
+
+func TestASettingUnderTheLogTableSaysWhereItGoes(t *testing.T) {
+	// The shape files had before: a [log] table last, and a line added below.
+	env := tempEnv(t)
+	writeConfig(t, env, "idle_after = \"4h\"\n[log]\nmax_bytes = 1024\nprotect = \"^work\"\n")
+	_, err := Load("", env)
+	if err == nil || !strings.Contains(err.Error(), "protect is under [log]") {
+		t.Errorf("a setting under [log]: %v", err)
+	}
+}
+
+func TestALineAddedToAWrittenFileCounts(t *testing.T) {
+	// What config init writes takes a line added at its end as a real setting.
+	env := tempEnv(t)
+	text := Render(Default(env), "A test.") + "protect = \"^work\"\n"
+	writeConfig(t, env, text)
 	c, err := Load("", env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "idle_afer") {
-		t.Errorf("Warnings = %q", c.Warnings)
+	if c.Protect != "^work" || c.Sources["protect"] != FromFile {
+		t.Errorf("protect = %q from %v", c.Protect, c.Sources["protect"])
 	}
 }
 
@@ -140,9 +161,6 @@ func TestRenderRoundTrip(t *testing.T) {
 	// Defaults are written commented out so a later default still applies.
 	if !strings.Contains(text, "# interval = \"1h\"") || !strings.Contains(text, "\ndry_run = true") {
 		t.Errorf("unexpected rendering:\n%s", text)
-	}
-	if len(back.Warnings) != 0 {
-		t.Errorf("rendered file has unknown keys: %v", back.Warnings)
 	}
 }
 

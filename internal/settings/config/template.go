@@ -15,9 +15,9 @@ func Render(c *Config, intro string) string {
 	// line writes one setting, commented out when it equals the default.
 	line := func(key, value, defValue string) {
 		if value == defValue {
-			fmt.Fprintf(&b, "# %s = %s\n", leaf(key), value)
+			fmt.Fprintf(&b, "# %s = %s\n", key, value)
 		} else {
-			fmt.Fprintf(&b, "%s = %s\n", leaf(key), value)
+			fmt.Fprintf(&b, "%s = %s\n", key, value)
 		}
 	}
 	// The intro says why the file exists (first install, migration, ...).
@@ -57,25 +57,17 @@ func Render(c *Config, intro string) string {
 	b.WriteString("\n# The zellij binary. Empty means the first one in PATH.\n")
 	line("zellij", c.Value("zellij"), def.Value("zellij"))
 
-	b.WriteString("\n[log]\n")
-	b.WriteString("# Where every decision is written.\n")
+	// Written as dotted keys, with no [log] table: a line added at the end of
+	// the file must stay a top-level setting, and under a table it would not.
+	b.WriteString("\n# Where every decision is written.\n")
 	// The default log path depends on the home directory, so compare it with
 	// the default for this user rather than the placeholder above.
 	if c.Sources["log.path"] == FromDefault {
-		b.WriteString("# path = \"~/.local/state/zellij-reaper/reaper.log\"\n")
+		b.WriteString("# log.path = \"~/.local/state/zellij-reaper/reaper.log\"\n")
 	} else {
-		fmt.Fprintf(&b, "path = %s\n", c.Value("log.path"))
+		fmt.Fprintf(&b, "log.path = %s\n", c.Value("log.path"))
 	}
 	b.WriteString("# Past this size the log moves to <path>.1 and a new one starts. 0 = never.\n")
 	line("log.max_bytes", c.Value("log.max_bytes"), def.Value("log.max_bytes"))
 	return b.String()
-}
-
-// leaf strips the table name from a dotted key: "log.path" is written as
-// "path" under [log].
-func leaf(key string) string {
-	if i := strings.LastIndex(key, "."); i >= 0 {
-		return key[i+1:]
-	}
-	return key
 }

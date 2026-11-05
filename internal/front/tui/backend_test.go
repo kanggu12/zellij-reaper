@@ -31,6 +31,9 @@ type fakeZellij struct {
 	clients map[string]any
 	// renameErr makes rename-session fail.
 	renameErr error
+	// renameUnseen makes rename-session succeed without the new name being
+	// listed: a server that has not acted on it yet.
+	renameUnseen bool
 	// onRename runs while zellij renames: another process acting meanwhile.
 	onRename func()
 	calls    []string
@@ -68,7 +71,9 @@ func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, err
 			return "", f.renameErr.Error(), f.renameErr
 		}
 		// The new name is listed from now on, as zellij would.
-		f.sessions += args[4] + " [Created 1m ago]\n"
+		if !f.renameUnseen {
+			f.sessions += args[4] + " [Created 1m ago]\n"
+		}
 		return "", "", nil
 	}
 	return "", "unexpected call", errors.New("exit status 2")
@@ -268,5 +273,22 @@ func TestRenameByHandRefusesATakenName(t *testing.T) {
 	}
 	if z.did("--session work action rename-session") {
 		t.Errorf("zellij was asked to rename onto a taken name: %v", z.calls)
+	}
+}
+
+func TestAnUnconfirmedRenameKeepsBothNamesProtected(t *testing.T) {
+	i18n.Set(i18n.English)
+	// zellij takes the rename, and the new name does not show in time: a slow
+	// server. The session may have either name by the next pass.
+	z := &fakeZellij{sessions: "notes [Created 1h ago]\n", renameUnseen: true}
+	b, a := backendFor(t, z, "")
+	if err := a.Protected.Set("notes", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Rename(context.Background(), "notes", "journal"); !errors.Is(err, zellij.ErrUnconfirmed) {
+		t.Fatalf("rename: %v", err)
+	}
+	if !a.Protected.Has("notes") || !a.Protected.Has("journal") {
+		t.Errorf("list after an unconfirmed rename: %v", a.Protected.Names())
 	}
 }

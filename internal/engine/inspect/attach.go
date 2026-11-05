@@ -16,14 +16,22 @@ import (
 // whole pass, it starts no process, and it does not depend on what zellij
 // prints. `list-clients` asks only when the table cannot tell.
 //
-// Sessions are asked one at a time on purpose. zellij 0.44.2 answers
-// list-clients calls that overlap with nothing at all after a second, even
-// when they go to different servers: four at a time took a pass over five
-// sessions from 0.17 s to 1.1 s, and left about one call in eight without an
-// answer. Later releases do not do this, but a pass that rarely asks has no
-// need to find out which release it runs on.
+// Sessions are asked one at a time on purpose. zellij 0.44.2 answers list-clients
+// calls that overlap with nothing at all after a second, even when they go to
+// different servers: four at a time took a pass over five sessions from 0.17 s
+// to 1.1 s, and left about one call in eight without an answer. 0.45.1 does it
+// too, far more rarely. A pass that rarely asks has no need to find out which
+// release it runs on.
 func attachChecks(ctx context.Context, src Sources, sessions []Session, socks []procfs.UnixSocket, owners map[uint32]int) {
 	open := openSockets(socks)
+	// Which sockets each server holds, from the one read of its fds.
+	held := map[int]map[uint32]bool{}
+	for ino, pid := range owners {
+		if held[pid] == nil {
+			held[pid] = map[uint32]bool{}
+		}
+		held[pid][ino] = true
+	}
 	for i := range sessions {
 		s := &sessions[i]
 		// An exited session has no server, and a session whose server was
@@ -31,9 +39,7 @@ func attachChecks(ctx context.Context, src Sources, sessions []Session, socks []
 		if s.Listed.Exited || s.Server == nil {
 			continue
 		}
-		pid := s.Server.PID
-		c := connectionsTo(func(ino uint32) bool { return owners[ino] == pid }, socks, open)
-		attachCheck(ctx, src, s, c)
+		attachCheck(ctx, src, s, connectionsTo(held[s.Server.PID], socks, open))
 	}
 }
 
@@ -56,8 +62,8 @@ func attachCheck(ctx context.Context, src Sources, s *Session, c connections) {
 		noClientOnTheSocket(s, md)
 		return
 	}
-	// The table cannot tell: no sock_diag on this kernel, another network
-	// namespace, or a connection whose other end nobody can see.
+	// The table cannot tell: no sock_diag on this kernel, a client in another
+	// network namespace, or a connection whose other end nobody can see.
 	rows, err := askServer(ctx, src, s.Name())
 	if err == nil {
 		s.Clients = len(rows) + md.WebClients
@@ -122,21 +128,24 @@ type connections struct {
 	// clients counts the connections the server accepted whose other end
 	// is open: one per attached client.
 	clients int
-	// unaccounted counts accepted connections with no visible other end.
+	// unaccounted counts what the table cannot explain: accepted connections
+	// with no visible other end, and sockets the server holds that the table
+	// does not list. Those are connections from another network namespace,
+	// whose rows only that namespace can read; a normal server has none.
 	unaccounted int
 	// peers are the inodes of every other end, for naming who holds them.
 	peers map[uint32]bool
 }
 
-// connectionsTo reads a server's clients from the socket table; held says
-// which sockets the server holds. A connection the server accepted carries the
-// listening socket's name and file, and keeps them after the socket file is
-// removed or renamed. The socket pairs a zellij server keeps for itself carry
-// neither, so they are not mistaken for clients.
-func connectionsTo(held func(uint32) bool, socks []procfs.UnixSocket, open map[uint32]bool) connections {
+// connectionsTo reads a server's clients from the socket table; held is what
+// the server holds. A connection the server accepted carries the listening
+// socket's name and file, and keeps them after the socket file is removed or
+// renamed. The socket pairs a zellij server keeps for itself carry neither, so
+// they are not mistaken for clients.
+func connectionsTo(held map[uint32]bool, socks []procfs.UnixSocket, open map[uint32]bool) connections {
 	var listeners []procfs.UnixSocket
 	for _, u := range socks {
-		if held(u.Inode) && u.Listening() {
+		if held[u.Inode] && u.Listening() {
 			listeners = append(listeners, u)
 		}
 	}
@@ -154,8 +163,14 @@ func connectionsTo(held func(uint32) bool, socks []procfs.UnixSocket, open map[u
 		}
 		return false
 	}
+	// A socket the server holds that the table does not list.
+	for ino := range held {
+		if !open[ino] {
+			c.unaccounted++
+		}
+	}
 	for _, u := range socks {
-		if !held(u.Inode) || u.Listening() || !accepted(u) {
+		if !held[u.Inode] || u.Listening() || !accepted(u) {
 			continue
 		}
 		if u.Peer != 0 {
@@ -179,7 +194,7 @@ func connectionsTo(held func(uint32) bool, socks []procfs.UnixSocket, open map[u
 // connection's other end belongs to nobody visible.
 func ListenerClients(t *procfs.Table, server int, socks []procfs.UnixSocket) (policy.Tri, string) {
 	held := t.SocketInodes(server)
-	c := connectionsTo(func(ino uint32) bool { return held[ino] }, socks, openSockets(socks))
+	c := connectionsTo(held, socks, openSockets(socks))
 	if !c.seen {
 		return policy.Unknown, "the socket table does not show the server listening"
 	}

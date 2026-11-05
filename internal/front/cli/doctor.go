@@ -114,9 +114,6 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	} else {
 		pass(i18n.T("doctor.config.none", tilde(settingsPath())))
 	}
-	for _, warning := range a.Config.SortedWarnings() {
-		note(i18n.T("doctor.warning", warning))
-	}
 	// A setting from this shell's environment is not the timer's.
 	for _, m := range envOnly(a.Config, settingsPath()) {
 		note(m)

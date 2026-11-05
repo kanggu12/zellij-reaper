@@ -6,7 +6,8 @@ does from the outside, see [how it decides](how-it-decides.md).
 ## Layout
 
 The packages sit in layers, and an import goes down the layers, never up. `internal/layers_test.go` fails on an import
-that goes up, on I/O in the core layer, and on a folder that belongs to no layer.
+that goes up, on I/O in the core layer, and on a folder that belongs to no layer. `internal/version` and
+`internal/testutil` sit outside the layers: anyone may import them, and they import nothing of ours.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/layers-dark.svg">
@@ -23,22 +24,23 @@ that goes up, on I/O in the core layer, and on a folder that belongs to no layer
 | `internal/machine/lock`, `logfile` | the pass lock (`flock`), the decision log |
 | `internal/settings/config`, `protect` | settings and XDG paths, the protected list |
 | `internal/engine/inspect` | the facts for every listed session, from one snapshot |
-| `internal/engine/reaper` | `Plan`, the survey alone, and `Run`, the only code that changes anything |
+| `internal/engine/reaper` | `Plan`, the survey alone, and `Run`, the pass that acts on it |
 | `internal/engine/repair`, `resize` | `recover` and `resize` |
 | `internal/engine/systemd` | the user timer, and moving the shell scripts over |
 | `internal/app` | builds the pieces once from the settings |
 | `internal/front/cli`, `tui` | the commands, the dashboard |
 | `internal/front/ui`, `i18n` | colors, the session table and the words for verdicts, shared by both; English and Korean |
+| `internal/version` | the version, commit and date the build stamps in |
 | `internal/testutil` | fake machines for tests: a `/proc`, terminals with chosen times, real Unix sockets, session files |
 
 ## Reading the machine
 
 A pass reads what it needs and changes a few of its own files; the only sessions it touches go through zellij's own
-commands.
+commands. `recover` alone goes around zellij, because it is for sessions zellij can no longer reach.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="zellij-reaper reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log, its lock and protected list, and its systemd units when you run install." src="assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log and lock. The protect command writes the protected list, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
@@ -53,21 +55,21 @@ own words.
 | server and socket | the socket file's inode in the socket table, then `/proc/*/fd` | finds renamed sessions ([below](#renamed-sessions)) |
 | panes | the server's child processes that read a terminal | zellij forks one process per pane, and runs helpers like `ps` that read none |
 | busy | a pane process that is not a shell at its prompt, or a shell with a child | [below](#busy-panes) |
-| last use | the newest change time of the panes' terminals | [below](#last-use) |
+| last use | the newest read or write time of the panes' terminals | [below](#last-use) |
 | attached | the socket table, then `zellij action list-clients` | [below](#attached-clients) |
 | protected program | every process under the server, and the commands of the saved layout | an agent runs as `claude`, `node .../claude-code/cli.js`, or a script |
-| exited time | the newest change time in the session's `session_info` directory | frozen when the server ended |
+| exited time | the newest modification time in the session's `session_info` directory | frozen when the server ended |
 
 ## Decisions
 
 ### Fail closed
 
 Every check keeps the session when its fact is missing or uncertain: no session directory, no socket, no server, an
-attach check that failed, no pane processes. The rules delete only when every check passed with a fact in hand.
+attach check that failed, no pane processes. The rules delete only when every check passed on a fact that could be read.
 
 ### Last use
 
-The time of last use is the newest change time of the panes' terminals, which the kernel moves on input and output
+The time of last use is the newest read or write time of the panes' terminals, which the kernel moves on input and output
 only. zellij's session files are a poor clock for a running session: zellij rewrites `session-metadata.kdl` about
 once a minute whatever happens, which once made every session look used "0h" ago. They are the clock for exited
 sessions, whose files stop changing when the server ends.
@@ -96,8 +98,9 @@ nothing at all after a second, exit status 0, even when they go to different ser
 | 0.44.3 | 123 ms | 27 ms |
 | 0.45.1 | 104 ms | 26 ms |
 
-`list-clients` stays for what the table cannot tell (no `unix_diag`, another network namespace, a connection whose other
-end nobody can see), one session at a time, and for the second look before a delete or a rename: it asks the server
+`list-clients` stays for what the table cannot tell (no `unix_diag`, a client in another network namespace, whose
+connection only that namespace lists, so the server holds a socket this table does not show; a connection whose other end
+nobody can see), one session at a time, and for the second look before a delete or a rename: it asks the server
 about this very moment. An answer with nothing in it is asked again, and so is one naming a client, because zellij 0.43
 names the client that created a background session the first time it is asked, and a real client is still there the
 second time.
@@ -115,8 +118,8 @@ shell scripts did, loses every renamed session: six months of the author's shell
 `server PID not found` verdicts on sessions it had renamed itself, none of which could ever be deleted.
 
 The socket file's inode follows the rename. sock_diag (what `ss -x` reads) reports for each listening socket the inode
-of its file (`UNIX_DIAG_VFS`), and `/proc/<pid>/fd` shows which process holds the socket. `internal/procfs` asks the
-kernel over netlink, so `ss` is not needed. The device number in `UNIX_DIAG_VFS` uses the kernel's own encoding
+of its file (`UNIX_DIAG_VFS`), and `/proc/<pid>/fd` shows which process holds the socket. `internal/machine/procfs` asks
+the kernel over netlink, so `ss` is not needed. The device number in `UNIX_DIAG_VFS` uses the kernel's own encoding
 (`major << 20 | minor`), not the one `stat(2)` returns. Without `unix_diag` the command line is the fallback and
 renamed sessions are kept as `no-server`.
 
@@ -134,7 +137,10 @@ started from its shebang has the script's name as its kernel name, so it is not 
 
 Not every child of a server is a pane. zellij runs `ps -ao ppid,args` to save its layouts, and plugins run commands of
 their own; caught in the few milliseconds they live, those made an idle session look busy for that pass (a few verdicts
-in every thousand with layouts saved once a second). Every pane reads a terminal and those do not, so they are left out.
+in every thousand with layouts saved once a second). A helper has no controlling terminal, because the server has none to
+pass on, and every pane has one, whatever its input was pointed at afterwards: `nohup sleep 9` and `exec sleep 9
+</dev/null` in a command pane are real jobs and stay panes. So a child with no controlling terminal and no terminal for
+input is left out.
 
 ### zellij's directories
 
@@ -149,12 +155,15 @@ A name has to stay put to be useful, so it changes only when what the session sh
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
 log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
 
-`rename.Suggest` looks at the focused pane of the active tab first, then at the other panes that are still running. A title
+`rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is attached
+zellij marks no tab active, so a pass starts from the first tab's focused pane. A title
 with something to say becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags,
 the directories of its paths, a URL's scheme, an ssh target's user. A shell's own title gives its directory, or the machine
 when it is another one. A title that only names the program (`Claude Code` before its first task, `nvim`) goes after the
-directory the first pane works in now, read from `/proc`, which follows a `cd` where the session's layout does not. Names
-stop at 32 columns, at the end of a word.
+directory the first pane works in now, read from `/proc`, which follows a `cd` where the session's layout does not. A
+session with no title to go by takes the program and the plain words after it, stopping at the first flag: a command line
+is not on the screen the way a title is, and its arguments can hold a password. A metadata file caught while zellij rewrites
+it gives no name at all. Names stop at 32 columns, at the end of a word.
 
 Two sessions showing one title get a `-2` tail, which then stays: the shell version compared names without it and swapped
 such sessions between `-2` and `-3` on every pass. zellij also refuses a name a session has had before, which is another
@@ -162,7 +171,9 @@ way to end up with a tail.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file over
 the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at the list
-first and refuses, then waits until zellij lists the new name before calling the rename done.
+first and refuses, then waits until zellij lists the new name before calling the rename done. When zellij took the request
+and the new name does not show in time, the dashboard keeps both names on the protected list, since the session may have
+either.
 
 ### Names and the socket path
 
@@ -173,7 +184,7 @@ with room for a stamp and a collision suffix. `recover` repairs sessions broken 
 
 ### The log
 
-The log's words are an interface: people grep months of it. The verdict texts (`REAP IDLE`, `SKIP client attached`,
+People grep months of the log, so its words stay. The verdict texts (`REAP IDLE`, `SKIP client attached`,
 ...) and the `=== reaper start/end ===` lines stay fixed; new kinds of lines may be added. The log rotates by
 renaming at the start of a pass, under the lock, so a pass is never split across the two files, and a rename that
 fails is written into the log instead of stopping the pass.
@@ -221,15 +232,15 @@ running a command, a command pane, a stand-in coding agent, a client attached th
 (their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
 long Korean title and a name with a dot in it. Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`,
 `recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
-pass in the log, so a failure that happens now and then can be read instead of guessed at.
+pass in the log, so a rare failure leaves its evidence in the test output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push and pull request with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
 </picture>
 
 **CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a
-snapshot release build on every push and pull request. A new zellij release joins the matrix, and `default_versions`
+snapshot release build on every push to `main` and every pull request. A new zellij release joins the matrix, and `default_versions`
 in `test/integration/run.sh`, once it passes.
 
 **A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`. `.github/workflows/release.yml` runs

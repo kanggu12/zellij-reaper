@@ -29,6 +29,9 @@ type Proc struct {
 	Sockets []uint32
 	// Cwd is the directory the process works in; empty leaves no link.
 	Cwd string
+	// CTTY is the device of its controlling terminal; 0 means none, like a
+	// helper a server starts.
+	CTTY int
 }
 
 // FakeProc is a directory laid out like /proc.
@@ -59,7 +62,7 @@ func (f *FakeProc) Add(p Proc) {
 	must(f.t, os.MkdirAll(filepath.Join(dir, "fd"), 0o755))
 	// The fields after ppid are not read; a few zeros keep the shape real.
 	must(f.t, os.WriteFile(filepath.Join(dir, "stat"),
-		[]byte(fmt.Sprintf("%d (%s) %s %d 0 0 0 -1 4194560\n", p.PID, p.Comm, p.State, p.PPID)), 0o644))
+		[]byte(fmt.Sprintf("%d (%s) %s %d 0 0 %d -1 4194560\n", p.PID, p.Comm, p.State, p.PPID, p.CTTY)), 0o644))
 	must(f.t, os.WriteFile(filepath.Join(dir, "status"),
 		[]byte(fmt.Sprintf("Name:\t%s\nUid:\t%d\t%d\t%d\t%d\n", p.Comm, p.UID, p.UID, p.UID, p.UID)), 0o644))
 	argv := ""

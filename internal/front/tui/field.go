@@ -45,6 +45,18 @@ func (f *field) set(value string) {
 	f.insert(value)
 }
 
+// reveal scrolls so the cursor's cell is in the window, leaving the view alone
+// otherwise. It runs on every edit and move, because the screen is drawn from a
+// copy of the model, where anything view keeps would be lost.
+func (f *field) reveal() {
+	if f.cursor < f.first {
+		f.first = f.cursor
+	}
+	for f.first < f.cursor && columns(f.text[f.first:f.cursor])+1 > f.width {
+		f.first++
+	}
+}
+
 // insert puts text at the cursor. Control characters become spaces: a pasted
 // line break must not end up in a session name.
 func (f *field) insert(s string) {
@@ -61,6 +73,7 @@ func (f *field) insert(s string) {
 	text := make([]rune, 0, len(f.text)+len(add))
 	text = append(append(append(text, f.text[:f.cursor]...), add...), f.text[f.cursor:]...)
 	f.text, f.cursor = text, f.cursor+len(add)
+	f.reveal()
 }
 
 // remove deletes the characters from position a up to position b.
@@ -137,6 +150,7 @@ func (f *field) key(k tea.KeyPressMsg) bool {
 			f.insert(k.Text)
 		}
 	}
+	f.reveal()
 	return f.value() != before
 }
 
@@ -146,14 +160,10 @@ func columns(rs []rune) int { return ansi.StringWidth(string(rs)) }
 // view draws the prompt and exactly width columns of field, scrolled so the
 // cursor stays in sight. The cursor is one reversed cell, on the character it
 // stands before, or on an empty cell at the end.
-func (f *field) view() string {
-	// Keep the cursor's cell inside the window.
-	if f.cursor < f.first {
-		f.first = f.cursor
-	}
-	for f.first < f.cursor && columns(f.text[f.first:f.cursor])+1 > f.width {
-		f.first++
-	}
+func (f field) view() string {
+	// A window that is too narrow for this text and cursor still shows them:
+	// the width may have changed since the last edit.
+	f.reveal()
 	// The characters after the cursor take what room is left.
 	end := f.cursor
 	used := columns(f.text[f.first:f.cursor])

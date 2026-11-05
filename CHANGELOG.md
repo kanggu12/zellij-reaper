@@ -9,24 +9,31 @@ the project uses [semantic versioning](https://semver.org/).
 
 ### Changed
 
-- **Names stay put.** `auto_rename` no longer adds the time of last use to a name, which renamed a session in use on every
-  pass: 20,536 of the 20,839 renames in the author's log moved nothing but the time. A name now changes when what the
-  session shows changes. `auto_rename_stamp = "date"` or `"time"` adds a stamp back. A name from an earlier version
-  loses its stamp at the next pass.
-- **Better names.** Titles lose flags, the directories of paths, URL schemes and ssh users. A shell's own title gives its
+- `auto_rename` no longer adds the time of last use to a name, which renamed a session in use on every pass: 20,536 of
+  the 20,839 renames in the author's log moved nothing but the time. A name now changes when what the session shows
+  changes. `auto_rename_stamp = "date"` or `"time"` adds a stamp back. A name from an earlier version loses its stamp at
+  the next pass.
+- Names read better. Titles lose flags, the directories of paths, URL schemes and ssh users. A shell's own title gives its
   directory, or the machine when it is another one. A title that only names a program (`Claude Code`) goes after the
-  directory, read from where the first pane works now. The focused pane of the active tab comes first. Names stop at 32
-  columns, at the end of a word, and a `.` stays inside a word (`vim-notes.md`).
-- **Faster and steadier.** Who is attached now comes from the kernel's socket table, which matches `list-clients` on
-  every tested release. `plan` over ten sessions takes about 26 ms (100 to 123 ms before). On zellij 0.44.2 it took
-  1125 ms, up to 5 s, and 19% of verdicts came out `attach-unknown`, because that release answers overlapping
-  `list-clients` calls with nothing.
+  directory, read from where the first pane works now. The focused pane comes first. A command line gives only its plain
+  words up to the first flag, since arguments can hold a password. Names stop at 32 columns, at the end of a word, and a
+  `.` stays inside a word (`vim-notes.md`).
+- Who is attached now comes from the kernel's socket table, which matches `list-clients` on every tested release. `plan`
+  over ten sessions takes about 26 ms (100 to 123 ms before). On zellij 0.44.2 it took 1125 ms, up to 5 s, and 19% of
+  verdicts came out `attach-unknown`, because that release answers overlapping `list-clients` calls with nothing.
+- Commands start faster: a text field of its own replaces a widget that searched `PATH` for clipboard tools at every
+  start (`plan` on WSL from 79 ms to 45 ms). A paste into the filter now filters.
 - `r` in the dashboard offers the name a session's panes point to, with `auto_rename` on or off.
-- The installer's address is now `releases/latest/download/install.sh`, and it travels with each release.
+- The installer's address is now `releases/latest/download/install.sh`, and it travels with each release. The old
+  `raw.githubusercontent.com/.../main/install.sh` address stops working.
 - The repository's layout: packages sit in layers under `internal/`, which a test enforces, and the root holds less.
 
 ### Fixed
 
+- A line added at the end of the settings file landed in its `[log]` table and did nothing, with `protect` among the keys
+  it could silently lose. The file no longer has that table, and a key nothing reads now stops the command with an error,
+  with a word on where to move it when it sits under an older file's `[log]`.
+- `config edit` takes an `$EDITOR` with arguments (`code --wait`).
 - A rename by hand to a name that is taken is refused. zellij 0.44 and later accept it, and cut the other session off.
 - A rename is reported as done only once zellij lists the new name.
 - zellij's own `ps`, which it runs to save its layouts, no longer makes an idle session look busy for that pass.
@@ -96,6 +103,7 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.2.0
 [0.1.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.1
 [0.1.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.1.0

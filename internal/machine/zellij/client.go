@@ -24,6 +24,11 @@ var ErrNoSessions = errors.New("no sessions")
 // a session (or a name it still remembers) already has it.
 var ErrNameTaken = errors.New("a session by this name already exists")
 
+// ErrUnconfirmed is returned by Rename when zellij took the request but the new
+// name could not be seen listed. The session may have the new name or the old
+// one, so a caller must not act as if nothing happened.
+var ErrUnconfirmed = errors.New("zellij took the rename but does not list the new name")
+
 // errNoAnswer is list-clients exiting 0 with nothing printed: no answer, which
 // must not read as "nobody attached".
 var errNoAnswer = errors.New("list-clients printed nothing")
@@ -211,17 +216,17 @@ func (c *CLI) waitListed(ctx context.Context, name, to string) error {
 	for {
 		listed, err := c.lists(ctx, to)
 		if err != nil {
-			return fmt.Errorf("zellij rename-session %s: %w", name, err)
+			return fmt.Errorf("zellij rename-session %s to %s: %w: %v", name, to, ErrUnconfirmed, err)
 		}
 		if listed {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("zellij rename-session %s: zellij accepted the name %q but does not list it", name, to)
+			return fmt.Errorf("zellij rename-session %s to %s: %w", name, to, ErrUnconfirmed)
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("zellij rename-session %s to %s: %w: %v", name, to, ErrUnconfirmed, ctx.Err())
 		case <-time.After(25 * time.Millisecond):
 		}
 	}
@@ -297,8 +302,9 @@ func ParseClients(out string) ([]ClientRow, error) {
 // ListClients asks a running session which clients are attached to it. It asks
 // again in two cases where zellij's first answer is known not to hold:
 //
-// No answer at all: zellij 0.44.2 exits 0 with nothing printed when another
-// zellij command overlaps this one, even one going to another server.
+// No answer at all: zellij 0.44.2, and rarely 0.45.1, exits 0 with nothing
+// printed when another zellij command overlaps this one, even one going to
+// another server.
 //
 // A client: zellij 0.43 names the client that created a background session
 // the first time it is asked, long after that client left. A real client is

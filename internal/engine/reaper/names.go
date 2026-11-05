@@ -44,6 +44,12 @@ func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target st
 // nothing, when the session has that name already, or when every variant is
 // taken.
 func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target string) {
+	// The client count is near the end of zellij's metadata file: without it
+	// the file is being rewritten, and titles that are not there yet must not
+	// read as a session with nothing to show.
+	if !s.Files.Metadata.HasClientCount {
+		return "", ""
+	}
 	budget := rename.MaxBase
 	if s.Socket != "" {
 		budget = rename.BaseBudget(zellij.NameRoom(filepath.Dir(s.Socket)))

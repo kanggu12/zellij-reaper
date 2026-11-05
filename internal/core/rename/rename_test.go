@@ -20,6 +20,8 @@ func TestSuggestFromTitles(t *testing.T) {
 		{"⠋ Building the thing", "building-the-thing"},
 		{"★★ Notes ★★", "notes"},
 		{"🚀 deploy 🚀", "deploy"},
+		// A variation selector stays with the symbol it came with.
+		{"build⚠️", "build"},
 		// Words of every script stay, and a Thai vowel stays on its letter.
 		{"ÉTÉ 2026", "été-2026"},
 		{"เกม", "เกม"},
@@ -37,7 +39,12 @@ func TestSuggestFromTitles(t *testing.T) {
 		{"Reply-All/Reply-To fix", "reply-all-reply-to-fix"},
 		// An address loses its scheme, and an ssh target its user.
 		{"https://github.com/foo/bar", "github.com-foo-bar"},
+		{"curl https://user:s3cret@host/path", "curl-host-path"},
 		{"ssh me@prod-db", "ssh-prod-db"},
+		{"/usr/bin/ssh -p 22 me@prod-db", "ssh-22-prod-db"},
+		// Elsewhere an @ is no ssh target.
+		{"npm install react@18.2.0", "npm-install-react-18.2.0"},
+		{"npx create-vite@latest my-app", "npx-create-vite-latest-my-app"},
 		// A shell's own title names its directory.
 		{"me@laptop: ~/projects/api", "api"},
 		{"me@laptop:/srv/billing#", "billing"},
@@ -120,6 +127,30 @@ func TestBusyNamesASessionWithNoTitle(t *testing.T) {
 	in.Cwd = ""
 	if got := Suggest(in, MaxBase); got != "npm-run-dev" {
 		t.Errorf("no directory: %q", got)
+	}
+}
+
+func TestACommandLineGivesNoCredentials(t *testing.T) {
+	// A command line is not on the screen the way a title is, and its arguments
+	// can hold a password: a name takes the plain words up to the first flag.
+	for busy, want := range map[string]string{
+		"curl -u user:s3cret https://example.com":     "curl",
+		"curl https://user:s3cret@example.com/path":   "curl",
+		"mysql --password s3cret app_db":              "mysql",
+		"mysql -ps3cret app_db":                       "mysql",
+		"env TOKEN=s3cret ./deploy.sh":                "env",
+		"npm run dev --host":                          "npm-run-dev",
+		"docker compose up -d --build":                "docker-compose-up",
+		"psql app_dev":                                "psql-app_dev",
+		"/usr/bin/python3 /srv/app/main.py --port 80": "python3-main.py",
+		"a b c d e":      "a-b-c",
+		"bash -c 'x; y'": "",
+		"-bash":          "",
+	} {
+		in := Input{Titles: []string{"Pane #1"}, Busy: busy, Home: "/home/me", Host: "laptop"}
+		if got := Suggest(in, MaxBase); got != want {
+			t.Errorf("%q: got %q, want %q", busy, got, want)
+		}
 	}
 }
 
@@ -223,6 +254,8 @@ func TestSame(t *testing.T) {
 		{"web", "web-app", false},
 		// The old stamped name is another name, so it gets the new one.
 		{"web-app_1104-0931", "web-app", false},
+		// Four digits are the minute of a stamp, not a tail.
+		{"api_1104-0931", "api_1104", false},
 	} {
 		if got := Same(c.name, c.desired); got != c.want {
 			t.Errorf("Same(%q, %q) = %v", c.name, c.desired, got)

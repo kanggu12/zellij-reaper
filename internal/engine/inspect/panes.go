@@ -36,12 +36,11 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 		if p.IsZombie() {
 			continue
 		}
-		// Not every child of a server is a pane. zellij runs `ps -ao ppid,args`
-		// to save its layouts, once a minute in every session, and plugins
-		// run commands of their own. Those read no terminal; caught in the
-		// few milliseconds they live, they would make an idle session look
-		// busy for that pass.
-		if !readsTerminal(p) {
+		// Not every child of a server is a pane: zellij runs `ps -ao ppid,args`
+		// to save its layouts, and plugins run commands of their own. Caught
+		// in the few milliseconds they live, they would make an idle session
+		// look busy for that pass.
+		if isHelper(p) {
 			continue
 		}
 		pane := Pane{PID: p.PID, Command: short(p.CommandLine()), TTY: p.Stdin, Cwd: t.Cwd(p.PID)}
@@ -63,11 +62,18 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 	return out
 }
 
-// readsTerminal reports whether a server's child could be a pane: every pane
-// process gets a terminal as its input. A stdin that cannot be read counts as
-// one, because a process of another user is no reason to call a session idle.
-func readsTerminal(p *procfs.Proc) bool {
-	return p.Stdin != "/dev/null" && !strings.HasPrefix(p.Stdin, "pipe:") && !strings.HasPrefix(p.Stdin, "socket:")
+// isHelper reports whether a server's child is one of its helpers. Every pane
+// has its terminal as its controlling terminal, whatever its input was pointed
+// at afterwards: `nohup`, `exec </dev/null` and a pipe all keep it, and those are
+// real jobs a pass must not take for nothing. A helper has no controlling
+// terminal, because the server has none to pass on, and reads no terminal
+// either. A stdin that cannot be read says nothing, so it does not count: a
+// process of another user is no reason to call a session idle.
+func isHelper(p *procfs.Proc) bool {
+	if p.CTTY != 0 {
+		return false
+	}
+	return p.Stdin == "/dev/null" || strings.HasPrefix(p.Stdin, "pipe:") || strings.HasPrefix(p.Stdin, "socket:")
 }
 
 // lastIO is the later of a terminal's last write (mtime) and last read

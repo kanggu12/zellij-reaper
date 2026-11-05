@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -68,10 +68,6 @@ type Config struct {
 	File string
 	// Sources records where each setting (by its TOML key) came from.
 	Sources map[string]Source
-	// Warnings collects problems that did not stop loading, such as unknown
-	// keys, so doctor can show them.
-	Warnings []string
-
 	// protectRe is Protect compiled once.
 	protectRe *regexp.Regexp
 }
@@ -170,10 +166,11 @@ func (c *Config) loadFile(path string, env Env) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
-	// Unknown keys are most likely typos ("idle_afer"); say so instead of
-	// silently ignoring a setting the user believes is active.
-	for _, k := range md.Undecoded() {
-		c.Warnings = append(c.Warnings, fmt.Sprintf("%s: unknown setting %q", path, k.String()))
+	// An unknown key stops loading like a value that cannot be read. It is most
+	// likely a typo ("protct"), and a pass that runs without a setting someone
+	// believes is active can delete a session they meant to keep.
+	if err := unknownKeys(path, md.Undecoded()); err != nil {
+		return err
 	}
 	// set records a value and its origin in one step.
 	set := func(key string) { c.Sources[key] = FromFile }
@@ -385,6 +382,20 @@ func (c *Config) Value(key string) string {
 	return ""
 }
 
+// unknownKeys describes the keys a settings file has that nothing reads. A key
+// that belongs at the top but sits under [log], because a line was added below
+// that table, gets told where it goes.
+func unknownKeys(path string, keys []toml.Key) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	k := keys[0]
+	if len(k) == 2 && k[0] == "log" && slices.Contains(Keys, k[1]) {
+		return fmt.Errorf("%s: %s is under [log], where it does nothing: move it above the [log] line", path, k[1])
+	}
+	return fmt.Errorf("%s: unknown setting %q", path, k.String())
+}
+
 // checkStamp refuses a stamp setting that is none of the three, the way a
 // malformed duration is refused: silently renaming with another stamp would
 // rename every session once more when the typo is fixed.
@@ -441,11 +452,4 @@ func expandHome(p string, env Env) string {
 		return filepath.Join(env.Home(), p[2:])
 	}
 	return p
-}
-
-// SortedWarnings returns the warnings in a stable order for printing.
-func (c *Config) SortedWarnings() []string {
-	w := append([]string(nil), c.Warnings...)
-	sort.Strings(w)
-	return w
 }

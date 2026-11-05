@@ -4,12 +4,12 @@
 
 ## Looking
 
-**`zellij-reaper`** (or `zellij-reaper tui`) opens [the dashboard](#the-dashboard) in a terminal. When the output is a
-pipe or a file, it prints the plan as a table instead.
+**`zellij-reaper`** opens [the dashboard](#the-dashboard) in a terminal. When its input or output is not a terminal, it
+prints the plan as a table instead. **`zellij-reaper tui`** always opens the dashboard, and needs a terminal.
 
 **`plan`** (also `status`, `ls`) shows what the next pass would do, changing nothing: no lock, no log, no deletes.
-Sessions are sorted by what happens to them. `--json` prints a shape that stays stable for scripts; `reason` is the
-log's wording:
+The table is sorted by what happens to each session; `sessions` in the JSON keeps zellij's order. `--json` prints a shape
+that stays stable for scripts; `reason` is the log's wording:
 
 ```json
 {
@@ -28,11 +28,14 @@ log's wording:
       "code": "idle-old",
       "reason": "REAP IDLE, 3h since last activity",
       "server_pid": 4242,
-      "panes": [{"pid": 4243, "command": "-bash", "prompt": true}]
+      "panes": [{"pid": 4243, "command": "/bin/bash", "prompt": true}]
     }
   ]
 }
 ```
+
+`wait_seconds`, `server_pid`, `last_active`, `panes`, `would_rename` (with `auto_rename` on) and a pane's `busy` appear
+only when they apply. `clients` is -1 when it is not known, as on every exited session.
 
 **`logs`** prints the last 50 lines of the decision log (`-n` for another number), colored by kind. `-f` keeps
 printing new lines and follows the log across rotations.
@@ -71,7 +74,7 @@ protected list. See [setup](setup.md#install).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`
 prints the file's path, `init` writes the file with every key at its default, and `edit` opens it in `$VISUAL` or
-`$EDITOR` and checks what you saved.
+`$EDITOR` (or `vi`) and refuses a value it cannot read or a key it does not know.
 
 **`version`** prints the version; **`completion bash|zsh|fish|powershell`** prints a completion script.
 
@@ -107,7 +110,7 @@ The color of a row says what will happen to it:
 | `⏎` | attach to it; inside zellij, switch this client to it |
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
-| `r` | rename it; the field starts with [the name it shows](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused |
+| `r` | rename it; the field starts with [the name it shows](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused, and an exited session cannot be renamed |
 | `f` | run a pass now; it asks first when the pass would delete something |
 | `F` | run a pass without the idle and exited waits, after asking |
 | `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` returns |
@@ -117,7 +120,7 @@ The color of a row says what will happen to it:
 | `?` | every key and what each color means |
 | `q`, `ctrl+c` | quit |
 
-The dashboard reads the sessions every five seconds. What you do in it takes the pass lock and goes to the decision
-log, like a pass's work. It speaks English, and Korean when `LC_ALL`, `LC_MESSAGES` or `LANG` starts with `ko`;
+The dashboard reads the sessions every five seconds. `d`, `r`, `f` and `F` take the pass lock and go to the decision log,
+like a pass's work; `p` changes the protected list under that list's own lock and is not logged. It speaks English, and Korean when `LC_ALL`, `LC_MESSAGES` or `LANG` starts with `ko`;
 `ZELLIJ_REAPER_LANG=en` or `ko` picks one. The colors follow the terminal's background, and `NO_COLOR` turns them
 off.

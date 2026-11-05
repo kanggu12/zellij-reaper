@@ -1,7 +1,7 @@
 # How zellij-reaper decides
 
-A pass deletes a session only when every check below has passed with a fact in hand. A fact it cannot read keeps the
-session: keeping a session one more hour costs nothing, deleting one in use cannot be undone.
+A pass deletes a session only when every check below has passed on a fact it could read. A fact it cannot read keeps
+the session: keeping a session one more hour costs nothing, deleting one in use cannot be undone.
 
 ## In short
 
@@ -40,8 +40,8 @@ its wait over:
    again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
    protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
    it runs `zellij delete-session NAME --force`.
-8. **Renames a session it kept** when `auto_rename` is on and what the session shows calls for another name, asking it
-   for its clients first.
+8. **Renames a session it kept** when `auto_rename` is on and its panes point to another name. It asks the session for
+   its clients first.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
@@ -74,6 +74,24 @@ dashboard's detail panel marks with ✗.
 | `idle-recent` | idle for less than `idle_after` | `SKIP IDLE for 12m, reaped after 1h` |
 | `idle-old` | idle `idle_after` or more: **deleted** | `REAP IDLE, 2h 14m since last activity` |
 
+`plan` and the dashboard's NEXT PASS column put each code in fewer words:
+
+| Code | In `plan` |
+|:---:|:---|
+| `protected-name` | `protected (list)` or `protected (pattern)` |
+| `no-info` | `no session data yet` |
+| `exited-live` | `exited, server still up` |
+| `protected-command` | `protected: claude` |
+| `no-activity` | `last use unknown` |
+| `exited-recent`, `idle-recent` | `reap in 34m` |
+| `exited-old`, `idle-old` | `reap` |
+| `no-socket` | `socket missing` |
+| `no-server` | `server not found` |
+| `attached` | `attached` |
+| `attach-unknown` | `attach state unknown` |
+| `no-panes` | `starting or stopping` |
+| `busy` | `running htop` |
+
 `exited-live` applies only to exited sessions, `protected-command` only to running ones. An exited session stops at
 `exited-recent` or `exited-old`: it has no socket, server, clients or panes left to check.
 
@@ -81,18 +99,18 @@ dashboard's detail panel marks with ✗.
 
 ## Where each fact comes from
 
-- **Last use** of a running session is the newest change time of its panes' terminals (`/dev/pts/N`). The kernel moves
-  it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their files
+- **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
+  moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their files
   in zellij's cache, which stopped changing when the server ended.
 - **Attached clients** come from the kernel's socket table: each connection a server accepted, with its other end still
   open, is one client. When the table cannot tell, `zellij action list-clients` asks the server itself, and when the
   server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web
   client) always count.
-- **Busy panes.** Each pane is a child process of the session's server that reads a terminal; a server's other children,
-  like the `ps` zellij runs to save its layouts, are not panes. A pane is at a prompt when it is a known shell (`bash`,
-  `zsh`, `fish`, `nu` and others, plus `shells`), started without a script, with no child process. A command in the
-  foreground or the background, or a program the pane runs itself (`zellij run`, a command pane from a layout), makes it
-  busy.
+- **Busy panes.** Each pane is a child process of the session's server with a controlling terminal; a server's other
+  children, like the `ps` zellij runs to save its layouts, are not panes. A pane is at a prompt when it is a known shell
+  (`bash`, `zsh`, `fish`, `nu` and others, plus `shells`), started without a script, with no child process. A command in
+  the foreground or the background, or a program the pane runs itself (`zellij run`, a command pane from a layout), makes
+  it busy, and so does a job with its input redirected (`nohup`).
 - **Protected programs** are looked for in every process under the server and in the commands of the saved layout. A
   program matches by its process name, its executable's name or the script an interpreter runs, as a whole word:
   `node .../claude-code/cli.js` matches `claude`, `claudette` does not.
@@ -117,7 +135,8 @@ Every line the log can hold:
 
 | Line | Written when |
 |:---|:---|
-| `=== reaper start (dry_run=... idle_after=... exited_after=...) ===` | a pass starts; it ends in ` force` for `run --force` |
+| `=== reaper start (dry_run=... idle_after=... exited_after=...) ===` | a pass starts; ` force` follows `exited_after` for `run --force` |
+| `could not rotate PATH (N bytes) to PATH.1: ERROR` | the log could not move aside; the pass goes on |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete |

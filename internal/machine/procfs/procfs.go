@@ -27,6 +27,8 @@ type Proc struct {
 	Stdin string
 	// State is the one-letter state from /proc/<pid>/stat ("Z" for a zombie).
 	State string
+	// CTTY is the device of its controlling terminal, 0 when it has none.
+	CTTY int
 }
 
 // Name is the program's name as people know it: the command line's first
@@ -123,6 +125,10 @@ func readProc(root string, pid int) (*Proc, bool) {
 	}
 	p.State = fields[0]
 	p.PPID, _ = strconv.Atoi(fields[1])
+	// After the state and the parent: process group, session, tty_nr.
+	if len(fields) > 4 {
+		p.CTTY, _ = strconv.Atoi(fields[4])
+	}
 	// The real uid is the first number on the Uid: line of status.
 	if status, err := os.ReadFile(filepath.Join(dir, "status")); err == nil {
 		for _, line := range strings.Split(string(status), "\n") {

@@ -32,8 +32,8 @@
 </picture>
 
 zellij keeps every session until you delete it: the ones you detached from last week, and the exited ones it keeps
-for resurrection. zellij-reaper runs from a systemd user timer and deletes the sessions nobody uses. Every check has
-to pass before a session goes; when a fact is unclear, the session stays.
+for resurrection. zellij-reaper runs from a systemd user timer: once an hour it makes a pass over every session and
+deletes the ones nobody uses. Every check has to pass before a session goes; when a fact is unclear, the session stays.
 
 ## What goes and what stays
 
@@ -59,15 +59,16 @@ resurrected. [How it decides](docs/how-it-decides.md) lists every check in order
 
 ## Why zellij-reaper
 
-- **It knows who is attached.** It reads the kernel's socket table, which agrees with `zellij action list-clients` on
-  every tested zellij, and asks zellij again right before each delete.
-- **It knows what is running.** A pane counts as idle only when its process is a shell at its prompt with no child.
-  A command pane, `zellij run` and a job in the background all count as running.
-- **It finds renamed sessions.** zellij keeps a server's first name after a rename, so scripts that match servers by
-  name lose them. The socket file's inode leads to the right server.
-- **It says why.** The dashboard shows every check with its evidence, and each decision goes to a log whose words stay
-  the same across releases.
-- **It is light.** A look at ten sessions takes about 25 ms and starts no process per session. No root, no network.
+- **Who is attached.** It reads the kernel's socket table, which agrees with `zellij action list-clients` on every
+  tested zellij, and asks zellij again right before each delete.
+- **What is running.** A pane counts as idle only when its process is a shell at its prompt with no child. A command
+  pane, `zellij run` and a job in the background all count as running.
+- **Renamed sessions.** zellij keeps a server's first name after a rename, so scripts that match servers by name lose
+  them. The socket file's inode leads to the right server.
+- **Why it decided.** The dashboard shows every check with its evidence, and each decision goes to a log whose words
+  stay the same across releases.
+- **A light touch.** A look at ten sessions took 26 ms in the test container and starts no process per session. No
+  root, no network.
 
 ## Install
 
@@ -127,12 +128,12 @@ show, so the list of sessions reads like a list of what you were doing:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/names-dark.svg">
-  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log becomes tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
+  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A name stays until what the session shows changes. An attached session is never renamed, and a session you protect
-keeps its name. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules. In the dashboard, `r` offers
-the same name for any session, with `auto_rename` on or off.
+A name stays until what the session shows changes. An attached session is never renamed, and a session you protect by
+name keeps its name. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules. In the dashboard, `r`
+offers the same name for any running session, with `auto_rename` on or off.
 
 ## The dashboard
 
@@ -153,7 +154,8 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 
 | Command | Does |
 |:---|:---|
-| `zellij-reaper`, `tui` | the dashboard; the plan as a table when the output is not a terminal |
+| `zellij-reaper` | the dashboard; the plan as a table when input or output is not a terminal |
+| `tui` | the dashboard, always; it needs a terminal |
 | `plan [--json]` | what the next pass would do, changing nothing |
 | `run [--dry-run] [--force]` | one pass now, as the timer runs it |
 | `logs [-n 50] [-f]` | the decision log |
@@ -168,7 +170,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 
 ## Settings
 
-`install` writes `~/.config/zellij-reaper/config.toml` with every key at its default, commented out. Set what you
+`install` writes `~/.config/zellij-reaper/config.toml` with every key at its default, commented out. Uncomment what you
 change:
 
 ```toml
@@ -235,11 +237,11 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 **Can I get a deleted session back?** No: zellij removes its resurrection data too. To watch first, set
 `dry_run = true`; every pass then only writes what it would do to the log.
 
-**What does it touch?** It runs as you, without root, and makes no network connection:
+**What does it touch?** It runs as you, without root, and makes no network connection. A pass:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="zellij-reaper reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log, its lock and protected list, and its systemd units when you run install." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log and lock. The protect command writes the protected list, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their
@@ -250,7 +252,8 @@ dry-run setting. See [setup](docs/setup.md#coming-from-the-shell-scripts).
 - [How it decides](docs/how-it-decides.md): a pass step by step, every check, the log's words.
 - [Setup](docs/setup.md): installing, every setting, protecting and naming sessions, zellij versions.
 - [Commands](docs/commands.md): every command and flag, the dashboard's keys and colors.
-- [Troubleshooting](docs/troubleshooting.md): what `doctor` says, sessions kept longer than you expect, WSL 2.
+- [Troubleshooting](docs/troubleshooting.md): a timer that does not run, a session kept longer than you expect, a
+  session nothing can delete.
 - [Internals](docs/internals.md): the layers, how the facts are read, the design decisions, the tests.
 - [Changelog](CHANGELOG.md): what changed in each release.
 

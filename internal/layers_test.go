@@ -27,9 +27,19 @@ var layers = map[string]int{
 // leaves are small packages anyone may import, which import nothing of ours.
 var leaves = map[string]bool{"version": true, "testutil": true}
 
-// noIO is what the core layer may not import: it is what makes its rules
-// testable as plain tables.
-var noIO = map[string]bool{"os": true, "os/exec": true, "net": true, "syscall": true, "io/fs": true}
+// noIO is what the core layer may not import, with everything under it: it is
+// what makes its rules testable as plain tables.
+var noIO = []string{"os", "net", "syscall", "io/fs"}
+
+// doesIO reports whether an import is one of those or under one.
+func doesIO(imp string) bool {
+	for _, p := range noIO {
+		if imp == p || strings.HasPrefix(imp, p+"/") {
+			return true
+		}
+	}
+	return false
+}
 
 const module = "github.com/kanggu12/zellij-reaper/internal/"
 
@@ -47,12 +57,17 @@ func imports(t *testing.T) map[string][]string {
 		if err != nil {
 			return err
 		}
+		// Listed even with no imports, so a new folder cannot go unseen.
+		if found[filepath.Dir(path)] == nil {
+			found[filepath.Dir(path)] = []string{}
+		}
 		for _, spec := range file.Imports {
 			imp, err := strconv.Unquote(spec.Path.Value)
 			if err != nil {
 				return err
 			}
-			found[filepath.Dir(path)] = append(found[filepath.Dir(path)], imp)
+			pkg := filepath.Dir(path)
+			found[pkg] = append(found[pkg], imp)
 		}
 		return nil
 	})
@@ -82,7 +97,7 @@ func TestPackagesFollowTheLayers(t *testing.T) {
 			continue
 		}
 		for _, imp := range deps {
-			if from == "core" && noIO[imp] {
+			if from == "core" && doesIO(imp) {
 				t.Errorf("%s imports %s: the core layer does no I/O", pkg, imp)
 			}
 			rest, ours := strings.CutPrefix(imp, module)
@@ -97,7 +112,12 @@ func TestPackagesFollowTheLayers(t *testing.T) {
 			if leaves[to] {
 				continue
 			}
-			if layers[to] > level {
+			toLevel, placed := layers[to]
+			if !placed {
+				t.Errorf("%s imports %s: internal/%s is in no layer", pkg, imp, to)
+				continue
+			}
+			if toLevel > level {
 				t.Errorf("%s (%s) imports %s (%s): an import goes down the layers, not up", pkg, from, imp, to)
 			}
 		}

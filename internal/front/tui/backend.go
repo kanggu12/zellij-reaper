@@ -195,8 +195,10 @@ func (r real) renameListed(ctx context.Context, name, to string) error {
 	}
 	if err := r.a.Zellij.Rename(ctx, name, to); err != nil {
 		// Not renamed: take back the name added for it. Should that fail,
-		// the extra name only ever keeps a session, never reaps one.
-		if added {
+		// the extra name only ever keeps a session, never reaps one. When
+		// zellij took the request and the result could not be seen, the
+		// session may have either name, so both stay protected.
+		if added && !errors.Is(err, zellij.ErrUnconfirmed) {
 			pl.Set(to, false)
 		}
 		return err

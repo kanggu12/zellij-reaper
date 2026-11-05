@@ -85,7 +85,7 @@ func Suggest(in Input, maxBytes int) string {
 		return Fit(w, maxBytes)
 	}
 	if program == "" {
-		program = in.clean(in.Busy)
+		program = in.running()
 	}
 	return Fit(joinWords(in.directory(), program), maxBytes)
 }
@@ -143,6 +143,60 @@ func (in Input) isProgram(w string) bool {
 	return w == busy || w == first
 }
 
+// runningWords is how many words of a command line a name takes: enough for
+// `npm run dev`, short of a long list of arguments.
+const runningWords = 3
+
+// running is what a name says about the command keeping a session busy, for a
+// session whose titles say nothing. A title is on the screen anyway, but a command
+// line is not, and its arguments can hold a password. So this takes the program and
+// the plain words after it, and stops at the first flag or at anything else: a
+// flag's value cannot be told from a word, and a word with ":", "@" or "=" in it
+// may be a credential.
+func (in Input) running() string {
+	fields := strings.Fields(dropMarks(in.Busy))
+	var words []string
+	for i, f := range fields {
+		if len(words) == runningWords {
+			break
+		}
+		switch {
+		case i == 0:
+			words = append(words, in.pathWord(strings.TrimPrefix(f, "-")))
+		case isPath(f):
+			words = append(words, in.pathWord(f))
+		case plainWord(f):
+			words = append(words, f)
+		default:
+			return in.named(words)
+		}
+	}
+	return in.named(words)
+}
+
+// named joins words into a name, "" when they only name a shell.
+func (in Input) named(words []string) string {
+	w := normalize(strings.Join(words, " "))
+	if uninformative[w] {
+		return ""
+	}
+	return w
+}
+
+// plainWord reports whether a word holds nothing but letters, digits, "_", "-"
+// and ".", and does not start like a flag.
+func plainWord(f string) bool {
+	if strings.HasPrefix(f, "-") {
+		return false
+	}
+	for _, r := range f {
+		if !isWordRune(r) && !unicode.IsMark(r) && r != '_' && r != '-' && r != '.' {
+			return false
+		}
+	}
+	return f != ""
+}
+
 // promptRe and bracketRe match the titles shells set for themselves:
 // "me@host: ~/projects/web-app", "me@host:/srv/app#" and "[me@host app]$".
 var (
@@ -159,9 +213,10 @@ func (in Input) clean(title string) string {
 	}
 	// A title that is only a path names the directory it ends in, and the
 	// same goes for each path inside a command line.
+	fields := strings.Fields(s)
 	var words []string
-	for _, f := range strings.Fields(s) {
-		if w := in.word(f); w != "" {
+	for _, f := range fields {
+		if w := in.word(f, remoteCommand(fields)); w != "" {
 			words = append(words, w)
 		}
 	}
@@ -172,10 +227,13 @@ func (in Input) clean(title string) string {
 	return w
 }
 
-// uninformative are titles that say nothing about a session: a bare shell.
+// uninformative are titles that say nothing about a session: a bare shell. Every
+// shell inspect knows is here, and a test keeps it that way.
 var uninformative = map[string]bool{
-	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true, "ash": true, "ksh": true,
-	"csh": true, "tcsh": true, "nu": true, "pwsh": true, "login": true,
+	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true, "ash": true, "ksh": true, "mksh": true,
+	"oksh": true, "pdksh": true, "yash": true, "csh": true, "tcsh": true, "nu": true, "elvish": true, "xonsh": true,
+	"pwsh": true, "ion": true, "osh": true, "oil": true, "hush": true, "rc": true, "es": true, "murex": true,
+	"login": true,
 }
 
 // defaultTitleRe matches zellij's own pane and tab titles once normalized.
@@ -208,9 +266,18 @@ func (in Input) isHere(host string) bool {
 	return short(host) == "localhost" || short(host) == short(in.Host)
 }
 
+// remoteCommands take a target in the form user@host.
+var remoteCommands = map[string]bool{"ssh": true, "mosh": true, "sftp": true, "scp": true, "autossh": true, "et": true}
+
+// remoteCommand reports whether a title's first word is one of them. Elsewhere an
+// "@" means something else: `npm install react@18.2.0` is not a user on a host.
+func remoteCommand(fields []string) bool {
+	return len(fields) > 0 && remoteCommands[strings.ToLower(filepath.Base(fields[0]))]
+}
+
 // word reduces one word of a title: a flag says nothing, a path says its last
-// part, a URL loses its scheme and an ssh target its user.
-func (in Input) word(f string) string {
+// part, a URL loses its scheme and any password in it, and an ssh target its user.
+func (in Input) word(f string, remote bool) string {
 	switch {
 	// "-f", "--build", "--port=80", and "--" and "-" on their own.
 	case strings.HasPrefix(f, "-"):
@@ -219,9 +286,13 @@ func (in Input) word(f string) string {
 		return in.pathWord(f)
 	}
 	if _, rest, ok := strings.Cut(f, "://"); ok {
-		return rest
+		host, path, _ := strings.Cut(rest, "/")
+		if at := strings.LastIndexByte(host, '@'); at >= 0 {
+			host = host[at+1:]
+		}
+		return host + "/" + path
 	}
-	if at := strings.LastIndexByte(f, '@'); at > 0 && at < len(f)-1 {
+	if at := strings.LastIndexByte(f, '@'); remote && at > 0 && at < len(f)-1 {
 		return f[at+1:]
 	}
 	return f
@@ -235,10 +306,12 @@ func isPath(f string) bool {
 }
 
 // dropMarks removes the symbols terminal programs put in titles (spinners,
-// stars, emoji), wherever they are.
+// stars, emoji), wherever they are, with the invisible characters that come with
+// them: a variation selector would stay in the name, unseen, on the letter before.
 func dropMarks(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.Is(unicode.So, r) || unicode.Is(unicode.Co, r) || unicode.Is(unicode.Sk, r) {
+		if unicode.Is(unicode.So, r) || unicode.Is(unicode.Co, r) || unicode.Is(unicode.Sk, r) ||
+			unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Variation_Selector, r) {
 			return -1
 		}
 		return r
@@ -356,7 +429,9 @@ func Same(name, desired string) bool {
 		return true
 	}
 	tail, ok := strings.CutPrefix(name, desired+"-")
-	if !ok || tail == "" {
+	// A tail is 2 to 99. Anything longer is another name: "api_1104-0931" is
+	// not "api_1104" with a tail, it is the stamp with the minute in it.
+	if !ok || tail == "" || len(tail) > 2 {
 		return false
 	}
 	for _, r := range tail {

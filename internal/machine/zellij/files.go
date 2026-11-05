@@ -105,7 +105,8 @@ type Metadata struct {
 	WebClients int
 	// Panes lists every pane, plugins included, in the file's order.
 	Panes []PaneMeta
-	// ActiveTab is the position of the tab the session shows.
+	// ActiveTab is the position of the tab a client looks at, -1 when no tab
+	// is marked active, as when nobody is attached.
 	ActiveTab int
 }
 
@@ -114,7 +115,7 @@ type Metadata struct {
 // fields eight in), and only a few fields matter here, so a full KDL parser
 // would add a dependency without making the reading safer.
 func ParseMetadata(text string) Metadata {
-	var md Metadata
+	md := Metadata{ActiveTab: -1}
 	var cur *PaneMeta
 	// tabPos is the position of the tab block being read, -1 outside one.
 	tabPos := -1
@@ -178,25 +179,30 @@ func (m Metadata) TerminalTitles() []string {
 	return t
 }
 
-// TitlesByFocus returns the titles of the panes still running, the one the
-// session shows first: the focused pane of the active tab, then the other
-// panes in the file's order. It is what a session is named after; the log keeps
-// TerminalTitles, whose order does not move with the focus.
+// TitlesByFocus returns the titles of the panes still running, the ones a person
+// was looking at first: the focused pane of the tab a client looks at, then the
+// focused pane of each other tab, then the rest. Once the last client leaves,
+// zellij marks no tab active, so a pass starts from the first tab's focused pane.
+// It is what a session is named after; the log keeps TerminalTitles, whose order
+// does not move with the focus.
 func (m Metadata) TitlesByFocus() []string {
-	var first, rest []string
+	var shown, focused, rest []string
 	for _, p := range m.Panes {
 		// A plugin says nothing about the session, and a command pane whose
 		// command has finished only says what used to run there.
 		if p.Plugin || p.Exited || p.Title == "" {
 			continue
 		}
-		if p.Focused && p.Tab == m.ActiveTab {
-			first = append(first, p.Title)
-			continue
+		switch {
+		case p.Focused && p.Tab == m.ActiveTab:
+			shown = append(shown, p.Title)
+		case p.Focused:
+			focused = append(focused, p.Title)
+		default:
+			rest = append(rest, p.Title)
 		}
-		rest = append(rest, p.Title)
 	}
-	return append(first, rest...)
+	return append(append(shown, focused...), rest...)
 }
 
 // Layout is what the reaper reads from session-layout.kdl, the file zellij

@@ -296,7 +296,7 @@ func TestRename(t *testing.T) {
 	renameSettles = 60 * time.Millisecond
 	defer func() { renameSettles = old }()
 	s = &script{listed: "a [Created 1h ago]\n", ignoreRename: true}
-	if err := s.cli().Rename(ctx, "a", "b"); err == nil || !strings.Contains(err.Error(), "does not list it") {
+	if err := s.cli().Rename(ctx, "a", "b"); err == nil || !errors.Is(err, ErrUnconfirmed) {
 		t.Errorf("rename without effect: %v", err)
 	}
 }
@@ -388,16 +388,69 @@ panes {
 	}
 }
 
-// A real file from each release: the focused pane comes first, and the fields
-// this reads are still where it reads them.
+func TestTitlesByFocusWithNobodyAttached(t *testing.T) {
+	// Once the last client leaves, zellij marks no tab active.
+	md := ParseMetadata(`tabs {
+    tab {
+        position 0
+        active false
+    }
+    tab {
+        position 1
+        active false
+    }
+}
+panes {
+    pane {
+        is_plugin false
+        is_focused false
+        title "beside it"
+        tab_position 0
+    }
+    pane {
+        is_plugin false
+        is_focused true
+        title "focused in the first tab"
+        tab_position 0
+    }
+    pane {
+        is_plugin false
+        is_focused true
+        title "focused in the second tab"
+        tab_position 1
+    }
+}
+`)
+	if md.ActiveTab != -1 {
+		t.Errorf("active tab: %d", md.ActiveTab)
+	}
+	got := strings.Join(md.TitlesByFocus(), " | ")
+	if got != "focused in the first tab | focused in the second tab | beside it" {
+		t.Errorf("titles by focus: %s", got)
+	}
+}
+
+// A real file from each release, with a client attached: the fields this reads
+// are still where it reads them. Renaming any of them in a recorded file fails.
 func TestTitlesByFocusOnRecordedFiles(t *testing.T) {
 	for _, v := range versions {
 		b, err := os.ReadFile(filepath.Join("testdata", v, "metadata-attached.kdl"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if titles := ParseMetadata(string(b)).TitlesByFocus(); len(titles) == 0 {
-			t.Errorf("%s: no titles", v)
+		md := ParseMetadata(string(b))
+		if md.ActiveTab != 0 {
+			t.Errorf("%s: active tab %d", v, md.ActiveTab)
+		}
+		titles := md.TitlesByFocus()
+		var focused []PaneMeta
+		for _, p := range md.Panes {
+			if p.Focused && !p.Plugin {
+				focused = append(focused, p)
+			}
+		}
+		if len(focused) != 1 || focused[0].Tab != md.ActiveTab || len(titles) == 0 || titles[0] != focused[0].Title {
+			t.Errorf("%s: focused panes %+v, titles %q", v, focused, titles)
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/core/rename"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -135,6 +136,7 @@ func TestAServersHelpersAreNotPanes(t *testing.T) {
 	m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")
 	m.pane(t, 101, 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour))
 	// zellij saving its layout, and a plugin's command with its input piped.
+	// Neither has a controlling terminal: the server has none to pass on.
 	m.proc.Add(testutil.Proc{PID: 102, PPID: 100, Comm: "ps", Argv: []string{"ps", "-ao", "ppid,args"}, Stdin: "/dev/null"})
 	m.proc.Add(testutil.Proc{PID: 103, PPID: 100, Comm: "wl-copy", Argv: []string{"wl-copy"}, Stdin: "pipe:[77]"})
 	got := m.gather(t, false, running("s"))
@@ -145,6 +147,22 @@ func TestAServersHelpersAreNotPanes(t *testing.T) {
 	m.proc.Add(testutil.Proc{PID: 104, PPID: 100, Comm: "htop", Argv: []string{"htop"}})
 	if got := m.gather(t, false, running("s")); got[0].Facts.BusyWith != "htop" {
 		t.Errorf("unreadable input: busy with %q", got[0].Facts.BusyWith)
+	}
+}
+
+func TestAJobWithItsInputRedirectedIsStillAPane(t *testing.T) {
+	// `nohup sleep 99999` and `exec sleep 1 </dev/null` in a command pane: real
+	// jobs, whose input is not the terminal. The terminal stays their controlling
+	// terminal, which is what tells them from a helper.
+	for name, stdin := range map[string]string{"nohup": "/dev/null", "piped": "pipe:[77]"} {
+		m := newMachine(t)
+		m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")
+		m.pane(t, 101, 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour))
+		m.proc.Add(testutil.Proc{PID: 102, PPID: 100, Comm: "sleep", Argv: []string{"sleep", "99999"}, Stdin: stdin, CTTY: 34816})
+		got := m.gather(t, false, running("s"))
+		if len(got[0].Panes) != 2 || got[0].Facts.BusyWith != "sleep 99999" {
+			t.Errorf("%s: panes %+v, busy with %q", name, got[0].Panes, got[0].Facts.BusyWith)
+		}
 	}
 }
 
@@ -235,8 +253,12 @@ func TestTheSocketTableAnswersWithoutAsking(t *testing.T) {
 	if got[0].Facts.AttachDetail != "1 client(s) attached" {
 		t.Errorf("the log's words changed: %s", got[0].Facts.AttachDetail)
 	}
-	// With the client gone, the same check says nobody is attached.
-	m.socks = m.socks[:1]
+	// A server with only its listening socket: nobody is attached, and nobody
+	// was asked.
+	m = newMachine(t)
+	m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")
+	m.pane(t, 101, 100, "bash", []string{"-bash"}, now)
+	m.clients["s"] = errors.New("asked anyway")
 	got = m.gather(t, true, running("s"))
 	if got[0].Facts.Attached != policy.No || got[0].Clients != 0 {
 		t.Errorf("no connection: %v, %d (%s)", got[0].Facts.Attached, got[0].Clients, got[0].Facts.AttachDetail)
@@ -244,8 +266,8 @@ func TestTheSocketTableAnswersWithoutAsking(t *testing.T) {
 }
 
 func TestAConnectionNobodyCanSeeIsAskedAbout(t *testing.T) {
-	// The other end is not in this table: a client from elsewhere, or one
-	// leaving. list-clients decides, and failing that nothing can tell.
+	// The other end is not in this table: a client leaving, whose end has closed.
+	// list-clients decides, and failing that nothing can tell.
 	m := newMachine(t)
 	attachedVia(t, m, false)
 	m.clients["s"] = 0
@@ -265,14 +287,49 @@ func TestAConnectionNobodyCanSeeIsAskedAbout(t *testing.T) {
 	}
 }
 
+func TestAClientFromAnotherNetworkNamespaceIsAskedAbout(t *testing.T) {
+	// The kernel lists such a connection only in that namespace: this table shows
+	// the server listening and no connection, and the server holds a socket the
+	// table does not list. That must not read as "nobody attached".
+	m := newMachine(t)
+	sock := testutil.Socket(t, m.sockDir, "s")
+	ino, dev, _ := procfs.FileID(sock)
+	m.proc.Add(testutil.Proc{PID: 100, PPID: 1, Comm: "zellij", Argv: []string{"/usr/bin/zellij", "--server", sock}, Sockets: []uint32{1000, 4001}})
+	m.pane(t, 101, 100, "bash", []string{"-bash"}, now)
+	m.socks = []procfs.UnixSocket{{Inode: 1000, State: 10, Name: sock, VFSIno: ino, VFSDev: dev}}
+	testutil.SessionFiles(t, m.info, "s", testutil.Metadata(0, "x"), "", now)
+	m.clients["s"] = 1
+	got := m.gather(t, true, running("s"))
+	if got[0].Facts.Attached != policy.Yes || got[0].Clients != 1 {
+		t.Errorf("a client the table cannot see: %v, %d (%s)", got[0].Facts.Attached, got[0].Clients, got[0].Facts.AttachDetail)
+	}
+	if tri, detail := inspect.ListenerClients(procTable(t, m), 100, m.socks); tri != policy.Unknown {
+		t.Errorf("recover would call it %v (%s)", tri, detail)
+	}
+}
+
 func TestABrowserClientCountsWithNoConnection(t *testing.T) {
+	// The table shows the server listening and nothing connected; zellij's file
+	// counts a browser client. It counts whichever way the rest is read.
 	m := newMachine(t)
 	m.server(t, "web", "web", 100, testutil.Metadata(0, "x")+"web_client_count 1\n", "")
 	m.pane(t, 101, 100, "bash", []string{"-bash"}, now)
-	got := m.gather(t, false, running("web"))
-	if got[0].Facts.Attached != policy.Yes || got[0].Clients != 1 {
-		t.Errorf("browser client: %v, %d", got[0].Facts.Attached, got[0].Clients)
+	for _, withSocks := range []bool{true, false} {
+		got := m.gather(t, withSocks, running("web"))
+		if got[0].Facts.Attached != policy.Yes || got[0].Clients != 1 {
+			t.Errorf("browser client, table %v: %v, %d", withSocks, got[0].Facts.Attached, got[0].Clients)
+		}
 	}
+}
+
+// procTable reads a fake machine's process table.
+func procTable(t *testing.T, m *machine) *procfs.Table {
+	t.Helper()
+	table, err := procfs.Read(m.proc.Root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return table
 }
 
 // overlaps fails a test when two list-clients calls run at once.
@@ -339,5 +396,15 @@ func TestExitedAndMissing(t *testing.T) {
 	}
 	if !got[2].Facts.Protected || got[2].Facts.ProtectedBy != "protected list" {
 		t.Errorf("protected: %+v", got[2].Facts)
+	}
+}
+
+func TestEveryKnownShellSaysNothingAsATitle(t *testing.T) {
+	// The shells a pane can be idle in are the titles that name nothing.
+	for _, shell := range inspect.KnownShells {
+		in := rename.Input{Titles: []string{shell}, Cwd: "/srv/web-app"}
+		if got := rename.Suggest(in, rename.MaxBase); got != "web-app" {
+			t.Errorf("%s: got %q", shell, got)
+		}
 	}
 }

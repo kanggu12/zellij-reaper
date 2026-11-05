@@ -22,7 +22,7 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 - `running ...` (`busy`): something still runs in a pane. Often it is a background job started from the shell, or a
   pane zellij started with a command.
 - `attached`: a client is still connected, maybe in another terminal, over SSH or in a browser.
-- `idle ...` (`idle-recent`): a pane's terminal was used more recently than you think, often a program printing to
+- `reap in ...` (`idle-recent`): a pane's terminal was used more recently than you think, often a program printing to
   it.
 - `server not found` (`no-server`) after a rename: the kernel has no `unix_diag` (`doctor` says so), so a renamed
   session cannot be matched to its server. `modprobe unix_diag` where that is possible.
@@ -30,13 +30,15 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 ## A session's name keeps a `-2`
 
 Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
-stays, because a name changes only when what the session shows changes. Rename it by hand with `r` in the dashboard.
+stays, because a name changes only when what the session shows changes. With `r` you can give it the name without the
+tail, unless this session had that name before. Any other name also needs `zellij-reaper protect`, or the next pass with
+`auto_rename` on renames it again.
 
 ## A session is named after the wrong thing
 
 The name follows the focused pane of the active tab when the last client left. Its row in `plan --json` lists
-`would_rename`, and `r` in the dashboard shows the name its panes point to. To keep a name, protect the session: a
-protected session is never renamed. `auto_rename = false` turns renaming off.
+`would_rename`, and `r` in the dashboard shows the name its panes point to. To keep a name, protect the session by name:
+such a session is never renamed. `auto_rename = false` turns renaming off.
 
 ## `plan` and the timer disagree
 

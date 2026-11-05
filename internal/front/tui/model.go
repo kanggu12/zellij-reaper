@@ -14,8 +14,8 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 )
 
-// refreshEvery is how often the dashboard re-reads the sessions. Each refresh
-// asks every running session for its clients, so it is not much more often.
+// refreshEvery is how often the dashboard re-reads the sessions: often enough to
+// follow what happens, with little to spare for a survey to be noticed.
 const refreshEvery = 5 * time.Second
 
 // mode is what the screen shows.

@@ -84,7 +84,7 @@ func TestInstallFresh(t *testing.T) {
 	}
 	// The written settings file loads cleanly and holds the defaults.
 	c, err := config.Load("", env)
-	if err != nil || c.File == "" || len(c.Warnings) != 0 || c.IdleAfter != cfg.IdleAfter {
+	if err != nil || c.File == "" || c.IdleAfter != cfg.IdleAfter {
 		t.Errorf("settings after install: %+v %v", c, err)
 	}
 	// Installing again keeps the settings file as it is.

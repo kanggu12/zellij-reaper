@@ -8,7 +8,8 @@ integration tests run real zellij in throwaway containers, and `make demo` opens
 - [How the pieces fit](#how-the-pieces-fit)
 - [Build and try it](#build-and-try-it)
 - [Run the tests](#run-the-tests)
-- [Make a change](#make-a-change): a rule, a setting, a protected program, a zellij release, a language, the dashboard
+- [Make a change](#make-a-change): a rule, a setting, a protected program, a kind of title, a zellij release, a
+  dependency, a language, the dashboard
 - [Style](#style)
 - [Report a problem](#report-a-problem)
 
@@ -21,7 +22,7 @@ integration tests run real zellij in throwaway containers, and `make demo` opens
 - **A program it should know.** A coding agent or another program people leave running on purpose
   ([protected programs](#a-protected-program)), or a default title that says nothing ([names](#a-kind-of-title)).
 - **Translations.** English and Korean today ([a language](#a-language)).
-- **Docs.** Anything that made you stop and search is worth a sentence.
+- **Docs.** If something made you stop and search, add what you were looking for.
 
 ## How the pieces fit
 
@@ -38,8 +39,8 @@ their own words. [Internals](../docs/internals.md) has the reasons behind each p
 
 ## Build and try it
 
-You need Go (the version in `go.mod`; `go` fetches it if yours is older) and, for the integration tests and the sandbox,
-Docker.
+You need Go (the version in `go.mod`; `go` fetches it if yours is older), shellcheck and a C compiler for `make check`,
+and Docker for the integration tests and the sandbox.
 
 ```sh
 git clone https://github.com/kanggu12/zellij-reaper && cd zellij-reaper
@@ -47,8 +48,8 @@ make build && dist/zellij-reaper plan
 ```
 
 `plan` and the dashboard change nothing until you press a key that acts, so they are safe on your own sessions. `run` is
-not: use `run --dry-run`, or `make demo`, which stages the same demo sessions in the integration image and mounts the
-binary you just built. The published demo image is built from `test/demo/Dockerfile`.
+not: use `run --dry-run`, or `make demo`, which stages the same demo sessions in the integration image and builds and
+mounts the working tree's binary. The published demo image is built from `test/demo/Dockerfile`.
 
 ## Run the tests
 
@@ -60,7 +61,7 @@ make integration ZELLIJ_VERSIONS=0.45.1  # one release
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push and pull request with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
 </picture>
 
 Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen processes and terminals, real Unix sockets
@@ -72,7 +73,9 @@ covers. A failing integration check prints the plan and the last pass in the log
 ### A rule
 
 It goes in `internal/core/policy`: a `Code`, its place in `Decide`, its `LogText`, its words in both catalogs (`why.*`,
-`check.*`), and rows in `policy_test.go`. A fact that cannot be read must keep the session.
+`check.*`), and rows in `policy_test.go`. Then its color in `Categorize` and its line in `logVerdicts`
+(`internal/front/ui/verdict.go`), the code in `verdict_test.go`, and its rows in `docs/how-it-decides.md`. A fact that
+cannot be read must keep the session.
 
 ### A setting
 
@@ -94,8 +97,10 @@ title that says nothing about the session goes in `agentTitles`. Try a change on
 ### A zellij release
 
 Run `make integration ZELLIJ_VERSIONS=x.y.z`. If it passes, add it to the matrix in `.github/workflows/ci.yml` and to
-`default_versions` in `test/integration/run.sh`. If it fails, record what changed (`list-sessions -n`, `action
-list-clients`, a `session-metadata.kdl`) under `internal/machine/zellij/testdata/x.y.z/`, add a parser test, then fix.
+`default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in
+`internal/front/cli/doctor.go`, or `doctor` warns it is untested, and update `README.md` and `docs/setup.md`. If it fails,
+record what changed (`list-sessions -n`, `action list-clients`, a `session-metadata.kdl`) under
+`internal/machine/zellij/testdata/x.y.z/`, add a parser test, then fix.
 
 ### A dependency
 
@@ -112,11 +117,12 @@ placeholder is there and that every frame still fits.
 
 `go test ./internal/front/tui/` renders every state at five sizes in both languages. `zellij-reaper tui --snapshot 132x32`
 prints one frame (a hidden flag; also `--theme light`, `--select NAME`); the screenshots in `docs/assets` come from such
-frames, taken in the `make demo` sandbox.
+frames, taken in the `make demo` sandbox. The SVG figures come from a script outside the repository: say in the pull
+request which one changes, and the maintainer redraws it.
 
 ## Style
 
-- The log's words are an interface: add new kinds of lines, never reword the ones there.
+- People grep the log, so add new kinds of lines and never reword the ones there.
 - Words people see go through `i18n.T`, in English and Korean. In Korean, a particle never follows a name directly (the
   catalog tests check).
 - Comment nearly every step, saying why it is there.
