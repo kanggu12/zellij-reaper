@@ -105,6 +105,9 @@ about this very moment. An answer with nothing in it is asked again, and so is o
 names the client that created a background session the first time it is asked, and a real client is still there the
 second time.
 
+Asking also changes something on 0.43.1: a background session asked early never saves its layout, so it would not show
+as exited after a crash. That is one more reason for a pass to ask only what the table cannot tell.
+
 The count in `session-metadata.kdl` lags: in the integration containers, a session made with `attach --create-background`
 still had `connected_clients 1` ten seconds later on 0.45.1, and on 0.43.1 kept it until something else happened in the
 session. It can only add a client, when the server does not answer. Browser clients are counted from the file as well,

@@ -51,6 +51,22 @@ age_ptys() {
   done
 }
 
+# Wait until zellij can reach a session. On a slow machine a session whose first
+# pane has started can still answer "Session not found", which 0.43.1 does with
+# exit status 0, so a command sent then is lost without a word and the scenario
+# goes on with a session that is not what it thinks. This looks at the list, the
+# same check that message comes from. It must not ask the session anything: on
+# 0.43.1 an early list-clients stops the session from saving its layout, and it
+# never shows as exited.
+wait_reachable() {
+  for _ in $(seq 100); do
+    $Z list-sessions -n -s 2>/dev/null | grep -qxF "$1" && return 0
+    sleep 0.1
+  done
+  echo "  (zellij does not list $1)"
+  return 1
+}
+
 # Start a background session, optionally from a layout file.
 start() {
   if [ -n "${2:-}" ]; then
@@ -58,7 +74,7 @@ start() {
   else
     $Z attach --create-background "$1" >/dev/null 2>&1
   fi
-  wait_pane "$1"
+  wait_pane "$1" && wait_reachable "$1"
 }
 
 # How many clients the plan counts on one session.
@@ -157,9 +173,27 @@ for s in exited-old exited-new; do
   # A second pane makes zellij save the layout, which resurrection needs.
   start "$s" && $Z --session "$s" run -- sleep 5000 >/dev/null 2>&1
 done
-sleep 4
+# zellij lists an exited session only once it has saved a layout, which takes
+# longer on a slow machine than any fixed wait here would allow for.
+wait_saved() {
+  for _ in $(seq 300); do
+    grep -q 'sleep' "$INFO/$1/session-layout.kdl" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  echo "  (zellij saved no layout for $1)"
+  return 1
+}
+wait_exited() {
+  for _ in $(seq 300); do
+    $Z list-sessions -n 2>/dev/null | grep -q "^$1 .*EXITED" && return 0
+    sleep 0.1
+  done
+  echo "  (zellij does not list $1 as exited)"
+  return 1
+}
+for s in exited-old exited-new; do wait_saved "$s"; done
 for s in exited-old exited-new; do kill -9 "$(server_pid "$s")"; done
-sleep 2
+for s in exited-old exited-new; do wait_exited "$s"; done
 touch -d '-4 days' "$INFO"/exited-old/*
 # Busy panes need their programs started before the terminals are aged.
 age_ptys shell-busy '-3 hours'
@@ -284,7 +318,7 @@ sock_of() { tr '\0' '\n' <"/proc/$(server_pid "$1")/cmdline" | sed -n '/^--serve
 running() { [ -n "$(server_pid "$1")" ]; }
 stopped() { sleep 1; [ -z "$(server_pid "$1")" ]; }
 start orph-client && { script -qfec "$Z attach orph-client" /dev/null >/dev/null 2>&1 & }
-start orph-busy && $Z --session orph-busy run -- sleep 99999 >/dev/null 2>&1
+start orph-busy && $Z --session orph-busy run -- sleep 99999 >/dev/null
 start orph-idle
 sleep 3
 for s in orph-client orph-busy orph-idle; do rm -f "$(sock_of "$s")"; done
