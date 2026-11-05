@@ -187,22 +187,27 @@ Every pass writes one line per session, in words that stay the same across relea
 
 ```
 $ zellij-reaper logs
-11-03 22:24:28  === reaper start (dry_run=false idle_after=1h exited_after=3d) ===
-11-03 22:24:28  old-experiment [EXITED] panes={Pane #1|sleep 5000} :: REAP EXITED, 5d since last activity
-11-03 22:24:28    -> deleted: old-experiment
-11-03 22:24:28  k8s-debug [EXITED] panes={Pane #1|sleep 5000} :: SKIP EXITED 1d ago, reaped after 3d
-11-03 22:24:28  api-server [RUNNING] panes={Pane #1|npm run dev} :: SKIP running in a pane: npm run dev
-11-03 22:24:28  notes [RUNNING] panes={Pane #1} :: SKIP client attached (1 client(s) attached)
-11-03 22:24:28  agent-refactor [RUNNING] panes={Pane #1|claude} :: SKIP protected command running (claude)
-11-03 22:24:28  db-shell [RUNNING] panes={Pane #1|psql app_dev} :: SKIP running in a pane: psql app_dev
-11-03 22:24:28  monitoring [RUNNING] panes={Pane #1|watch df -h} :: SKIP running in a pane: watch df -h
-11-03 22:24:28  logs [RUNNING] panes={Pane #1|tail -f app.log} :: SKIP running in a pane: tail -f app.log
-11-03 22:24:28  scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 3h since last activity
-11-03 22:24:28    -> deleted: scratch
-11-03 22:24:28  docs-review [RUNNING] panes={Pane #1} :: SKIP IDLE for 25m, reaped after 1h
-11-03 22:24:28  release-v2 [RUNNING] panes={Pane #1} :: SKIP IDLE for 50m, reaped after 1h
-11-03 22:24:28  dotfiles [RUNNING] panes={Pane #1} :: SKIP protected by protected list
-11-03 22:24:28  === reaper end (2 reaped, 10 kept, 0 renamed) ===
+11-05 02:49:17  === reaper start (dry_run=false idle_after=1h exited_after=3d) ===
+11-05 02:49:17  old-experiment [EXITED] panes={Pane #1|sleep 5000} :: REAP EXITED, 5d since last activity
+11-05 02:49:17    -> deleted: old-experiment
+11-05 02:49:17  k8s-debug [EXITED] panes={Pane #1|sleep 5000} :: SKIP EXITED 1d ago, reaped after 3d
+11-05 02:49:17  api-server [RUNNING] panes={Pane #1|npm run dev} :: SKIP running in a pane: npm run dev
+11-05 02:49:17    -> renamed: api-server → npm-run-dev
+11-05 02:49:17  notes [RUNNING] panes={Pane #1} :: SKIP client attached (1 client(s) attached)
+11-05 02:49:17  agent-refactor [RUNNING] panes={Pane #1|claude} :: SKIP protected command running (claude)
+11-05 02:49:17    -> renamed: agent-refactor → claude
+11-05 02:49:17  db-shell [RUNNING] panes={Pane #1|psql app_dev} :: SKIP running in a pane: psql app_dev
+11-05 02:49:17    -> renamed: db-shell → psql-app_dev
+11-05 02:49:17  monitoring [RUNNING] panes={Pane #1|watch df -h} :: SKIP running in a pane: watch df -h
+11-05 02:49:17    -> renamed: monitoring → watch-df
+11-05 02:49:17  logs [RUNNING] panes={Pane #1|tail -f app.log} :: SKIP running in a pane: tail -f app.log
+11-05 02:49:17    -> renamed: logs → tail-app.log
+11-05 02:49:17  scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 3h since last activity
+11-05 02:49:17    -> deleted: scratch
+11-05 02:49:17  docs-review [RUNNING] panes={Pane #1} :: SKIP IDLE for 25m, reaped after 1h
+11-05 02:49:17  release-v2 [RUNNING] panes={Pane #1} :: SKIP IDLE for 50m, reaped after 1h
+11-05 02:49:17  dotfiles [RUNNING] panes={Pane #1} :: SKIP protected by protected list
+11-05 02:49:17  === reaper end (2 reaped, 10 kept, 5 renamed) ===
 ```
 
 It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `log.max_bytes` (1 MiB).
