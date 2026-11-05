@@ -5,69 +5,44 @@ does from the outside, see [how it decides](how-it-decides.md).
 
 ## Layout
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 320}}}%%
-flowchart TB
-    cmd["cmd/zellij-reaper"] --> cli["internal/cli<br/>plan, run, logs, doctor, …"]
-    cli -- "no command: the dashboard" --> tui["internal/tui<br/>model, view, Backend"]
-    cli --> app["internal/app<br/>settings, wiring"]
-    tui --> app
-    app --> reaper["internal/reaper<br/>Plan: the survey · Run: survey, act, log"]
-    reaper --> logfile["internal/logfile<br/>the decision log"]
-    reaper --> policy["internal/policy<br/>Decide: rules, no I/O"]
-    reaper --> inspect["internal/inspect<br/>facts per session"]
-    reaper --> zellij["internal/zellij<br/>zellij's command line and files"]
-    inspect --> policy
-    inspect --> procfs["internal/procfs<br/>/proc, the socket table"]
-    inspect --> zellij
-```
+The packages sit in layers, and an import goes down the layers, never up. `internal/layers_test.go` fails on an import
+that goes up, on I/O in the core layer, and on a folder that belongs to no layer.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/layers-dark.svg">
+  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and systemd. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="assets/layers-light.svg">
+</picture>
 
 | Package | Holds |
 |:---|:---|
-| `internal/policy` | `Decide(facts, thresholds, now)`: the rules, with no I/O; every rule is a row in a table test |
-| `internal/inspect` | the facts for every listed session, from one snapshot |
-| `internal/procfs` | one read of `/proc`, and the kernel's Unix socket table over netlink (sock_diag) |
-| `internal/zellij` | zellij's command line (`list-sessions`, `list-clients`, `delete-session`, rename) and its session files |
-| `internal/reaper` | `Plan`, the survey alone, and `Run`, the only code that changes anything |
-| `internal/rename` | names from pane titles, within the socket path's byte budget |
-| `internal/logfile`, `internal/lock`, `internal/protect` | the decision log, the pass lock (`flock`), the protected list |
-| `internal/config`, `internal/systemd` | settings, XDG paths, the user timer, moving the shell scripts over |
-| `internal/repair`, `internal/resize` | `recover` and `resize` |
-| `internal/ui`, `internal/i18n` | colors, the session table and the words for verdicts, shared by the CLI and the dashboard; English and Korean |
+| `internal/core/policy` | `Decide(facts, thresholds, now)`: the rules; every rule is a row in a table test |
+| `internal/core/rename` | names from what a session shows, within the socket path's byte budget |
+| `internal/core/duration` | the durations of the settings and the log, `1d12h` |
+| `internal/machine/procfs` | one read of `/proc`, and the kernel's Unix socket table over netlink (sock_diag) |
+| `internal/machine/zellij` | zellij's command line (`list-sessions`, `list-clients`, `delete-session`, rename) and its session files |
+| `internal/machine/lock`, `logfile` | the pass lock (`flock`), the decision log |
+| `internal/settings/config`, `protect` | settings and XDG paths, the protected list |
+| `internal/engine/inspect` | the facts for every listed session, from one snapshot |
+| `internal/engine/reaper` | `Plan`, the survey alone, and `Run`, the only code that changes anything |
+| `internal/engine/repair`, `resize` | `recover` and `resize` |
+| `internal/engine/systemd` | the user timer, and moving the shell scripts over |
+| `internal/app` | builds the pieces once from the settings |
+| `internal/front/cli`, `tui` | the commands, the dashboard |
+| `internal/front/ui`, `i18n` | colors, the session table and the words for verdicts, shared by both; English and Korean |
 | `internal/testutil` | fake machines for tests: a `/proc`, terminals with chosen times, real Unix sockets, session files |
 
 ## Reading the machine
 
-A pass reads four things and changes a few of its own; the only sessions it touches go through zellij's own commands.
+A pass reads what it needs and changes a few of its own files; the only sessions it touches go through zellij's own
+commands.
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 300}}}%%
-flowchart LR
-    subgraph reads["what it reads"]
-        a["zellij<br/>list-sessions, list-clients"]
-        b["the kernel<br/>/proc, the socket table"]
-        c["zellij's session files<br/>~/.cache/zellij/…"]
-        d["config.toml and the protected list"]
-    end
-    reaper(["zellij-reaper"])
-    subgraph acts["what it changes"]
-        e["sessions, through zellij<br/>delete-session, rename-session"]
-        f["its decision log<br/>reaper.log"]
-        g["its state files<br/>the pass lock, the protected list"]
-        h["its systemd units and settings<br/>only when you run install"]
-    end
-    a --> reaper
-    b --> reaper
-    c --> reaper
-    d --> reaper
-    reaper --> e
-    reaper --> f
-    reaper --> g
-    reaper --> h
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
+  <img alt="zellij-reaper reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log, its lock and protected list, and its systemd units when you run install." src="assets/touches-light.svg">
+</picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
-socket table, read each session's files, ask each running server for its clients, then decide. `policy.Decide`
+socket table, read each session's files, tell who is attached, then decide. `policy.Decide`
 returns the action, a code, the evidence, how long the session still has to wait, and the checks in the order they
 ran, ending with the one that decided. The log, `plan --json` and the dashboard each put that one verdict into their
 own words.
@@ -76,10 +51,10 @@ own words.
 |:---|:---|:---|
 | sessions, exited or not | `zellij list-sessions --no-formatting` | zellij's own list; a name is everything before ` [Created`, so names with spaces survive |
 | server and socket | the socket file's inode in the socket table, then `/proc/*/fd` | finds renamed sessions ([below](#renamed-sessions)) |
-| panes | the server's child processes | zellij forks one process per pane |
+| panes | the server's child processes that read a terminal | zellij forks one process per pane, and runs helpers like `ps` that read none |
 | busy | a pane process that is not a shell at its prompt, or a shell with a child | [below](#busy-panes) |
 | last use | the newest change time of the panes' terminals | [below](#last-use) |
-| attached | `zellij action list-clients` | [below](#attached-clients) |
+| attached | the socket table, then `zellij action list-clients` | [below](#attached-clients) |
 | protected program | every process under the server, and the commands of the saved layout | an agent runs as `claude`, `node .../claude-code/cli.js`, or a script |
 | exited time | the newest change time in the session's `session_info` directory | frozen when the server ended |
 
@@ -99,12 +74,38 @@ sessions, whose files stop changing when the server ends.
 
 ### Attached clients
 
-`zellij action list-clients` asks the server about this moment. The count in `session-metadata.kdl` lags: in the
-integration containers, a session made with `attach --create-background` still had `connected_clients 1` ten seconds
-later on 0.45.1, and on 0.43.1 kept it until something else happened in the session. Trusting the file first kept such
-sessions forever on 0.43 and for up to a minute on 0.44 and 0.45. So `list-clients` comes first, the file only when the
-server does not answer, then the socket table: a connection to the server held by another process is a client.
-Browser clients are counted from the file as well, so a session open in a browser is never taken for an idle one.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/clients-dark.svg">
+  <img alt="How a pass tells whether a client is attached. The kernel's socket table answers first: a connection with an open other end means attached, no connection means no client. When the table cannot tell, zellij's list-clients is asked, one session at a time. When that gives no answer, zellij's count in its metadata file can add a client. When nothing can tell, the session is kept as uncertain. A delete and a rename ask list-clients again first." src="assets/clients-light.svg">
+</picture>
+
+A client holds a connection to its server's socket, and the kernel's socket table shows it: the server's end carries the
+listening socket's name and file, which the socket pairs a server keeps for itself do not, and the other end is open. On
+zellij 0.43.1, 0.44.2, 0.44.3 and 0.45.1, with zero, one and two clients and on renamed sessions, counting those gives
+the same number as `list-clients`.
+
+The table comes first because it is one read for the whole pass and needs no process per session. Asking every server
+was slower everywhere and unreliable on one release: zellij 0.44.2 answers `list-clients` calls that overlap with
+nothing at all after a second, exit status 0, even when they go to different servers. `plan --json` over ten sessions,
+300 times per release in the integration container:
+
+| zellij | Asking every server, four at a time | The socket table first |
+|:---:|---:|---:|
+| 0.43.1 | 100 ms | 24 ms |
+| 0.44.2 | 1125 ms, up to 5 s; 19% of verdicts `attach-unknown` | 26 ms |
+| 0.44.3 | 123 ms | 27 ms |
+| 0.45.1 | 104 ms | 26 ms |
+
+`list-clients` stays for what the table cannot tell (no `unix_diag`, another network namespace, a connection whose other
+end nobody can see), one session at a time, and for the second look before a delete or a rename: it asks the server
+about this very moment. An answer with nothing in it is asked again, and so is one naming a client, because zellij 0.43
+names the client that created a background session the first time it is asked, and a real client is still there the
+second time.
+
+The count in `session-metadata.kdl` lags: in the integration containers, a session made with `attach --create-background`
+still had `connected_clients 1` ten seconds later on 0.45.1, and on 0.43.1 kept it until something else happened in the
+session. It can only add a client, when the server does not answer. Browser clients are counted from the file as well,
+so a session open in a browser is never taken for an idle one.
 
 ### Renamed sessions
 
@@ -131,6 +132,10 @@ script, with no child process. The shell scripts checked only for children, so a
 (`zellij run -- htop`, a command pane from a layout, where the program is the pane's process) looked idle. A script
 started from its shebang has the script's name as its kernel name, so it is not taken for a shell either.
 
+Not every child of a server is a pane. zellij runs `ps -ao ppid,args` to save its layouts, and plugins run commands of
+their own; caught in the few milliseconds they live, those made an idle session look busy for that pass (a few verdicts
+in every thousand with layouts saved once a second). Every pane reads a terminal and those do not, so they are left out.
+
 ### zellij's directories
 
 zellij 0.44 moved its socket and data directories from a version-named one (`0.43.1`) to `contract_version_1`. The
@@ -138,12 +143,33 @@ version from `zellij --version` picks the directory, taking the highest `contrac
 releases. Running servers name their socket on their command line, so the socket directory is taken from them
 whenever one runs.
 
+### Names
+
+A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
+time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
+log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
+
+`rename.Suggest` looks at the focused pane of the active tab first, then at the other panes that are still running. A title
+with something to say becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags,
+the directories of its paths, a URL's scheme, an ssh target's user. A shell's own title gives its directory, or the machine
+when it is another one. A title that only names the program (`Claude Code` before its first task, `nvim`) goes after the
+directory the first pane works in now, read from `/proc`, which follows a `cd` where the session's layout does not. Names
+stop at 32 columns, at the end of a word.
+
+Two sessions showing one title get a `-2` tail, which then stays: the shell version compared names without it and swapped
+such sessions between `-2` and `-3` on every pass. zellij also refuses a name a session has had before, which is another
+way to end up with a tail.
+
+zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file over
+the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at the list
+first and refuses, then waits until zellij lists the new name before calling the rename done.
+
 ### Names and the socket path
 
 A session's name is part of its socket path, and Linux caps a socket path at 107 bytes. Early shell versions cut names
 at 50 characters, which for Korean titles is 150 bytes; renamed past the limit, a session kept a server no command
 could reach. Names are now cut by bytes, at a character boundary, to what the session's own socket directory leaves,
-with room for the stamp and a collision suffix. `recover` repairs sessions broken the old way.
+with room for a stamp and a collision suffix. `recover` repairs sessions broken the old way.
 
 ### The log
 
@@ -172,34 +198,44 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 
 | Level | Where | What it shows |
 |:---|:---|:---|
-| Rules | `internal/policy` | every code, the order, the waits at their boundary, force, clock skew |
-| Parsers | `internal/zellij`, `internal/logfile`, `internal/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), KDL strings, log lines, settings and their errors |
-| The kernel | `internal/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
-| Facts | `internal/inspect` | each kind of pane, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
-| Passes | `internal/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
-| Setup | `internal/systemd` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
-| Dashboard | `internal/tui` | every state at five sizes in English and Korean, each frame exactly the terminal's size; every action |
+| Layers | `internal/layers_test.go` | no import goes up a layer, no I/O in the core layer, no folder outside the layers |
+| Rules | `internal/core/policy` | every code, the order, the waits at their boundary, force, clock skew |
+| Names | `internal/core/rename` | every kind of title, what says nothing, cuts by columns and bytes, stamps, collision tails |
+| Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), KDL strings, log lines, settings and their errors |
+| The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
+| Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
+| Passes | `internal/engine/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
+| Setup | `internal/engine/systemd` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
+| Dashboard | `internal/front/tui` | every state at five sizes in English and Korean, each frame exactly the terminal's size; every action |
 | Real zellij | `test/integration` | every scenario on real sessions in every state, on each [tested release](setup.md#zellij-versions), in throwaway containers |
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
-make integration                         # the three zellij releases, in Docker
+make integration                         # each tested zellij release, in Docker
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
 make demo                                # the dashboard on demo sessions in a container, to try by hand
 ```
 
 The integration scenarios make sessions in a container: idle ones with their terminals' times moved back, a shell
 running a command, a command pane, a stand-in coding agent, a client attached through `script(1)`, exited sessions
-(their server killed after zellij saved the layout), a renamed one, a protected one. Then they check `plan`, a dry run,
-a pass, a forced pass, `auto_rename`, `recover` and the other commands against what zellij lists afterwards.
+(their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
+long Korean title and a name with a dot in it. Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`,
+`recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
+pass in the log, so a failure that happens now and then can be read instead of guessed at.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push and pull request with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
+</picture>
 
 **CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a
 snapshot release build on every push and pull request. A new zellij release joins the matrix, and `default_versions`
 in `test/integration/run.sh`, once it passes.
 
 **A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`. `.github/workflows/release.yml` runs
-all of CI on the tagged commit, then GoReleaser builds the archives, `checksums.txt` and the packages, with the
-changelog section as the release notes.
+all of CI on the tagged commit. Then GoReleaser builds the archives, `checksums.txt` and the packages from
+`.github/goreleaser.yaml` and attaches `scripts/install.sh`, with the changelog section as the release notes, and the
+demo image goes to ghcr.io for amd64 and arm64.
 
 **Not covered:** systemd itself (the containers run zellij-reaper directly, not from the timer; the unit files and
 the install steps are tested against a stand-in `systemctl`), distributions other than the Debian-based test image,

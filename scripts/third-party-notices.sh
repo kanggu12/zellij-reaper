@@ -1,6 +1,6 @@
 #!/bin/sh
 # Write docs/THIRD_PARTY_NOTICES.md: the license of every module compiled into
-# zellij-reaper, of Go itself, and of the font the logo is drawn from. The
+# zellij-reaper, of Go itself, and of the font the logo and figures are drawn from. The
 # release archives and packages carry it next to the binary. Run it after
 # changing dependencies:
 #
@@ -46,7 +46,7 @@ kind() {
 # The Go release go.mod asks for, not the one this machine has: the file must
 # read the same wherever it is generated.
 gover=$(awk '$1 == "go" { print $2 }' go.mod)
-# The logo's lettering, with the font's license kept next to it.
+# The lettering of the logo and the figures, with the font's license kept next to it.
 font_license=docs/assets/JetBrainsMono-OFL.txt
 
 out="$tmp/notices.md"
@@ -54,7 +54,8 @@ out="$tmp/notices.md"
   echo "# Third-party notices"
   echo
   echo "zellij-reaper's own code is under the MIT License ([LICENSE](../LICENSE)). Its binary is built from the Go modules"
-  echo "and the Go standard library below, and its logo is drawn from the JetBrains Mono font. Their licenses follow."
+  echo "and the Go standard library below, and its logo and figures are drawn from the JetBrains Mono font. Their licenses"
+  echo "follow."
   echo "\`scripts/third-party-notices.sh\` writes this file from what the binary is built from (\`make notices\`)."
   echo
   echo "| Component | Version | License | Source |"
@@ -66,7 +67,7 @@ out="$tmp/notices.md"
     echo "| \`$mod\` | $ver | $(kind "$file") | https://pkg.go.dev/$mod |"
   done <"$tmp/deps"
   echo "| Go standard library | $gover | $(kind "$(go env GOROOT)/LICENSE") | https://go.dev |"
-  echo "| JetBrains Mono (the logo's lettering) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |"
+  echo "| JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |"
   echo
   echo "The demo image \`ghcr.io/kanggu12/zellij-reaper-demo\` also carries zellij itself (MIT) and a Debian base"
   echo "image; their licenses are in the image, under \`/usr/share/licenses/\`."

@@ -1,7 +1,8 @@
 # Third-party notices
 
 zellij-reaper's own code is under the MIT License ([LICENSE](../LICENSE)). Its binary is built from the Go modules
-and the Go standard library below, and its logo is drawn from the JetBrains Mono font. Their licenses follow.
+and the Go standard library below, and its logo and figures are drawn from the JetBrains Mono font. Their licenses
+follow.
 `scripts/third-party-notices.sh` writes this file from what the binary is built from (`make notices`).
 
 | Component | Version | License | Source |
@@ -29,7 +30,7 @@ and the Go standard library below, and its logo is drawn from the JetBrains Mono
 | `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sync |
 | `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
 | Go standard library | 1.26.0 | BSD-3-Clause | https://go.dev |
-| JetBrains Mono (the logo's lettering) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
+| JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
 
 The demo image `ghcr.io/kanggu12/zellij-reaper-demo` also carries zellij itself (MIT) and a Debian base
 image; their licenses are in the image, under `/usr/share/licenses/`.

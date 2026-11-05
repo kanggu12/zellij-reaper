@@ -20,7 +20,7 @@ zellij-reaper runs on a timer, as you, and deletes zellij sessions. These are th
 - a way for another user, or a program you did not run, to make it act on your sessions, or on theirs;
 - a session name, pane title or file under zellij's directory that makes it run a command, write outside its own
   files, or follow a link to somewhere else;
-- `install.sh` installing something other than the release it checked.
+- `scripts/install.sh` installing something other than the release it checked.
 
 It makes no network connection and needs no privileges. Session names and pane titles are written to its own log,
 on your machine.

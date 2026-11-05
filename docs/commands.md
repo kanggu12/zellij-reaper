@@ -39,12 +39,13 @@ printing new lines and follows the log across rotations.
 
 **`doctor`** checks zellij and its version, the systemd user instance, the timer (installed, enabled, running this
 binary, the interval it was installed with), lingering, the settings, settings that only your shell sees, zellij's
-session directory, the kernel's socket table and the log. It exits with status 1 when something is broken; a warning alone still exits 0.
+session directory, the kernel's socket table and the log. It exits with status 1 when something is broken; a warning
+alone still exits 0.
 
 ## Acting
 
-**`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only logs; `--force`
-sets both waits to zero for this pass; `--quiet` prints nothing (the timer's mode). The exit status is 0 when the pass
+**`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
+logs; `--force` sets both waits to zero for this pass; `--quiet` prints nothing (the timer's mode). The exit status is 0 when the pass
 ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such as zellij failing to list
 its sessions.
 
@@ -82,9 +83,9 @@ prints the file's path, `init` writes the file with every key at its default, an
 </picture>
 
 The top bar shows zellij's version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
-(`reaps after 1h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it has been idle, its clients, and what the
-next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear, attached, busy, protected. The panel beside it
-(below it on terminals under 132 columns) explains the selected session: the verdict in a sentence, every check with
+(`reaps after 1h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it
+has been idle, its clients, and what the next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear,
+attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected session: the verdict in a sentence, every check with
 its evidence and where it came from, its panes, and the settings that apply. Under a short table, the latest reaps and
 renames fill the column.
 
@@ -106,7 +107,7 @@ The color of a row says what will happen to it:
 | `⏎` | attach to it; inside zellij, switch this client to it |
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
-| `r` | rename it |
+| `r` | rename it; the field starts with [the name it shows](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused |
 | `f` | run a pass now; it asks first when the pass would delete something |
 | `F` | run a pass without the idle and exited waits, after asking |
 | `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` returns |

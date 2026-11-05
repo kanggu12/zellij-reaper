@@ -3,7 +3,27 @@
 A pass deletes a session only when every check below has passed with a fact in hand. A fact it cannot read keeps the
 session: keeping a session one more hour costs nothing, deleting one in use cannot be undone.
 
+## In short
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/goes-dark.svg">
+  <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="assets/goes-light.svg">
+</picture>
+
+Idle time counts from the last input or output on any of the session's terminals, so coming back to a session starts
+its wait over:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/when-dark.svg">
+  <img alt="A timeline over 16 hours with a pass every hour. A session you detach from after 2 hours is deleted by the first pass once 12 hours have gone by with nothing happening in it. A session you come back to starts its wait over. A session running a program is kept for as long as it runs." src="assets/when-light.svg">
+</picture>
+
 ## A pass, step by step
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/pass-dark.svg">
+  <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes or renames a session it looks again, and a session that changed is kept." src="assets/pass-light.svg">
+</picture>
 
 1. **Takes the pass lock.** The timer, `zellij-reaper run` and the dashboard's actions share one lock, so two of them
    never act at once. A pass waits five seconds for it and a dashboard action two seconds, then leaves the work to
@@ -13,50 +33,18 @@ session: keeping a session one more hour costs nothing, deleting one in use cann
    with the same exit status as an error; the pass tells the two apart and logs `no sessions`.
 4. **Reads the machine once:** one snapshot of `/proc`, one of the kernel's Unix socket table, and each session's files
    in zellij's cache directory. Every session in the pass is judged against the same moment.
-5. **Asks each running session's server who is attached** (`zellij action list-clients`, four servers at a time).
+5. **Tells who is attached** from that socket table. Only a session the table cannot answer for is asked, with
+   `zellij action list-clients`, one at a time.
 6. **Decides every session** with the checks below, all from that one snapshot.
 7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it asks
    again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
    protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
    it runs `zellij delete-session NAME --force`.
-8. **Renames a session it kept** when `auto_rename` is on, asking it for its clients first.
+8. **Renames a session it kept** when `auto_rename` is on and what the session shows calls for another name, asking it
+   for its clients first.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
-
-```mermaid
-sequenceDiagram
-    participant T as systemd timer
-    participant R as zellij-reaper run
-    participant K as kernel
-    participant Z as zellij
-    participant L as reaper.log
-    T->>R: every interval
-    R->>R: take the pass lock
-    R->>L: rotate if past log.max_bytes, write the start line
-    R->>R: read the protected list again
-    R->>Z: list-sessions
-    R->>K: one snapshot of /proc and the socket table
-    R->>Z: list-clients for each running session
-    Note over R: decide every session from that one snapshot
-    loop each session, in turn
-        R->>L: its name, state, panes and verdict
-        alt the verdict is reap
-            R->>R: read the protected list again
-            R->>Z: ask again: still exited, or still no client?
-            alt nothing changed
-                R->>Z: delete-session NAME --force
-                R->>L: deleted
-            else something changed
-                R->>L: kept, with the reason
-            end
-        else kept, and auto_rename is on
-            R->>Z: list-clients, then rename-session
-            R->>L: renamed, or kept name
-        end
-    end
-    R->>L: the end line with the counts
-```
 
 ## The checks
 
@@ -96,13 +84,15 @@ dashboard's detail panel marks with ✗.
 - **Last use** of a running session is the newest change time of its panes' terminals (`/dev/pts/N`). The kernel moves
   it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their files
   in zellij's cache, which stopped changing when the server ended.
-- **Attached clients** come from `zellij action list-clients`, which asks the server itself. When the server does not
-  answer, the count zellij writes to its metadata file is used, and then the sockets connected to the server. Browser
-  clients (zellij's web client) always count.
-- **Busy panes.** Each pane is a child process of the session's server. It is at a prompt when it is a known shell
-  (`bash`, `zsh`, `fish`, `nu` and others, plus `shells`), started without a script, with no child process. A command
-  in the foreground or the background, or a program the pane runs itself (`zellij run`, a command pane from a layout),
-  makes it busy.
+- **Attached clients** come from the kernel's socket table: each connection a server accepted, with its other end still
+  open, is one client. When the table cannot tell, `zellij action list-clients` asks the server itself, and when the
+  server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web
+  client) always count.
+- **Busy panes.** Each pane is a child process of the session's server that reads a terminal; a server's other children,
+  like the `ps` zellij runs to save its layouts, are not panes. A pane is at a prompt when it is a known shell (`bash`,
+  `zsh`, `fish`, `nu` and others, plus `shells`), started without a script, with no child process. A command in the
+  foreground or the background, or a program the pane runs itself (`zellij run`, a command pane from a layout), makes it
+  busy.
 - **Protected programs** are looked for in every process under the server and in the commands of the saved layout. A
   program matches by its process name, its executable's name or the script an interpreter runs, as a whole word:
   `node .../claude-code/cli.js` matches `claude`, `claudette` does not.

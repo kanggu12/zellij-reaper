@@ -27,6 +27,17 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 - `server not found` (`no-server`) after a rename: the kernel has no `unix_diag` (`doctor` says so), so a renamed
   session cannot be matched to its server. `modprobe unix_diag` where that is possible.
 
+## A session's name keeps a `-2`
+
+Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
+stays, because a name changes only when what the session shows changes. Rename it by hand with `r` in the dashboard.
+
+## A session is named after the wrong thing
+
+The name follows the focused pane of the active tab when the last client left. Its row in `plan --json` lists
+`would_rename`, and `r` in the dashboard shows the name its panes point to. To keep a name, protect the session: a
+protected session is never renamed. `auto_rename = false` turns renaming off.
+
 ## `plan` and the timer disagree
 
 Settings from variables in your shell (`ZELLIJ_REAPER_PROTECT=...`) apply to the commands you run there, not to the
@@ -45,5 +56,5 @@ it repairs it.
 
 ## Reporting a problem
 
-[CONTRIBUTING.md](../CONTRIBUTING.md#reporting) lists what to put in an issue. A security problem goes through
-[SECURITY.md](../SECURITY.md) instead.
+[CONTRIBUTING.md](../.github/CONTRIBUTING.md#report-a-problem) lists what to put in an issue. A security problem goes
+through [SECURITY.md](../.github/SECURITY.md) instead.

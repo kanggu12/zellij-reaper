@@ -16,7 +16,7 @@ zellij-reaper is one static binary for Linux on x86_64 or arm64. It needs zellij
 timer.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/kanggu12/zellij-reaper/main/install.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 ```
 
 To see the dashboard before installing anything, `docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo`
@@ -28,7 +28,7 @@ These variables change what it does:
 
 | Variable | Default | Effect |
 |:---|:---:|:---|
-| `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.1.1` |
+| `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.2.0` |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
 | `ZELLIJ_REAPER_BASE_URL` | GitHub releases | download from a mirror |
@@ -100,6 +100,7 @@ in `1d12h`; `"0"` means no wait.
 | `protect_commands` | `["claude", "codex", "gemini", "aider", "opencode"]` | | programs that keep a running session |
 | `shells` | `[]` | | extra programs that count as a prompt |
 | `auto_rename` | `false` | `ZELLIJ_REAPER_AUTO_RENAME` | rename survivors after what they show |
+| `auto_rename_stamp` | `"none"` | `ZELLIJ_REAPER_AUTO_RENAME_STAMP` | what those names end in: `"none"`, `"date"` or `"time"` |
 | `interval` | `"1h"` | | how often the timer runs; run `install` again after changing it |
 | `zellij` | `""` | `ZELLIJ_REAPER_ZELLIJ` | the zellij binary; empty means the first one in `PATH` |
 | `log.path` | `~/.local/state/zellij-reaper/reaper.log` | `ZELLIJ_REAPER_LOG` | the decision log |
@@ -133,18 +134,46 @@ Three ways, and each one also stops renaming:
 
 ## Naming sessions after what they show
 
-With `auto_rename = true`, every pass renames the sessions it keeps (except attached, protected and uncertain ones)
-after their first terminal pane's title, or the directory they were started in, plus when they were last used:
-`vim notes.md` last used on Nov 4 at 09:31 becomes `vim-notes-md_1104-0931`. The stamp follows the last use, so a name
-changes only when the session was used.
+With `auto_rename = true`, every pass renames the sessions it keeps (except attached, protected and uncertain ones) after
+what they show. Press `r` in the dashboard for the same name by hand, with `auto_rename` on or off.
 
-- Spinners and status marks that programs put in titles (dingbats, braille) are dropped. Letters of every script stay,
-  so two Korean titles make two names.
-- Titles that say nothing (`Pane #1`, `Tab #2`, a bare `bash`) are skipped.
-- A name is cut so the session's socket path stays within Linux's 107-byte limit, with room for the stamp and a `-2`,
-  `-3` when the name is taken.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
+  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log becomes tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="assets/names-light.svg">
+</picture>
 
-Names change as sessions are used, so a script that attaches to a session by name stops finding it once it is renamed.
+The name comes from the first of these that says something:
+
+1. **A pane's title**, the focused pane of the active tab first, then the other panes still running.
+2. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
+   `web-app-claude-code`, `api-npm-run-dev`. The directory is where the first pane works now, so it follows a `cd`.
+3. **The directory alone**, for a shell with nothing running.
+
+Your home directory and `/` say nothing, so a shell at home with a title like `Pane #1` keeps its name.
+
+A title loses what is terminal noise:
+
+| In the title | Becomes | Example |
+|:---|:---|:---|
+| Spinners, stars, emoji | nothing | `✳ Fix the login bug` is `fix-the-login-bug` |
+| A command's flags | nothing | `docker compose up -d --build` is `docker-compose-up` |
+| A path | its last part | `vim ~/notes/today.md` is `vim-today.md` |
+| A URL | no scheme | `https://github.com/foo/bar` is `github.com-foo-bar` |
+| An ssh target | no user | `ssh me@prod-db` is `ssh-prod-db` |
+| A shell's own title | its directory, and the machine if it is another one | `me@laptop: ~/api` is `api`, `me@buildbox:/srv/app$` is `buildbox-app` |
+| `Pane #1`, `Tab #2`, a bare `bash` | nothing | |
+
+Letters of every script stay, so two Korean titles make two names. A `.` stays inside a word, so `notes.md` still reads as
+a file. Names stop at 32 columns at the end of a word, and within what the session's socket path leaves of Linux's
+107-byte limit.
+
+A name changes only when what the session shows changes, so a script that attaches by name keeps working until then.
+When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij refuses a name a session has had before,
+so a title that comes back gives a tail too. A name you gave a session by hand is renamed like any other unless you
+protect it.
+
+`auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
+session in use once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
 
 ## Files
 
@@ -167,10 +196,12 @@ CI runs real sessions on zellij 0.43.1, 0.44.3 and 0.45.1. The differences it ha
 | | 0.43 | 0.44, 0.45 |
 |:---|:---|:---|
 | Data and socket directories | named after the version: `~/.cache/zellij/0.43.1/` | `contract_version_1` |
-| A session made with `attach --create-background` | the first `list-clients` counts the client that made it, so the first pass keeps it | counts none |
+| A session made with `attach --create-background` | the first `list-clients` names the client that made it, so it is asked twice | counts none |
 | The client count in the metadata file | can keep counting that client until something happens | rewritten about once a minute |
+| Renaming to a name that is taken | refused | accepted, cutting the other session off, so zellij-reaper looks first |
 
-The version comes from `zellij --version`. Older releases may work; they are not tested.
+zellij 0.44.2 prints nothing when `list-clients` calls overlap, so zellij-reaper does not overlap them. The version comes
+from `zellij --version`. Older releases may work; they are not tested.
 
 ## WSL 2
 

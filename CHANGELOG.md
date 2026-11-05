@@ -5,6 +5,36 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-05
+
+### Changed
+
+- **Names stay put.** `auto_rename` no longer adds the time of last use to a name, which renamed a session in use on every
+  pass: 20,536 of the 20,839 renames in the author's log moved nothing but the time. A name now changes when what the
+  session shows changes. `auto_rename_stamp = "date"` or `"time"` adds a stamp back. A name from an earlier version
+  loses its stamp at the next pass.
+- **Better names.** Titles lose flags, the directories of paths, URL schemes and ssh users. A shell's own title gives its
+  directory, or the machine when it is another one. A title that only names a program (`Claude Code`) goes after the
+  directory, read from where the first pane works now. The focused pane of the active tab comes first. Names stop at 32
+  columns, at the end of a word, and a `.` stays inside a word (`vim-notes.md`).
+- **Faster and steadier.** Who is attached now comes from the kernel's socket table, which matches `list-clients` on
+  every tested release. `plan` over ten sessions takes about 26 ms (100 to 123 ms before). On zellij 0.44.2 it took
+  1125 ms, up to 5 s, and 19% of verdicts came out `attach-unknown`, because that release answers overlapping
+  `list-clients` calls with nothing.
+- `r` in the dashboard offers the name a session's panes point to, with `auto_rename` on or off.
+- The installer's address is now `releases/latest/download/install.sh`, and it travels with each release.
+- The repository's layout: packages sit in layers under `internal/`, which a test enforces, and the root holds less.
+
+### Fixed
+
+- A rename by hand to a name that is taken is refused. zellij 0.44 and later accept it, and cut the other session off.
+- A rename is reported as done only once zellij lists the new name.
+- zellij's own `ps`, which it runs to save its layouts, no longer makes an idle session look busy for that pass.
+- A session whose `list-clients` failed no longer comes out `attach-unknown` when the socket table can tell.
+- Two sessions showing the same title no longer swap between `-2` and `-3` on every pass.
+- `plan` and dry runs name two sessions showing the same title as a pass would.
+- `zellij-reaper version` in the demo image reports the release instead of `dev`.
+
 ## [0.1.1] - 2026-11-05
 
 ### Added
