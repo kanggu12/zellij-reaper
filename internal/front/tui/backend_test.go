@@ -292,3 +292,33 @@ func TestAnUnconfirmedRenameKeepsBothNamesProtected(t *testing.T) {
 		t.Errorf("list after an unconfirmed rename: %v", a.Protected.Names())
 	}
 }
+
+func TestANameGivenByHandCountsAsChosen(t *testing.T) {
+	i18n.Set(i18n.English)
+	z := &fakeZellij{sessions: "work [Created 1h ago]\nother [Created 1h ago]\n"}
+	b, a := backendFor(t, z, "")
+	given, err := protect.Load(filepath.Join(t.TempDir(), "named"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Reaper.Given = given
+	for _, name := range []string{"journal", "other"} {
+		if err := given.Set(name, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Refused: the name is another session's, and its entry stays.
+	if _, err := b.Rename(context.Background(), "work", "other"); !errors.Is(err, zellij.ErrNameTaken) {
+		t.Fatalf("rename to a taken name: %v", err)
+	}
+	if !given.Has("other") {
+		t.Error("a refused rename took another session's name off the list")
+	}
+	// Done: the name is someone's choice now.
+	if _, err := b.Rename(context.Background(), "work", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	if given.Has("journal") {
+		t.Error("a name given by hand stayed on the list of names auto_rename gave")
+	}
+}

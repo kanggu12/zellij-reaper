@@ -132,9 +132,6 @@ func (r real) unused(ctx context.Context, name string) error {
 func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 	var note string
 	err := r.handAction(func() error {
-		// A name given by hand is someone's choice: from now on auto_rename
-		// leaves it alone, even when it was once on the list of names it gave.
-		defer r.chosenByHand(to)
 		pl := r.a.Protected
 		// A name past the socket path's limit leaves a session no zellij
 		// command can reach: refuse it before zellij renames anything.
@@ -165,6 +162,12 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 		}
 		return nil
 	}, "%s :: renamed from the dashboard to %s", name, to)
+	// A name given by hand is someone's choice: from now on auto_rename leaves it
+	// alone, even when it was once on the list of names it gave. A name zellij
+	// refused may belong to another session, whose entry must stay.
+	if err == nil {
+		r.chosenByHand(to)
+	}
 	return note, err
 }
 
