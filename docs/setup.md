@@ -58,8 +58,9 @@ Run it again after moving the binary or changing `interval`. It never overwrites
 
 ### Without systemd
 
-cron can run the passes. It starts a job with a short `PATH` and none of your login's variables, so the crontab sets what
-the job needs:
+cron can run the passes in place of the timer. It starts a job with a short `PATH` and none of the variables your login
+sets, so put what the job needs at the top of your crontab (`crontab -e`), with your home directory in place of
+`/home/me`:
 
 ```
 PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -67,9 +68,10 @@ XDG_RUNTIME_DIR=/run/user/1000
 5 * * * * zellij-reaper run --quiet
 ```
 
-`PATH` has to find both `zellij-reaper` and `zellij`: with no `zellij` on it, a pass logs `zellij not installed, nothing to
-do` and exits 0. `XDG_RUNTIME_DIR` is where zellij keeps its sockets, so copy it from `echo "$XDG_RUNTIME_DIR"` in your
-shell, and leave the line out if that prints nothing. With a different value, a pass does not see your running sessions.
+The last line runs a pass at five past every hour; `interval` sets the systemd timer only. `PATH` has to find both
+`zellij-reaper` and `zellij`: without `zellij` on it, a pass logs `zellij not installed, nothing to do` and exits 0.
+`XDG_RUNTIME_DIR` is where zellij keeps its sockets. Copy the value `echo "$XDG_RUNTIME_DIR"` prints in your shell, or
+leave the line out if it prints nothing. With any other value, a pass does not see your running sessions.
 
 ## Coming from the shell scripts
 
@@ -100,12 +102,13 @@ archive for the target's architecture (`amd64` or `arm64`) and the checksums, an
 
 ```sh
 base=https://github.com/kanggu12/zellij-reaper/releases/latest/download
-version=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/kanggu12/zellij-reaper/releases/latest | sed 's|.*/v||')
+version=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+  https://github.com/kanggu12/zellij-reaper/releases/latest | sed 's|.*/v||')
 curl -fsSLO "$base/zellij-reaper_${version}_linux_amd64.tar.gz"
 curl -fsSLO "$base/checksums.txt"
 ```
 
-Then on the closed machine, with the version you carried across:
+Then, on the closed machine, set `version` to the release you carried across and run:
 
 ```sh
 version=0.3.4
@@ -115,21 +118,22 @@ grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum 
   ~/.local/bin/zellij-reaper install
 ```
 
-`sha256sum -c` prints `OK`, and a damaged file makes it fail, which stops the lines after it. With no systemd on that
-machine, `install` says so; [run the passes from cron](#without-systemd) instead. The rest works the same way:
+`sha256sum -c` prints `OK` for a good file. A damaged file makes it fail, and `&&` stops the lines after it. With no
+systemd on that machine, `install` says so; [run the passes from cron](#without-systemd) instead. The other ways work
+offline too:
 
-- **A package** instead of the archive: copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst`, install it with `dpkg -i`, `rpm -U`,
-  `apk add --allow-untrusted` or `pacman -U`, then run `zellij-reaper install` as each user who wants the timer.
-- **Many machines:** put the release's files on an internal web server as `<base>/v<version>/<file>`, and the install script
-  works from there: `ZELLIJ_REAPER_BASE_URL=<base> ZELLIJ_REAPER_VERSION=v<version> sh install.sh`. It needs the version,
-  because finding the latest one takes GitHub.
-- **zellij itself** is one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
+- **A package:** copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst` instead of the archive, and install it with `dpkg -i`,
+  `rpm -U`, `apk add --allow-untrusted` or `pacman -U`. Then each user who wants the timer runs `zellij-reaper install`.
+- **Many machines:** put the release's files on an internal web server as `<base>/v<version>/<file>`, and the install
+  script works from there: `ZELLIJ_REAPER_BASE_URL=<base> ZELLIJ_REAPER_VERSION=v<version> sh install.sh`. It needs the
+  version, since only GitHub can say which release is the latest.
+- **zellij itself:** one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
   `zellij-<machine>-unknown-linux-musl.tar.gz`.
-- **The demo image:** where there is internet, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then `docker save
-  ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz`. Where there is not, `docker load <demo.tar.gz`. It runs with
-  `--network none`.
-- **From source**, with Go 1.26 or newer already on the closed machine: run `go mod vendor` in a clone where there is
-  internet and carry the folder across, then `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`. The binary is
+- **The demo image:** on a machine with internet access, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then
+  `docker save ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz`. On the closed machine, `docker load
+  <demo.tar.gz`. It runs with `--network none`.
+- **From source:** with Go 1.26 or newer on the closed machine, run `go mod vendor` in a clone on a machine with internet
+  access and carry the whole clone across. Then run `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`; the binary is
   `dist/zellij-reaper`.
 
 A closed network also keeps you from checking for new releases: the steps above are how to upgrade as well.
@@ -141,8 +145,9 @@ install` rewrites the units. After moving the binary by hand, run `zellij-reaper
 timer that still runs an old path.
 
 **Uninstall** with `zellij-reaper uninstall`, which stops and removes the timer and the service. `--purge` also removes
-the settings, the log and the lists of protected, given and kept names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the
-binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and fails every hour.
+the settings, the log, the protected list and the lists of given and kept names. Lingering stays on; `loginctl
+disable-linger` turns it off. Then remove the binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall`
+before removing a package, or the timer stays and fails every hour.
 
 ## Settings
 
@@ -189,8 +194,7 @@ protect_commands  = ["claude", "codex", "gemini", "aider", "opencode"]  # defaul
 
 ## Protecting sessions
 
-Three ways. The first two also stop renaming. A session kept only for a running program can still be renamed while no
-client is attached, if nobody chose its name:
+There are three ways to protect a session:
 
 - **A name pattern** in the settings: `protect = "^(keep-|work-)"`.
 - **One session at a time:** `zellij-reaper protect NAME`, or `p` in the dashboard. `protect` with no name lists them;
@@ -198,19 +202,30 @@ client is attached, if nobody chose its name:
 - **A running program:** while a program from `protect_commands` runs anywhere in a running session, or its layout
   starts one, the session is kept, even when the pane running it looks idle.
 
+The first two also stop renaming. A session kept only for a running program can still be renamed while no client is
+attached, if nobody chose its name.
+
 ## Naming sessions after what they show
 
-With `auto_rename = true`, every pass names the sessions it keeps after what they show, if nobody chose their name: a name
-zellij made up (`brave-peach`), or one zellij-reaper gave earlier. A name you gave a session stays, and so does a session
-that is attached, exited, protected by name or uncertain. Press `r` in the dashboard for the suggested name by hand, with
-`auto_rename` on or off. `r` and Enter on the name a session has keeps that name as it is, whoever gave it.
+With `auto_rename = true`, every pass names the sessions it keeps after what they show, unless someone chose their
+name. zellij keeps the name a session started under on its server's command line, and that is how a pass tells who
+chose a name:
 
-zellij keeps the name a session started under on its server's command line, which is how a pass tells these apart. A
-session that still has that name was never renamed, so it is replaced only if the name is two words from zellij's own
-lists. Nothing zellij keeps tells such a name from one you typed (`zellij -s quiet-mouse`): its command line, environment
-and files are the same. Keep it with `r` and Enter, once for each session, and it stays. A session renamed since keeps
-its name unless a pass gave it, and passes write down the names they give. Nothing wrote them down before 0.3.0, so a
-name 0.2.0 gave stays too, until someone changes it.
+- **A session that still has that name** was never renamed. A pass replaces its name only if it is two words from
+  zellij's own lists (`brave-peach`).
+- **A session renamed since** keeps its name unless a pass gave it. Passes write the names they give in the list of
+  given names. The shell version and 0.1 releases stamped theirs instead (`web-app_1104-0931`), and those go too, unless
+  `auto_rename_stamp = "time"`. 0.2.0 did neither by default, so a name 0.2.0 gave stays until someone changes it.
+
+A session that is attached, exited, protected by name or uncertain keeps its name as well.
+
+**To keep a name as it is,** whoever gave it, press `r` in the dashboard, make the field read the session's current
+name and press Enter. The field starts with the suggested name, so type the current one over it when the two differ.
+Do it once for each session; passes leave that name alone from then on.
+
+This is also how to keep a name you typed in zellij's own words (`zellij -s quiet-mouse`): nothing zellij keeps tells it
+from a name zellij made up, since the command line, environment and files are the same. `r` renames a session by hand
+too, with `auto_rename` on or off.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
@@ -243,11 +258,10 @@ These parts of a title are dropped or shortened:
 These rows show the title alone. A title that repeats what the pane runs falls under rule 2: `tail -f /var/log/app.log`
 run in `~/web-app` gives `web-app-tail-app.log`.
 
-Names hold English letters and digits, so they type on any keyboard and need no quotes in a shell. A word in another
-script, or with an accent, is left out whole (`Déploiement prod` gives `prod`), and a title left with nothing gives way
-to the next rule. A `.` stays inside a word, so `notes.md` still reads as
-a file. Names stop at 32 columns at the end of a word, and within what the session's socket path leaves of Linux's
-107-byte limit.
+Names hold only English letters, digits, `-`, `_` and `.`, so they type on any keyboard and need no quotes in a shell.
+A word in another script, or with an accent, is left out whole: `Déploiement prod` gives `prod`. A title with nothing
+left says nothing, like `Pane #1`. A `.` stays inside a word, so `notes.md` still reads as a file. Names stop at 32
+characters, at the end of a word, and within what the session's socket path leaves of Linux's 107-byte limit.
 
 A name changes only when what the session shows changes, so a script that attaches by name keeps working until then.
 When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij refuses a name a session has had before,
@@ -265,8 +279,8 @@ session in use once more a day, and `"time"` gives `web-app_1104-0931`, which re
 | `~/.local/state/zellij-reaper/reaper.log` and `.1` | the decision log |
 | `~/.local/state/zellij-reaper/protected` | the protected list, one name per line |
 | `~/.local/state/zellij-reaper/protected.lock` | held while the protected list is changed |
-| `~/.local/state/zellij-reaper/named`, `named.lock` | the names `auto_rename` gave, so it knows them from a name someone chose |
-| `~/.local/state/zellij-reaper/kept`, `kept.lock` | the names kept with `r` and Enter, which `auto_rename` leaves alone |
+| `~/.local/state/zellij-reaper/named`, `named.lock` | the list of given names: names a pass gave, so it can tell them from a name someone chose |
+| `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept from the dashboard, which no pass renames |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. zellij-reaper reads zellij's files under `$XDG_CACHE_HOME/zellij`

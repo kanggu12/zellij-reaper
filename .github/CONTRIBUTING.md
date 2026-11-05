@@ -96,12 +96,13 @@ title that says nothing about the session goes in `agentTitles`. Try a change on
 
 ### A zellij release
 
-Run `make integration ZELLIJ_VERSIONS=x.y.z`. It compares zellij's word lists with `internal/core/rename/generated.go`
-from that release's source, so a new word fails there: it goes in that file. If it passes, add it to the matrix in `.github/workflows/ci.yml` and to
-`default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in
-`internal/front/cli/doctor.go`, or `doctor` warns it is untested, and update `README.md` and `docs/setup.md`. If it fails,
-record what changed (`list-sessions -n`, `action list-clients`, a `session-metadata.kdl`) under
-`internal/machine/zellij/testdata/x.y.z/`, add a parser test, then fix.
+Run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that release's word lists from zellij's source and compares
+them with `internal/core/rename/generated.go`, so a new word fails the run: add it to that file. Once the run passes,
+add the release to the matrix in `.github/workflows/ci.yml` and to `default_versions` in `test/integration/run.sh`. For
+a new minor, also add it to `testedMinors` and `TestedZellij` in `internal/front/cli/doctor.go`, or `doctor` warns it is
+untested, and update `README.md` and `docs/setup.md`. If a scenario fails, record what changed (`list-sessions -n`,
+`action list-clients`, a `session-metadata.kdl`) under `internal/machine/zellij/testdata/x.y.z/`, add a parser test,
+then fix.
 
 ### A dependency
 

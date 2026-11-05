@@ -132,9 +132,12 @@ they show, so the list of sessions reads like a list of what you were doing:
   <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A name you chose stays: only the names zellij makes up and the ones zellij-reaper gave earlier change, and only when what
-the session shows changes. An attached session is never renamed. [Setup](docs/setup.md#naming-sessions-after-what-they-show)
-has the rules. In the dashboard, `r` offers the same name for any running session, with `auto_rename` on or off.
+A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
+session shows changes. An attached session is never renamed.
+
+In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
+It also keeps a name as it is, such as one you typed in zellij's own words (`zellij -s quiet-mouse`), which looks made
+up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules and says how.
 
 ## The dashboard
 
@@ -238,7 +241,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log and lock. The protect command writes the protected list, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect command and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their

@@ -40,7 +40,7 @@ commands. `recover` alone goes around zellij, because it is for sessions zellij 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, and your settings. It changes sessions only through zellij's own commands, and otherwise writes only its log and lock. The protect command writes the protected list, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect command and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
@@ -155,52 +155,56 @@ whenever one runs.
 ### Names
 
 A name someone chose stays, and zellij leaves a way to tell: a server's command line keeps the name its session started
-under through every rename. A session that still has that name was never renamed, so the only name to replace is one zellij
-made up, told by zellij's own word lists because `web-app` has the same shape as `brave-peach`. A session with another name
-was renamed, by a pass or by someone. A pass writes the names it gives in a small list, so it can follow what the session
-shows next, and versions from before that list stamped every name with a date; `report_2025-2026` has the shape of that
-stamp, and no month 20. Before, keeping a name took the protected list, which keeps the session from being reaped as well,
-and the demo's `agent-refactor` became `claude`.
+under through every rename. A session that still has that name was never renamed, so the only name to replace is one
+zellij made up. zellij's own word lists tell such a name, since `web-app` has the same shape as `brave-peach`. A session
+with another name was renamed, by a pass or by someone. A pass writes the names it gives in the list of given names, so
+it can follow what the session shows next. The shell version and releases before 0.2.0 wrote no list but stamped every
+name with the time of last use (`_1104-0931`), so that stamp tells their names. It has to be a real date and time:
+`report_2025-2026` has its shape, and there is no month 20. Before 0.3.0, the only way to keep a name was the protected
+list, which keeps the session from being reaped as well. Without it, the demo's `agent-refactor` became `claude`.
 
-The list holds names, not sessions, and an entry can outlive its session for up to one pass. The command line is what keeps
-that from costing anyone a name: a session someone starts under a name on the list still has the name it started under.
-zellij keeps nothing that tells a name it made up from the same words typed by a person: the server's command line,
-environment and files differ only in the name, for a session started in a terminal or in the background. So a person says
-so, once for each session, with `r` and Enter in the dashboard, and the name goes on a list of kept names that every
-pass reads first. A pass that cannot read that list renames nothing.
+The list holds names, not sessions, and an entry can outlive its session for up to one pass. The command line is what
+keeps that from costing anyone a name: a session someone starts under a name on the list still has the name it started
+under. The decision log is no help here. It says which name a pass gave, not to which session, and zellij gives a name
+out again once its session is gone; 0.3.2 read it, and replaced names people chose.
+
+zellij keeps nothing that tells a name it made up from the same words typed by a person: a session started either way,
+in a terminal or in the background, has the same server command line, environment and files. So a person keeps such a
+name once for each session: Enter in the dashboard's `r` field, with the session's current name in it. The name goes on
+the list of kept names, which every pass reads first. A pass that cannot read that list renames nothing.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
 log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
 
-`rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is attached
-zellij marks no tab active, so a pass starts from the first tab's focused pane. A title
-with something to say becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags,
-the directories of its paths, a URL's scheme, an ssh target's user. A shell's own title gives its directory, or the machine
-when it is another one. A title that only names the program (`Claude Code` before its first task, `nvim`) goes after the
-directory the first pane works in now, read from `/proc`, which follows a `cd` where the session's layout does not. A
-session with no title to go by takes the program and the plain words after it, stopping at the first flag: a command line
-is not on the screen the way a title is, and its arguments can hold a password. A metadata file caught while zellij rewrites
-it gives no name at all. Names stop at 32 columns, at the end of a word.
+`rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
+attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
+becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags, the directories of
+its paths, a URL's scheme, an ssh target's user. A shell's own title gives its directory, or the machine when it is
+another one. A title that only names the program (`Claude Code` before its first task, `nvim`) goes after the directory
+the first pane works in now, read from `/proc`, which follows a `cd` where the session's layout does not. A session with
+no title to go by takes the program and the plain words after it, stopping at the first flag: a command line is not on
+the screen the way a title is, and its arguments can hold a password. A metadata file caught while zellij rewrites it
+gives no name at all. A name holds only English letters, digits, `-`, `_` and `.`: a word in another writing system, or
+with an accent, is left out whole. Names stop at 32 characters, at the end of a word.
 
 Two sessions showing one title get a `-2` tail, which then stays: the shell version compared names without it and swapped
 such sessions between `-2` and `-3` on every pass. zellij also refuses a name a session has had before, which is another
 way to end up with a tail.
 
-zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file over
-the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at the list
-first and refuses, then waits until zellij lists the new name before calling the rename done. A pass and the dashboard also
-refuse a name whose socket file is already there, since zellij once left a session it had just renamed out of its list for
-a moment. When zellij took the request
-and the new name does not show in time, the dashboard keeps both names on the protected list, since the session may have
-either.
+zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file
+over the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at
+the list first and refuses, then waits until zellij lists the new name before calling the rename done. A pass and the
+dashboard also refuse a name whose socket file is already there, listed or not: zellij has left a session out of its
+list for a moment right after renaming it. When zellij took the request and the new name does not show in time, the
+dashboard keeps both names on the protected list, since the session may have either.
 
 ### Names and the socket path
 
 A session's name is part of its socket path, and Linux caps a socket path at 107 bytes. Early shell versions cut names
-at 50 characters, which in some scripts is 150 bytes; renamed past the limit, a session kept a server no command
-could reach. Names are now cut by bytes, at a character boundary, to what the session's own socket directory leaves,
-with room for a stamp and a collision suffix. `recover` repairs sessions broken the old way.
+at 50 characters, which is 150 bytes for a title of three-byte characters; renamed past the limit, a session kept a
+server no command could reach. Names are now cut by bytes, at a character boundary, to what the session's own socket
+directory leaves, with room for a stamp and a collision suffix. `recover` repairs sessions broken the old way.
 
 ### The log
 
@@ -231,7 +235,7 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 |:---|:---|:---|
 | Layers | `internal/layers_test.go` | no import goes up a layer, no I/O in the core layer, no folder outside the layers |
 | Rules | `internal/core/policy` | every code, the order, the waits at their boundary, force, clock skew |
-| Names | `internal/core/rename` | every kind of title, what says nothing, English only, cuts at a word and by bytes, stamps, collision tails |
+| Names | `internal/core/rename` | every kind of title, what says nothing, words in other writing systems, cuts at a word and by bytes, stamps, collision tails |
 | Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), KDL strings, log lines, settings and their errors |
 | The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
 | Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
@@ -242,18 +246,25 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
-make integration                         # each tested zellij release, in Docker, with no network
+make integration                         # each tested zellij release in Docker; the sessions run with no network
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
 make demo                                # the dashboard on demo sessions in a container, to try by hand
 ```
 
-The integration scenarios make sessions in a container: idle ones with their terminals' times moved back, a shell
-running a command, a command pane, a stand-in coding agent, a client attached through `script(1)`, exited sessions
-(their server killed after zellij saved the layout), a renamed one, a protected one, sessions showing the same title, a
-long title, one with words in other scripts, a name with a dot in it, a name zellij picks itself, and names people chose by starting a session or
-by renaming one, some of them looking like a name zellij made up or a stamp. Then they check `plan`, a dry run, a pass,
-a forced pass, `auto_rename`, `recover` and the other commands against what zellij lists afterwards. A check that fails prints the plan and the last
-pass in the log, so a rare failure leaves its evidence in the test output.
+The integration scenarios make sessions in a container:
+
+- idle sessions, with their terminals' times moved back
+- busy ones: a shell running a command, a command pane, a stand-in coding agent
+- a client attached through `script(1)`
+- exited sessions, their server killed after zellij saved the layout
+- a renamed one, a protected one, and two showing the same title
+- titles to name: a long one, one with words in other writing systems, one that gives a name with a dot in it
+- names: one zellij made up, and names people chose by starting a session or by renaming one, some of them two words
+  from zellij's lists or in the shape of a stamp
+
+Then they check `plan`, a dry run, a pass, a forced pass, `auto_rename`, `recover` and the other commands against what
+zellij lists afterwards. A check that fails prints the plan, what zellij listed and the last pass in the log, so a rare
+failure leaves its evidence in the test output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">

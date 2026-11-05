@@ -137,15 +137,15 @@ Every line the log can hold:
 |:---|:---|
 | `=== reaper start (dry_run=... idle_after=... exited_after=...) ===` | a pass starts; ` force` follows `exited_after` for `run --force` |
 | `could not rotate PATH (N bytes) to PATH.1: ERROR` | the log could not move aside; the pass goes on |
+| `could not read the list of kept names: ERROR, so no session is renamed` | with `auto_rename` on, the list of kept names could not be read; the pass goes on and renames nothing |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
 | `  -> kept: NAME :: REASON` | something changed just before the delete |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
-| `  -> kept name: NAME :: REASON` | a client attached before the rename |
-| `could not read the list of kept names: ERROR, so no session is renamed` | the pass goes on, without renaming |
-| `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and that name stays once it is given |
-| `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename |
+| `  -> kept name: NAME :: REASON` | a client attached before the rename, so the session keeps its name for now |
+| `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and the session keeps that name until someone changes it |
+| `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename, or took it without listing the new name in time |
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |
 | `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run |
 | `no sessions` | zellij lists none |

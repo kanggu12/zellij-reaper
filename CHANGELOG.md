@@ -9,78 +9,92 @@ the project uses [semantic versioning](https://semver.org/).
 
 ### Fixed
 
-- A name someone chose could be replaced in 0.3.2 and 0.3.3. For a name on no list, those read the decision log, whose
-  lines say which name a pass gave but not to which session, and zellij gives a name out again once a session is gone. A
-  name kept with `r` and Enter in 0.3.1, and one given with `zellij action rename-session` where an earlier session had
-  started under the same name and been renamed to it, read as given by a pass. The log is no longer read for names: a
-  name stays unless a list says otherwise, and a name 0.2.0 gave stays, as in 0.3.1.
-- Keeping a name in the dashboard takes the pass lock, so a pass that had just read the list of kept names cannot rename
-  the session after all, and it refuses a name no session has any more, as when the dialog stayed open across a rename.
-  It goes in the decision log as `NAME :: name kept from the dashboard`.
-- A session zellij leaves out of its list for a moment keeps its places on the lists of given and kept names, since its
-  socket file is still there. `plan`, the dashboard and dry runs now avoid a name whose socket file is there, as a pass
-  does, so they name the same names.
+- 0.3.2 and 0.3.3 could replace a name someone chose. For a name on no list, they read the decision log, but a log
+  line says which name a pass gave, not to which session, and zellij gives a name out again once its session is gone.
+  So two kinds of chosen names read as given by a pass: a name kept from the dashboard in 0.3.1, and a name set with
+  `zellij action rename-session` that a pass had given before, to an earlier session started under the same name.
+  The log is no longer read for names. As in 0.3.1, a renamed session keeps its name unless the list of given names
+  holds it or it has the old stamp, so a name 0.2.0 gave stays.
+- Keeping a name in the dashboard now takes the pass lock. Before, a pass already under way could rename the session
+  right after its name was kept. The dashboard also refuses to keep a name no session has any more, as when the dialog
+  stayed open while a pass renamed the session. A kept name goes in the decision log as
+  `NAME :: name kept from the dashboard`.
+- When zellij leaves a session out of its list for a moment, its socket file still counts, so its entries on the lists
+  of given and kept names stay. `plan`, the dashboard and dry runs now also avoid a name whose socket file is there, as
+  a pass does, so they show the names a pass would give.
 
 ## [0.3.3] - 2026-11-06
 
 ### Changed
 
-- Names hold English letters and digits only, so they type on any keyboard and need no quotes in a shell. A word in
-  another script, or with an accent, is left out whole, and a title left with nothing gives way to the directory and the
-  program. A name a pass gave in another script before changes to its English one at the next pass.
+- Names hold no letters but English ones, so they type on any keyboard and need no quotes in a shell. A word in another
+  script, or with an accent, is left out whole. A title with nothing left says nothing, so the name comes from another
+  pane, or from the directory and the program. A name a pass gave in another script can be replaced at the next pass,
+  like any name on the list of given names.
 
 ### Fixed
 
-- A rename refuses a name whose socket file is already there, whether zellij lists that session at that moment or not.
-  Since zellij 0.44 a rename onto it cuts the other session off. In the integration scenarios, zellij once left a session
-  it had just renamed out of its list for a moment, and a pass checked the list alone.
+- A pass and the dashboard refuse a new name whose socket file is already there, whether zellij lists that session at
+  that moment or not. Since zellij 0.44, a rename onto it cuts the other session off. In the integration scenarios,
+  zellij once left a session out of its list for a moment right after renaming it, while a pass checked only the list.
 
 ## [0.3.2] - 2026-11-06
 
 ### Added
 
-- In the dashboard, `r` and Enter on the name a session has keeps that name, whoever gave it, a name zellij made up
-  included. zellij keeps nothing that tells a name it made up from the same words typed with `zellij -s`, so a person who
-  typed one says so once. The names go in `~/.local/state/zellij-reaper/kept`.
+- In the dashboard, Enter in the `r` field with the session's current name in it keeps that name, whoever gave it, a
+  name zellij made up included. zellij keeps nothing that tells a name it made up from the same words typed with
+  `zellij -s`, so a person who typed one says so once for each session. The names go in
+  `~/.local/state/zellij-reaper/kept`.
 
 ### Fixed
 
-- A name 0.2.0 gave follows what the session shows again. Where the list of given names has no word on a name, the
-  renames in the decision log tell whether a pass gave it, for as long as the log holds them. That also covers a list
-  that was lost.
+- A name 0.2.0 gave follows what the session shows again. For a name the list of given names does not hold, the renames
+  in the decision log tell whether a pass gave it, for as long as the log holds them. That also covers a list that was
+  lost. (0.3.4 took this back out.)
 
 ## [0.3.1] - 2026-11-06
 
 ### Added
 
-- In the dashboard, `r` and Enter on the name a session has keeps a name a pass gave: passes leave it alone from then on.
+- In the dashboard, Enter in the `r` field with the session's current name in it keeps a name a pass gave: passes leave
+  it alone from then on.
 - [Setup](docs/setup.md#without-systemd) says what a crontab needs to run the passes without systemd.
-- `make integration` compares zellij's word lists with the source of each release it tests, and a test holds the code to
-  importing no networking package.
+- `make integration` compares zellij's word lists with the source of each release it tests, and a test fails if the
+  code imports a networking package.
 
 ### Fixed
 
-- `auto_rename` tells who chose a name from what the session started under, which zellij keeps on the server's command
-  line. Each of these used to lose its name at the next pass: a session someone started under a name a pass gave to a session
-  now gone, two words from zellij's lists given by hand (`lucky-duck`), a name in the shape of the old stamp that is no date
-  (`report_2025-2026`) or that a session started under, and, with `auto_rename_stamp = "time"`, a stamped name taken from `r`.
+- `auto_rename` tells who chose a name from the name the session started under, which zellij keeps on the server's
+  command line. These used to lose their name at the next pass:
+  - a session someone started under a name a pass had given to a session now gone
+  - two words from zellij's lists given by hand (`lucky-duck`)
+  - a name in the shape of the old stamp that is no real date (`report_2025-2026`), or that a session started under
+  - with `auto_rename_stamp = "time"`, a stamped name someone took from `r`
+
   A session started under two words from zellij's lists still reads as made up, since nothing tells them apart.
 - A pass that finds no sessions clears the list of given names.
-- A deleted session stays deleted. A server caught saving its layout as it stopped could write the session's data back, so
-  it came back as exited until `exited_after` had passed. A delete now looks at what is left, and reports a session still
-  running five seconds later as `FAILED`.
-- A rename that timed out, or that zellij took without it showing in time, no longer counts as refused. Its name stays on the
-  list of given names, so it can still follow what the session shows, and the dashboard keeps such a session's protection
-  on both names.
+- A deleted session stays deleted. A server caught saving its layout as it stopped could write the session's data back,
+  and the session came back as exited until `exited_after` had passed. A delete now checks what zellij still lists: it
+  deletes a session that came back as exited once more, and reports one still running five seconds later as `FAILED`.
+- A rename that timed out, or that zellij accepted without listing the new name in time, no longer counts as refused.
+  The new name stays on the list of given names, so it can still follow what the session shows, and the dashboard keeps
+  a protected session's protection on both names.
 - A list of given names that cannot be read no longer stops every command, the timer's passes included. Its file now says
   what it holds.
-- The steps for machines with no internet access: a failed checksum stops the install, the demo image is pulled before it
-  is saved, `rpm -U` also upgrades, and building from source names the Go it needs. The install script's advice for a network
-  that cannot reach GitHub works when followed.
-- The third-party notices carry zellij's license, since its word lists are copied. `uninstall --purge`, the `run` help and the
-  settings file say what they do now.
+- The steps for machines with no internet access: a failed checksum stops the install, the closed machine sets
+  `version` itself, since the variable does not carry across with the files, the demo image is pulled before it is
+  saved, `rpm -U` also upgrades, and building from source names the Go it needs. The install script's advice for a
+  network that cannot reach GitHub works when followed.
+- The third-party notices carry zellij's license, since its word lists are copied. The help for `uninstall --purge` and
+  `run`, and the settings file, now say what they do.
 
 ## [0.3.0] - 2026-11-05
+
+### Added
+
+- Setup has a section on [machines with no internet access](docs/setup.md#without-internet-access).
+- The integration scenarios run with no network, and let zellij pick a name on each release.
 
 ### Changed
 
@@ -88,11 +102,6 @@ the project uses [semantic versioning](https://semver.org/).
   stamp earlier versions added, and a name it gave itself, which it now keeps in `~/.local/state/zellij-reaper/named`.
   Keeping a name used to take the protected list, which keeps the session from being reaped as well. A name 0.2.0 gave
   is on no list and has no stamp, so it stays until someone changes it.
-
-### Added
-
-- Setup has a section on [machines with no internet access](docs/setup.md#without-internet-access).
-- The integration scenarios run with no network, and let zellij pick a name on each release.
 
 ### Fixed
 
