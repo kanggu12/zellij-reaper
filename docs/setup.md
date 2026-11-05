@@ -80,7 +80,7 @@ with `zellij-reaper config show`.
 
 zellij-reaper needs no network to run: it makes no connection, and its integration tests run in a container with none.
 Only the install script downloads anything, so on a closed network, skip it. On a machine with internet access, fetch the
-archive for the target's architecture and the checksums, and carry both across:
+archive for the target's architecture (`amd64` or `arm64`) and the checksums, and carry both across:
 
 ```sh
 base=https://github.com/kanggu12/zellij-reaper/releases/latest/download
@@ -89,16 +89,18 @@ curl -fsSLO "$base/zellij-reaper_${version}_linux_amd64.tar.gz"
 curl -fsSLO "$base/checksums.txt"
 ```
 
-Then on the closed machine:
+Then on the closed machine, with the version you carried across:
 
 ```sh
+version=0.3.0
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c -
 tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper
 install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper
 ~/.local/bin/zellij-reaper install
 ```
 
-The rest works the same way:
+`sha256sum -c` prints `OK`, and a damaged file makes it fail. With no systemd on that machine, `install` says so; put
+`zellij-reaper run --quiet` in cron instead. The rest works the same way:
 
 - **A package** instead of the archive: copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst`, install it with `dpkg -i`, `rpm -i`,
   `apk add --allow-untrusted` or `pacman -U`, then run `zellij-reaper install` as each user who wants the timer.
