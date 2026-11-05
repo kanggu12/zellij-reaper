@@ -24,6 +24,10 @@ var ErrNoSessions = errors.New("no sessions")
 // a session (or a name it still remembers) already has it.
 var ErrNameTaken = errors.New("a session by this name already exists")
 
+// errNoAnswer is list-clients exiting 0 with nothing printed: no answer, which
+// must not read as "nobody attached".
+var errNoAnswer = errors.New("list-clients printed nothing")
+
 // Runner runs zellij with arguments and returns what it printed. Tests replace
 // it with a fake that never starts a process.
 type Runner func(ctx context.Context, args ...string) (stdout, stderr string, err error)
@@ -169,8 +173,22 @@ func (c *CLI) Delete(ctx context.Context, name string) error {
 	return nil
 }
 
-// Rename renames a running session.
+// Rename renames a running session, and returns only once zellij lists it
+// under the new name.
+//
+// A name that is taken is refused here, because zellij may not refuse it:
+// since 0.44 `rename-session` exits 0 and moves the session's socket file over
+// the other session's, which leaves that other server running with no way to
+// reach it. 0.43 still says "already exists", which comes back as ErrNameTaken
+// too, and so does a name zellij remembers without listing it.
 func (c *CLI) Rename(ctx context.Context, name, to string) error {
+	taken, err := c.lists(ctx, to)
+	if err != nil {
+		return fmt.Errorf("zellij rename-session %s: %w", name, err)
+	}
+	if taken {
+		return ErrNameTaken
+	}
 	out, errOut, err := c.call(ctx, "--session", name, "action", "rename-session", to)
 	if err != nil {
 		if strings.Contains(errOut+out, "already exists") {
@@ -178,7 +196,53 @@ func (c *CLI) Rename(ctx context.Context, name, to string) error {
 		}
 		return fmt.Errorf("zellij rename-session %s: %s", name, oneLine(errOut, err))
 	}
-	return nil
+	return c.waitListed(ctx, name, to)
+}
+
+// renameSettles is how long a server gets to act on a rename it was sent. The
+// command returns before the server has acted; in the integration containers
+// the new name is listed about 15 ms later.
+var renameSettles = 2 * time.Second
+
+// waitListed waits for a session to be listed under its new name, so a rename
+// reported as done has been done.
+func (c *CLI) waitListed(ctx context.Context, name, to string) error {
+	deadline := time.Now().Add(renameSettles)
+	for {
+		listed, err := c.lists(ctx, to)
+		if err != nil {
+			return fmt.Errorf("zellij rename-session %s: %w", name, err)
+		}
+		if listed {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("zellij rename-session %s: zellij accepted the name %q but does not list it", name, to)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+}
+
+// lists reports whether zellij lists a session by this name.
+func (c *CLI) lists(ctx context.Context, name string) (bool, error) {
+	sessions, err := c.ListSessions(ctx)
+	// Nothing listed is an answer, not a failure: the name is free.
+	if errors.Is(err, ErrNoSessions) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, l := range sessions {
+		if l.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ClientRow is one attached client from `action list-clients`.
@@ -225,13 +289,31 @@ func ParseClients(out string) ([]ClientRow, error) {
 		rows = append(rows, row)
 	}
 	if !header {
-		return nil, fmt.Errorf("list-clients printed nothing")
+		return nil, errNoAnswer
 	}
 	return rows, nil
 }
 
-// ListClients asks a running session which clients are attached to it.
+// ListClients asks a running session which clients are attached to it. It asks
+// again in two cases where zellij's first answer is known not to hold:
+//
+// No answer at all: zellij 0.44.2 exits 0 with nothing printed when another
+// zellij command overlaps this one, even one going to another server.
+//
+// A client: zellij 0.43 names the client that created a background session
+// the first time it is asked, long after that client left. A real client is
+// still there the second time, so this cannot make an attached session look
+// free.
 func (c *CLI) ListClients(ctx context.Context, name string) ([]ClientRow, error) {
+	rows, err := c.askClients(ctx, name)
+	if errors.Is(err, errNoAnswer) || (err == nil && len(rows) > 0) {
+		rows, err = c.askClients(ctx, name)
+	}
+	return rows, err
+}
+
+// askClients asks once.
+func (c *CLI) askClients(ctx context.Context, name string) ([]ClientRow, error) {
 	out, errOut, err := c.call(ctx, "--session", name, "action", "list-clients")
 	if err != nil {
 		return nil, fmt.Errorf("zellij list-clients %s: %s", name, oneLine(errOut, err))

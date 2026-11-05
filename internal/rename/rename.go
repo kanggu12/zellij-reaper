@@ -1,94 +1,334 @@
-// Package rename derives a session name from what the session is doing: the
-// first pane's title (or the directory it was started in) plus the time it
-// was last active, as in "vim-notes-md_1104-0931".
+// Package rename makes a session's name from what the session shows: a pane's
+// title with the terminal noise taken out, or, when no pane says what it is
+// about, the directory it works in and the program it runs. Names come out
+// short, lower case and stable: the same title gives the same name on every
+// pass, so a session keeps its name until what it shows changes.
 package rename
 
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/kanggu12/zellij-reaper/internal/zellij"
 )
 
-// MaxBase is the longest base name in bytes. It leaves room for the
-// "_MMDD-HHMM" stamp (10 bytes) and a "-NN" collision tail (3 bytes) inside
-// the 66 bytes a name may take under /run/user/<uid>/zellij/contract_version_1.
+// MaxBase is the longest base name in bytes. It leaves room for the longest
+// stamp and a "-NN" collision tail inside the 66 bytes a name may take under
+// /run/user/<uid>/zellij/contract_version_1.
 const MaxBase = 50
 
-// stampLen is the length of the "_MMDD-HHMM" stamp plus a "-NN" tail.
-const stampLen = 13
+// MaxWidth is the widest base name in terminal columns: about what zellij's
+// bars and session list show without crowding, and 16 Hangul syllables. The
+// byte limit alone would allow a 50-column name in English.
+const MaxWidth = 32
 
-// uninformative are names that say nothing about a session: zellij's own pane
-// and tab titles and a bare shell name.
-var uninformative = map[string]bool{"bash": true, "zsh": true, "sh": true, "fish": true, "dash": true}
+// tailLen is the room kept for the longest stamp ("_MMDD-HHMM") and a "-NN"
+// tail, whichever stamp is set, so changing the setting cannot make a name
+// that fitted stop fitting.
+const tailLen = 13
 
-// Sanitize turns a free-form pane title into a session name: decorations
-// (the spinners and stars coding agents put in titles) are dropped, anything
-// that is not a letter, a digit, "_" or "-" becomes a single "-", letters are
-// lowered, and the result is cut to maxBytes without splitting a character.
-// Letters of every script are kept, so two Korean titles stay two names.
-// It returns "" when nothing informative is left.
-func Sanitize(title string, maxBytes int) string {
-	s := strings.TrimLeftFunc(title, unicode.IsSpace)
-	// Drop symbols, dingbats (U+2600-27BF) and braille (U+2800-28FF): the
-	// characters terminal programs use for spinners and status marks.
-	s = strings.Map(func(r rune) rune {
-		if (r >= 0x2600 && r <= 0x27BF) || (r >= 0x2800 && r <= 0x28FF) {
+// Stamp is the setting auto_rename_stamp: what a name ends in.
+type Stamp string
+
+const (
+	// StampNone adds nothing. The name changes only when what the session
+	// shows changes; it is the default because the shell version's stamp
+	// made 99% of its renames: 20,536 of the 20,839 its log recorded moved
+	// nothing but the time.
+	StampNone Stamp = "none"
+	// StampDate adds the day of last use, "_1104": at most one more rename
+	// a day.
+	StampDate Stamp = "date"
+	// StampTime adds the minute of last use, "_1104-0931", the shell
+	// version's name: a session in use is renamed on every pass.
+	StampTime Stamp = "time"
+)
+
+// Input is what a session offers to be named after.
+type Input struct {
+	// Titles are its pane titles, the one the session shows first.
+	Titles []string
+	// Busy is the command line keeping it busy, if any.
+	Busy string
+	// Cwd is the directory it works in.
+	Cwd string
+	// Home is this user's home, which says nothing about a session.
+	Home string
+	// Host is this machine's name: a prompt title from another machine
+	// (an ssh session) names that machine, and this one is not news.
+	Host string
+}
+
+// Suggest picks a base name: the first title that says what the session is
+// about; else the directory it works in with the program it runs; else "".
+func Suggest(in Input, maxBytes int) string {
+	program := ""
+	for _, title := range in.Titles {
+		w := in.clean(title)
+		if w == "" {
+			continue
+		}
+		// A title that only names the program, like "Claude Code" before
+		// its first task, gives way to a later pane that says more, and
+		// otherwise goes after the directory.
+		if in.isProgram(w) {
+			if program == "" {
+				program = w
+			}
+			continue
+		}
+		return Fit(w, maxBytes)
+	}
+	if program == "" {
+		program = in.clean(in.Busy)
+	}
+	return Fit(joinWords(in.directory(), program), maxBytes)
+}
+
+// joinWords puts a directory before a program, once if they are the same word.
+func joinWords(dir, program string) string {
+	switch {
+	case dir == "" || dir == program:
+		return program
+	case program == "":
+		return dir
+	}
+	return dir + "-" + program
+}
+
+// directory is the word for the directory the session works in; "" for one
+// that says nothing about it.
+func (in Input) directory() string {
+	return normalize(in.pathWord(in.Cwd))
+}
+
+// pathWord is the last part of a path, "" for the home directory and the root.
+func (in Input) pathWord(p string) string {
+	p = strings.TrimRight(p, "/")
+	if p == "" || p == "~" {
+		return ""
+	}
+	if rest, ok := strings.CutPrefix(p, "~/"); ok && in.Home != "" {
+		p = filepath.Join(in.Home, rest)
+	}
+	if p == strings.TrimRight(in.Home, "/") {
+		return ""
+	}
+	return filepath.Base(p)
+}
+
+// agentTitles are the titles coding agents show before they have a task, in
+// their normalized form. They name a program as surely as a process name does,
+// though not always the same word ("Claude Code" runs as claude).
+var agentTitles = map[string]bool{
+	"claude": true, "claude-code": true, "codex": true, "gemini": true, "gemini-cli": true,
+	"aider": true, "opencode": true,
+}
+
+// isProgram reports whether a normalized title only names the program running.
+func (in Input) isProgram(w string) bool {
+	if agentTitles[w] {
+		return true
+	}
+	if in.Busy == "" {
+		return false
+	}
+	busy := in.clean(in.Busy)
+	first, _, _ := strings.Cut(busy, "-")
+	return w == busy || w == first
+}
+
+// promptRe and bracketRe match the titles shells set for themselves:
+// "me@host: ~/projects/web-app", "me@host:/srv/app#" and "[me@host app]$".
+var (
+	promptRe  = regexp.MustCompile(`^[\w.-]+@([\w.-]+):\s*(\S*?)\s*[#$%>]?$`)
+	bracketRe = regexp.MustCompile(`^\[[\w.-]+@([\w.-]+)\s+(\S+)\]\s*[#$%>]?$`)
+)
+
+// clean turns a pane title into a name in its normal form, "" when it says
+// nothing: a shell's name, zellij's "Pane #1", a prompt at the home directory.
+func (in Input) clean(title string) string {
+	s := strings.TrimSpace(dropMarks(title))
+	if w, ok := in.fromPrompt(s); ok {
+		return w
+	}
+	// A title that is only a path names the directory it ends in, and the
+	// same goes for each path inside a command line.
+	var words []string
+	for _, f := range strings.Fields(s) {
+		if w := in.word(f); w != "" {
+			words = append(words, w)
+		}
+	}
+	w := normalize(strings.Join(words, " "))
+	if uninformative[w] || defaultTitleRe.MatchString(w) {
+		return ""
+	}
+	return w
+}
+
+// uninformative are titles that say nothing about a session: a bare shell.
+var uninformative = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true, "ash": true, "ksh": true,
+	"csh": true, "tcsh": true, "nu": true, "pwsh": true, "login": true,
+}
+
+// defaultTitleRe matches zellij's own pane and tab titles once normalized.
+var defaultTitleRe = regexp.MustCompile(`^(pane|tab)-\d+$`)
+
+// fromPrompt reads a title a shell set for itself. ok is false for any other
+// title. A prompt at the home directory on this machine says nothing; on
+// another machine it says which machine.
+func (in Input) fromPrompt(s string) (string, bool) {
+	m := promptRe.FindStringSubmatch(s)
+	if m == nil {
+		m = bracketRe.FindStringSubmatch(s)
+	}
+	if m == nil {
+		return "", false
+	}
+	host, dir := m[1], in.pathWord(m[2])
+	if in.isHere(host) {
+		host = ""
+	}
+	return normalize(joinWords(host, dir)), true
+}
+
+// isHere reports whether a prompt's host is this machine, by its short name.
+func (in Input) isHere(host string) bool {
+	short := func(h string) string {
+		h, _, _ = strings.Cut(strings.ToLower(h), ".")
+		return h
+	}
+	return short(host) == "localhost" || short(host) == short(in.Host)
+}
+
+// word reduces one word of a title: a flag says nothing, a path says its last
+// part, a URL loses its scheme and an ssh target its user.
+func (in Input) word(f string) string {
+	switch {
+	// "-f", "--build", "--port=80", and "--" and "-" on their own.
+	case strings.HasPrefix(f, "-"):
+		return ""
+	case isPath(f):
+		return in.pathWord(f)
+	}
+	if _, rest, ok := strings.Cut(f, "://"); ok {
+		return rest
+	}
+	if at := strings.LastIndexByte(f, '@'); at > 0 && at < len(f)-1 {
+		return f[at+1:]
+	}
+	return f
+}
+
+// isPath reports whether a word is a file path rather than a word that happens
+// to hold a slash, like "Reply-All/Reply-To".
+func isPath(f string) bool {
+	return f == "~" || strings.HasPrefix(f, "/") || strings.HasPrefix(f, "~/") ||
+		strings.HasPrefix(f, "./") || strings.HasPrefix(f, "../")
+}
+
+// dropMarks removes the symbols terminal programs put in titles (spinners,
+// stars, emoji), wherever they are.
+func dropMarks(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.So, r) || unicode.Is(unicode.Co, r) || unicode.Is(unicode.Sk, r) {
 			return -1
 		}
 		return r
 	}, s)
-	// Drop anything before the first letter or digit.
-	s = strings.TrimLeftFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
-	// Replace each run of other characters with one dash.
+}
+
+// normalize is the shape of every name: lower case, letters of every script
+// and digits, one "-" for each run of anything else. A "." stays between two
+// characters of a word, so "app.log" and "v1.2" still read as what they are.
+func normalize(s string) string {
+	runes := []rune(s)
 	var b strings.Builder
 	dash := false
-	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_' || r == '-' {
-			// A literal dash joins a run of dashes, like a replaced one.
-			if r == '-' {
-				if !dash {
-					b.WriteRune('-')
-				}
-				dash = true
-				continue
+	for i, r := range runes {
+		switch {
+		// A combining mark belongs to the letter before it, and means
+		// nothing after a symbol that was dropped.
+		case unicode.IsMark(r):
+			if !dash && b.Len() > 0 {
+				b.WriteRune(r)
 			}
+		case unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_':
 			b.WriteRune(r)
 			dash = false
-			continue
-		}
-		if !dash {
-			b.WriteRune('-')
-		}
-		dash = true
-	}
-	s = strings.ToLower(strings.Trim(b.String(), "-"))
-	// Cut to the byte budget at a character boundary.
-	if len(s) > maxBytes {
-		cut := 0
-		for i, r := range s {
-			if i+utf8.RuneLen(r) > maxBytes {
-				break
+		case r == '.' && i > 0 && i < len(runes)-1 && isWordRune(runes[i-1]) && isWordRune(runes[i+1]):
+			b.WriteRune(r)
+			dash = false
+		default:
+			if !dash && b.Len() > 0 {
+				b.WriteByte('-')
 			}
-			cut = i + utf8.RuneLen(r)
+			dash = true
 		}
-		s = strings.TrimRight(s[:cut], "-")
 	}
-	if s == "" || uninformative[s] || strings.HasPrefix(s, "pane-") || strings.HasPrefix(s, "tab-") {
-		return ""
+	return strings.ToLower(strings.TrimRight(b.String(), "-_."))
+}
+
+// isWordRune reports whether a rune is part of a word.
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }
+
+// Fit cuts a name to MaxWidth columns and maxBytes bytes, at a word boundary
+// when one leaves something to read, and never inside a character.
+func Fit(s string, maxBytes int) string {
+	if maxBytes > MaxBase {
+		maxBytes = MaxBase
+	}
+	if len(s) <= maxBytes && ansi.StringWidth(s) <= MaxWidth {
+		return s
+	}
+	// The longest prefix within both limits.
+	end, width := 0, 0
+	for i, r := range s {
+		width += ansi.StringWidth(string(r))
+		if i+utf8.RuneLen(r) > maxBytes || width > MaxWidth {
+			break
+		}
+		end = i + utf8.RuneLen(r)
+	}
+	cut := s[:end]
+	// Back to the last word's end, unless that throws away most of it: a
+	// long first word is better cut than lost.
+	if at := strings.LastIndexAny(cut, "-_"); at > 0 && ansi.StringWidth(cut[:at]) >= MaxWidth/2 {
+		cut = cut[:at]
+	}
+	return strings.TrimRight(dropDangling(cut), "-_.")
+}
+
+// danglingWords are words that promise more after them. A name cut right after
+// one reads as cut off ("disk-check-and").
+var danglingWords = map[string]bool{
+	"a": true, "an": true, "and": true, "at": true, "for": true, "from": true, "in": true, "of": true,
+	"on": true, "or": true, "the": true, "to": true, "with": true,
+}
+
+// dropDangling removes such a word from the end of a name that was cut.
+func dropDangling(s string) string {
+	at := strings.LastIndexAny(s, "-_")
+	if at > 0 && danglingWords[s[at+1:]] {
+		return s[:at]
 	}
 	return s
 }
 
 // BaseBudget is the byte budget for a base name when the session's socket
 // lives in socketDir: the socket path ("<dir>/<name>") must fit Linux's limit
-// with room left for the stamp and a collision tail. It never exceeds MaxBase.
+// with room left for a stamp and a collision tail. It never exceeds MaxBase.
 func BaseBudget(socketDir string) int {
-	room := zellij.SocketPathLimit - len(socketDir) - 1 - stampLen
+	room := zellij.SocketPathLimit - len(socketDir) - 1 - tailLen
 	if room > MaxBase || socketDir == "" {
 		return MaxBase
 	}
@@ -98,27 +338,35 @@ func BaseBudget(socketDir string) int {
 	return room
 }
 
-// Suggest picks a base name: the first terminal pane's title, else the name of
-// the directory the session started in, else "".
-func Suggest(firstTitle, cwd string, maxBytes int) string {
-	if s := Sanitize(firstTitle, maxBytes); s != "" {
-		return s
+// Desired is the full name for a base and a last-use time, in local time,
+// which is how people remember when they last used something.
+func Desired(base string, stamp Stamp, lastActive time.Time) string {
+	switch stamp {
+	case StampDate:
+		return base + lastActive.Local().Format("_0102")
+	case StampTime:
+		return base + lastActive.Local().Format("_0102-1504")
 	}
-	if cwd == "" {
-		return ""
-	}
-	return Sanitize(filepath.Base(cwd), maxBytes)
+	return base
 }
 
-// Stamp formats a time as the "_MMDD-HHMM" suffix, in local time, which is
-// how people remember when they last used something.
-func Stamp(t time.Time) string {
-	return t.Local().Format("_0102-1504")
-}
-
-// Desired is the full name for a base and a last-activity time.
-func Desired(base string, lastActive time.Time) string {
-	return base + Stamp(lastActive)
+// Same reports whether a session already has the desired name, or the desired
+// name with a collision tail. Without the tail check two sessions showing the
+// same title would swap between -2 and -3 on every pass.
+func Same(name, desired string) bool {
+	if name == desired {
+		return true
+	}
+	tail, ok := strings.CutPrefix(name, desired+"-")
+	if !ok || tail == "" {
+		return false
+	}
+	for _, r := range tail {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Free returns desired, or desired-2, -3, ... up to -99, whichever is not in

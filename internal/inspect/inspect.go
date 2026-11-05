@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -74,6 +72,8 @@ type Pane struct {
 	// (the later of its atime and mtime).
 	TTY    string
 	LastIO time.Time
+	// Cwd is the directory the pane works in, "" when it cannot be read.
+	Cwd string
 }
 
 // Session is everything known about one listed session.
@@ -102,6 +102,17 @@ func (s Session) Name() string { return s.Listed.Name }
 
 // Titles returns the session's terminal pane titles.
 func (s Session) Titles() []string { return s.Files.Metadata.TerminalTitles() }
+
+// WorkDir is the directory the session works in: where its first pane is now,
+// which follows a cd, else where the session was started.
+func (s Session) WorkDir() string {
+	for _, p := range s.Panes {
+		if p.Cwd != "" {
+			return p.Cwd
+		}
+	}
+	return s.Files.Layout.Cwd
+}
 
 // Gather inspects every listed session with one snapshot of /proc and of the
 // kernel's socket table, so every session is judged against the same moment.
@@ -182,7 +193,7 @@ func Gather(ctx context.Context, src Sources, rules Rules, listed []zellij.Liste
 		s.Facts.ProtectedCommand = protectedCommand(table, s.Server, files, rules.ProtectCommands)
 		out[i] = s
 	}
-	attachChecks(ctx, src, out, socks, table)
+	attachChecks(ctx, src, out, socks, owners)
 	for i := range out {
 		out[i].Facts.Clients = out[i].Clients
 	}
@@ -296,7 +307,15 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 		if p.IsZombie() {
 			continue
 		}
-		pane := Pane{PID: p.PID, Command: short(p.CommandLine()), TTY: p.Stdin}
+		// Not every child of a server is a pane. zellij runs `ps -ao ppid,args`
+		// to save its layouts, once a minute in every session, and plugins
+		// run commands of their own. Those read no terminal; caught in the
+		// few milliseconds they live, they would make an idle session look
+		// busy for that pass.
+		if !readsTerminal(p) {
+			continue
+		}
+		pane := Pane{PID: p.PID, Command: short(p.CommandLine()), TTY: p.Stdin, Cwd: t.Cwd(p.PID)}
 		pane.Prompt = isPrompt(p, shells)
 		if !pane.Prompt {
 			// A pane that runs a program directly (a command pane, or an
@@ -313,6 +332,13 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 		out = append(out, pane)
 	}
 	return out
+}
+
+// readsTerminal reports whether a server's child could be a pane: every pane
+// process gets a terminal as its input. A stdin that cannot be read counts as
+// one, because a process of another user is no reason to call a session idle.
+func readsTerminal(p *procfs.Proc) bool {
+	return p.Stdin != "/dev/null" && !strings.HasPrefix(p.Stdin, "pipe:") && !strings.HasPrefix(p.Stdin, "socket:")
 }
 
 // lastIO is the later of a terminal's last write (mtime) and last read
@@ -422,183 +448,4 @@ func wordMatch(s, word string) bool {
 		}
 		i = start + 1
 	}
-}
-
-// attachChecks decides, for every running session, whether a client is
-// attached. `list-clients` asks the server itself and is current; the count
-// in the metadata file lags (it is rewritten about once a minute, and zellij
-// 0.43 can keep counting the client that created a session in the background
-// for as long as nothing else happens), so it is only the fallback when the
-// server does not answer, before the sockets connected to the server.
-// Browser clients count from the metadata either way. Sessions are asked in
-// parallel.
-func attachChecks(ctx context.Context, src Sources, sessions []Session, socks []procfs.UnixSocket, t *procfs.Table) {
-	var wg sync.WaitGroup
-	// Four at a time: enough to keep a pass short, few enough not to flood
-	// a machine with zellij processes.
-	sem := make(chan struct{}, 4)
-	for i := range sessions {
-		s := &sessions[i]
-		if s.Listed.Exited || s.Server == nil {
-			continue
-		}
-		md := s.Files.Metadata
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			var rows []zellij.ClientRow
-			err := fmt.Errorf("no client lister")
-			if src.Clients != nil {
-				rows, err = src.Clients.ListClients(ctx, s.Name())
-			}
-			if err == nil {
-				s.Clients = len(rows) + md.WebClients
-				switch {
-				case len(rows) > 0:
-					s.Facts.Attached = policy.Yes
-					s.Facts.AttachDetail = fmt.Sprintf("%d client(s) attached", len(rows))
-				case md.WebClients > 0:
-					s.Facts.Attached = policy.Yes
-					s.Facts.AttachDetail = fmt.Sprintf("%d web client(s) attached", md.WebClients)
-				default:
-					s.Facts.Attached, s.Facts.AttachDetail = policy.No, "no client attached"
-				}
-				return
-			}
-			// The server did not answer: zellij's own count in the metadata.
-			if md.HasClientCount && md.ConnectedClients > 0 {
-				s.Facts.Attached = policy.Yes
-				s.Facts.AttachDetail = fmt.Sprintf("zellij reports %d connected client(s)", md.ConnectedClients)
-				s.Clients = md.ConnectedClients
-				return
-			}
-			// list-clients failed (an old zellij, a server that does not
-			// answer): look at who holds the other end of the server's
-			// connections instead.
-			s.Facts.Attached, s.Facts.AttachDetail = peerCheck(t, s.Server.PID, socks, err)
-			if s.Facts.Attached == policy.Yes {
-				s.Clients = 1
-			} else if s.Facts.Attached == policy.No {
-				s.Clients = 0
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// peerCheck finds clients through the kernel's socket table: every connected
-// socket the server holds has a peer, and a peer held by any process other
-// than the server is a client. With no socket table the answer is unknown.
-func peerCheck(t *procfs.Table, server int, socks []procfs.UnixSocket, cause error) (policy.Tri, string) {
-	if len(socks) == 0 {
-		return policy.Unknown, "list-clients failed: " + cause.Error()
-	}
-	held := t.SocketInodes(server)
-	// The socket table must show the server's own listening socket: a table
-	// read from another network namespace, or one missing entries, proves
-	// nothing about who is connected.
-	seen := false
-	for _, u := range socks {
-		if held[u.Inode] && u.Listening() {
-			seen = true
-			break
-		}
-	}
-	if !seen {
-		return policy.Unknown, "list-clients failed and the socket table does not show the server: " + cause.Error()
-	}
-	// The peers of the server's connected sockets.
-	peers := map[uint32]bool{}
-	for _, u := range socks {
-		if held[u.Inode] && !u.Listening() && u.Peer != 0 {
-			peers[u.Peer] = true
-		}
-	}
-	if len(peers) == 0 {
-		return policy.No, "no connection to the server"
-	}
-	// Who holds those peers? Look through the user's processes.
-	var pids []int
-	for pid := range t.ByPID {
-		pids = append(pids, pid)
-	}
-	sort.Ints(pids)
-	for _, pid := range pids {
-		if pid == server {
-			continue
-		}
-		for ino := range t.SocketInodes(pid) {
-			if peers[ino] {
-				return policy.Yes, fmt.Sprintf("pid %d is connected to the server", pid)
-			}
-		}
-	}
-	// Connections whose other end belongs to nobody we can see.
-	return policy.Unknown, "connections to the server with no visible owner"
-}
-
-// ListenerClients finds, through the kernel's socket table, the clients
-// connected to a server's listening socket. A connection the server accepted
-// carries the listening socket's name and file, and keeps them after the
-// socket file is removed; the socket pairs a zellij server keeps for itself
-// carry neither, so they are not mistaken for clients. Yes names a connected
-// process; Unknown means the table does not show the server listening, or a
-// connection's other end belongs to nobody visible.
-func ListenerClients(t *procfs.Table, server int, socks []procfs.UnixSocket) (policy.Tri, string) {
-	held := t.SocketInodes(server)
-	var listeners []procfs.UnixSocket
-	for _, u := range socks {
-		if held[u.Inode] && u.Listening() {
-			listeners = append(listeners, u)
-		}
-	}
-	// A table without the server's listening socket (read from another
-	// network namespace, or missing entries) proves nothing.
-	if len(listeners) == 0 {
-		return policy.Unknown, "the socket table does not show the server listening"
-	}
-	// accepted reports whether a socket of the server came from one of its
-	// listening sockets: the same name, or the same file.
-	accepted := func(u procfs.UnixSocket) bool {
-		for _, l := range listeners {
-			if (u.Name != "" && u.Name == l.Name) || (u.VFSIno != 0 && u.VFSIno == l.VFSIno && u.VFSDev == l.VFSDev) {
-				return true
-			}
-		}
-		return false
-	}
-	peers := map[uint32]bool{}
-	conns := 0
-	for _, u := range socks {
-		if held[u.Inode] && !u.Listening() && accepted(u) {
-			conns++
-			// A connection without a peer still is one: counted, so it
-			// ends below as one nobody can account for.
-			if u.Peer != 0 {
-				peers[u.Peer] = true
-			}
-		}
-	}
-	if conns == 0 {
-		return policy.No, "no client connected to its socket"
-	}
-	// Who holds the other ends? Look through the user's processes.
-	var pids []int
-	for pid := range t.ByPID {
-		pids = append(pids, pid)
-	}
-	sort.Ints(pids)
-	for _, pid := range pids {
-		if pid == server {
-			continue
-		}
-		for ino := range t.SocketInodes(pid) {
-			if peers[ino] {
-				return policy.Yes, fmt.Sprintf("pid %d is connected to its socket", pid)
-			}
-		}
-	}
-	return policy.Unknown, fmt.Sprintf("%d connection(s) to its socket with no visible owner", conns)
 }

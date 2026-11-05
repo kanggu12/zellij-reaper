@@ -63,6 +63,8 @@ func Load(configPath string) (*App, error) {
 		Log:       logfile.New(cfg.LogPath, cfg.LogMaxBytes),
 		LockPath:  config.LockFile(env),
 		Now:       time.Now,
+		Home:      homeDir(),
+		Host:      hostName(),
 	}
 	a.System = systemd.System{Env: env, Run: systemd.Exec, User: userName()}
 	return a, nil
@@ -101,6 +103,19 @@ func Executable() (string, error) {
 		p = r
 	}
 	return filepath.Abs(p)
+}
+
+// homeDir is this user's home, "" when it cannot be told: a name then simply
+// says more than it needs to.
+func homeDir() string {
+	h, _ := os.UserHomeDir()
+	return h
+}
+
+// hostName is this machine's name, "" when it cannot be told.
+func hostName() string {
+	h, _ := os.Hostname()
+	return h
 }
 
 // userName is the login name for loginctl.

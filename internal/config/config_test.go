@@ -160,3 +160,32 @@ func TestXDGPaths(t *testing.T) {
 		t.Errorf("ConfigFile with override = %q", got)
 	}
 }
+
+func TestAutoRenameStamp(t *testing.T) {
+	if c := Default(MapEnv{"HOME": "/h"}); c.AutoRenameStamp != "none" {
+		t.Errorf("default: %q", c.AutoRenameStamp)
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(p, []byte("auto_rename_stamp = \"date\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(p, MapEnv{"HOME": dir})
+	if err != nil || c.AutoRenameStamp != "date" || c.Sources["auto_rename_stamp"] != FromFile {
+		t.Errorf("from the file: %v, %+v", err, c)
+	}
+	c, err = Load(p, MapEnv{"HOME": dir, "ZELLIJ_REAPER_AUTO_RENAME_STAMP": "time"})
+	if err != nil || c.AutoRenameStamp != "time" || c.Sources["auto_rename_stamp"] != FromEnv {
+		t.Errorf("from the environment: %v, %+v", err, c)
+	}
+	// A typo stops loading, like a malformed duration.
+	if _, err := Load(p, MapEnv{"HOME": dir, "ZELLIJ_REAPER_AUTO_RENAME_STAMP": "hour"}); err == nil {
+		t.Error("a bad value in the environment was accepted")
+	}
+	if err := os.WriteFile(p, []byte("auto_rename_stamp = \"hour\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p, MapEnv{"HOME": dir}); err == nil {
+		t.Error("a bad value in the file was accepted")
+	}
+}

@@ -27,6 +27,8 @@ type Proc struct {
 	State string
 	// Sockets are socket inodes the process holds, as fd 3, 4, ...
 	Sockets []uint32
+	// Cwd is the directory the process works in; empty leaves no link.
+	Cwd string
 }
 
 // FakeProc is a directory laid out like /proc.
@@ -71,6 +73,19 @@ func (f *FakeProc) Add(p Proc) {
 	for i, ino := range p.Sockets {
 		must(f.t, os.Symlink(fmt.Sprintf("socket:[%d]", ino), filepath.Join(dir, "fd", strconv.Itoa(3+i))))
 	}
+	if p.Cwd != "" {
+		must(f.t, os.Symlink(p.Cwd, filepath.Join(dir, "cwd")))
+	}
+}
+
+// AddSocket gives a process one more socket, which is what a server gets when
+// a client connects.
+func (f *FakeProc) AddSocket(pid int, ino uint32) {
+	f.t.Helper()
+	dir := filepath.Join(f.Root, strconv.Itoa(pid), "fd")
+	entries, err := os.ReadDir(dir)
+	must(f.t, err)
+	must(f.t, os.Symlink(fmt.Sprintf("socket:[%d]", ino), filepath.Join(dir, strconv.Itoa(10+len(entries)))))
 }
 
 // TTY creates a file that stands in for a pane's terminal, last written at

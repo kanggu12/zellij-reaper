@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -129,6 +130,24 @@ func TestIdleAndBusyPanes(t *testing.T) {
 	}
 }
 
+func TestAServersHelpersAreNotPanes(t *testing.T) {
+	m := newMachine(t)
+	m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")
+	m.pane(t, 101, 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour))
+	// zellij saving its layout, and a plugin's command with its input piped.
+	m.proc.Add(testutil.Proc{PID: 102, PPID: 100, Comm: "ps", Argv: []string{"ps", "-ao", "ppid,args"}, Stdin: "/dev/null"})
+	m.proc.Add(testutil.Proc{PID: 103, PPID: 100, Comm: "wl-copy", Argv: []string{"wl-copy"}, Stdin: "pipe:[77]"})
+	got := m.gather(t, false, running("s"))
+	if len(got[0].Panes) != 1 || got[0].Facts.BusyWith != "" {
+		t.Errorf("helpers taken for panes: %+v, busy with %q", got[0].Panes, got[0].Facts.BusyWith)
+	}
+	// A child whose input cannot be read still counts: it might be a pane.
+	m.proc.Add(testutil.Proc{PID: 104, PPID: 100, Comm: "htop", Argv: []string{"htop"}})
+	if got := m.gather(t, false, running("s")); got[0].Facts.BusyWith != "htop" {
+		t.Errorf("unreadable input: busy with %q", got[0].Facts.BusyWith)
+	}
+}
+
 func TestProtectedCommands(t *testing.T) {
 	m := newMachine(t)
 	// The agent as its own process, as Claude Code's native binary runs.
@@ -183,9 +202,10 @@ func TestAttachChecks(t *testing.T) {
 	}
 }
 
-func TestPeerCheckFallback(t *testing.T) {
-	// list-clients fails, but the kernel shows a connection from a client.
-	m := newMachine(t)
+// attachedVia builds a session whose server holds its listening socket and one
+// accepted connection, as the kernel's table shows them.
+func attachedVia(t *testing.T, m *machine, peerListed bool) {
+	t.Helper()
 	sock := testutil.Socket(t, m.sockDir, "s")
 	ino, dev, _ := procfs.FileID(sock)
 	// The server holds its listening socket (1000) and one accepted
@@ -197,17 +217,91 @@ func TestPeerCheckFallback(t *testing.T) {
 		{Inode: 1000, State: 10, Name: sock, VFSIno: ino, VFSDev: dev},
 		{Inode: 4001, State: 1, Name: sock, Peer: 5001},
 	}
+	if peerListed {
+		m.socks = append(m.socks, procfs.UnixSocket{Inode: 5001, State: 1, Peer: 4001})
+	}
 	testutil.SessionFiles(t, m.info, "s", testutil.Metadata(0, "x"), "", now)
-	m.clients["s"] = errors.New("unsupported action")
+}
+
+func TestTheSocketTableAnswersWithoutAsking(t *testing.T) {
+	m := newMachine(t)
+	attachedVia(t, m, true)
+	// list-clients would say something else; it must not be asked.
+	m.clients["s"] = errors.New("asked anyway")
 	got := m.gather(t, true, running("s"))
-	if got[0].Facts.Attached != policy.Yes {
-		t.Errorf("peer check: %v (%s)", got[0].Facts.Attached, got[0].Facts.AttachDetail)
+	if got[0].Facts.Attached != policy.Yes || got[0].Clients != 1 {
+		t.Errorf("a client in the table: %v, %d (%s)", got[0].Facts.Attached, got[0].Clients, got[0].Facts.AttachDetail)
+	}
+	if got[0].Facts.AttachDetail != "1 client(s) attached" {
+		t.Errorf("the log's words changed: %s", got[0].Facts.AttachDetail)
 	}
 	// With the client gone, the same check says nobody is attached.
 	m.socks = m.socks[:1]
 	got = m.gather(t, true, running("s"))
+	if got[0].Facts.Attached != policy.No || got[0].Clients != 0 {
+		t.Errorf("no connection: %v, %d (%s)", got[0].Facts.Attached, got[0].Clients, got[0].Facts.AttachDetail)
+	}
+}
+
+func TestAConnectionNobodyCanSeeIsAskedAbout(t *testing.T) {
+	// The other end is not in this table: a client from elsewhere, or one
+	// leaving. list-clients decides, and failing that nothing can tell.
+	m := newMachine(t)
+	attachedVia(t, m, false)
+	m.clients["s"] = 0
+	got := m.gather(t, true, running("s"))
 	if got[0].Facts.Attached != policy.No {
-		t.Errorf("peer check, no connection: %v (%s)", got[0].Facts.Attached, got[0].Facts.AttachDetail)
+		t.Errorf("server says nobody: %v (%s)", got[0].Facts.Attached, got[0].Facts.AttachDetail)
+	}
+	m.clients["s"] = 1
+	got = m.gather(t, true, running("s"))
+	if got[0].Facts.Attached != policy.Yes {
+		t.Errorf("server says one: %v (%s)", got[0].Facts.Attached, got[0].Facts.AttachDetail)
+	}
+	m.clients["s"] = errors.New("no answer within 10s")
+	got = m.gather(t, true, running("s"))
+	if got[0].Facts.Attached != policy.Unknown || got[0].Clients != -1 {
+		t.Errorf("no answer: %v, %d (%s)", got[0].Facts.Attached, got[0].Clients, got[0].Facts.AttachDetail)
+	}
+}
+
+func TestABrowserClientCountsWithNoConnection(t *testing.T) {
+	m := newMachine(t)
+	m.server(t, "web", "web", 100, testutil.Metadata(0, "x")+"web_client_count 1\n", "")
+	m.pane(t, 101, 100, "bash", []string{"-bash"}, now)
+	got := m.gather(t, false, running("web"))
+	if got[0].Facts.Attached != policy.Yes || got[0].Clients != 1 {
+		t.Errorf("browser client: %v, %d", got[0].Facts.Attached, got[0].Clients)
+	}
+}
+
+// overlaps fails a test when two list-clients calls run at once.
+type overlaps struct {
+	t       *testing.T
+	running atomic.Int32
+}
+
+func (o *overlaps) ListClients(context.Context, string) ([]zellij.ClientRow, error) {
+	if o.running.Add(1) > 1 {
+		o.t.Error("list-clients calls overlap, which makes zellij 0.44.2 answer nothing")
+	}
+	defer o.running.Add(-1)
+	time.Sleep(5 * time.Millisecond)
+	return nil, nil
+}
+
+func TestServersAreAskedOneAtATime(t *testing.T) {
+	m := newMachine(t)
+	var listed []zellij.Listed
+	for i, name := range []string{"a", "b", "c", "d", "e", "f"} {
+		pid := 100 + 10*i
+		m.server(t, name, name, pid, testutil.Metadata(0, "x"), "")
+		m.pane(t, pid+1, pid, "bash", []string{"-bash"}, now)
+		listed = append(listed, running(name))
+	}
+	src := inspect.Sources{ProcRoot: m.proc.Root, InfoDir: m.info, SocketDirs: []string{m.sockDir}, UID: -1, Clients: &overlaps{t: t}, Now: time.Now}
+	if _, err := inspect.Gather(context.Background(), src, inspect.Rules{}, listed); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -22,8 +22,8 @@ check() {
     # What the reaper saw, so a failure that only happens now and then can be
     # read afterwards instead of guessed at.
     echo "       plan: $($R plan --json 2>&1 | jq -c '[.sessions[] | {name, code}]' 2>/dev/null)"
-    echo "       last log lines:"
-    tail -n 5 "$LOG" 2>/dev/null | sed 's/^/         /'
+    echo "       the last pass in the log:"
+    awk '/=== reaper start/ { pass = "" } { pass = pass "         " $0 "\n" } END { printf "%s", pass }' "$LOG" 2>/dev/null
   fi
 }
 
@@ -61,15 +61,8 @@ start() {
   wait_pane "$1"
 }
 
-# Wait until the plan no longer reports a client for a session that was just
-# created in the background (zellij 0.43 reports the creating client once).
-settle() {
-  for _ in $(seq 90); do
-    [ "$(code "$1")" != attached ] && return 0
-    sleep 1
-  done
-  return 1
-}
+# How many clients the plan counts on one session.
+clients_are() { [ "$($R plan --json | jq -r --arg n "$1" '.sessions[] | select(.name==$n) | .clients')" = "$2" ]; }
 
 # What the plan says about one session: its code, or "absent".
 code() { $R plan --json | jq -r --arg n "$1" '(.sessions[] | select(.name==$n) | .code) // "absent"'; }
@@ -86,6 +79,31 @@ is_code() {
 }
 listed() { $Z list-sessions -n -s 2>/dev/null | grep -qxF "$1"; }
 gone() { ! listed "$1"; }
+
+# Rename a session and wait for zellij to list the new name. The command returns
+# before the server has acted, and on a slow machine a session that has only just
+# started can answer "not found" for a moment, so it is asked again until the name
+# is listed. A pass does the same: a rename that fails is tried on the next pass.
+rename_to() {
+  for _ in $(seq 30); do
+    $Z --session "$1" action rename-session "$2" >/dev/null 2>&1
+    for _ in 1 2 3 4 5; do
+      listed "$2" && return 0
+      sleep 0.1
+    done
+  done
+  echo "  (zellij does not list $2 after renaming $1)"
+  return 1
+}
+
+# Wait for a pane's title to reach zellij's metadata file, where a pass reads it.
+wait_title() {
+  for _ in $(seq 90); do
+    grep -q "title \"$2\"" "$INFO/$1/session-metadata.kdl" 2>/dev/null && return 0
+    sleep 1
+  done
+  return 1
+}
 
 ver=$($Z --version | awk '{print $2}')
 echo "zellij $ver"
@@ -127,7 +145,7 @@ start cmd-pane && $Z --session cmd-pane run -- sleep 99999 >/dev/null 2>&1
 start agent && $Z --session agent run -- claude >/dev/null 2>&1
 start attached && { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
 start keepme && age_ptys keepme '-3 hours'
-start first && $Z --session first action rename-session second
+start first && rename_to first second
 # Age it under its first name: a rename leaves the server's command line
 # alone, so that is the only name server_pid can match. (The reaper itself
 # finds the server through the socket file, which the rename does follow.)
@@ -147,22 +165,13 @@ age_ptys agent '-3 hours'
 $R protect keepme >/dev/null
 
 echo "-- the plan"
-# zellij 0.43 answers the first `list-clients` for a background session with
-# the client that created it, so the reaper keeps that session for one pass.
-# One plan settles one answer per session, and the sessions do not all settle
-# in the same plan: ask until none is reported attached, or give up and let
-# the checks below say what is wrong.
-for _ in $(seq 10); do
-  $R plan --json >/tmp/plan.json 2>/dev/null || break
-  jq -e '[.sessions[] | select(.code == "attached" and .name != "attached")] | length == 0' /tmp/plan.json >/dev/null && break
-  sleep 1
-done
 check "idle for 3h is reaped" is_code idle-old idle-old
 check "idle for a moment waits" is_code idle-new idle-recent
 check "a command under the shell keeps it" is_code shell-busy busy
 check "a command pane keeps it" is_code cmd-pane busy
 check "a protected program keeps it" is_code agent protected-command
 check "an attached client keeps it" is_code attached attached
+check "it counts one client" clients_are attached 1
 check "the protected list keeps it" is_code keepme protected-name
 check "a renamed session is matched to its server" is_code second idle-old
 check "exited 4 days ago is reaped" is_code exited-old exited-old
@@ -184,6 +193,12 @@ for s in idle-new shell-busy cmd-pane agent attached keepme exited-new; do
 done
 check "deletions are logged" grep -q '  -> deleted: idle-old' "$LOG"
 
+echo "-- a second terminal on a session"
+{ script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
+sleep 2
+check "the plan counts both clients" clients_are attached 2
+check "the session is still kept" is_code attached attached
+
 echo "-- a forced pass skips the waits only"
 check "a forced pass succeeds" $R run --force --quiet
 check "the recent idle session is gone" gone idle-new
@@ -193,17 +208,54 @@ for s in shell-busy cmd-pane agent attached keepme named; do
 done
 
 echo "-- auto_rename"
-check "the session's metadata settles" settle named
+# Sessions that show something to be named after: a title, one with a dot in it,
+# the same title twice, a long Korean title, and a shell whose title says nothing,
+# working in a directory that does.
+pane_layout() { printf 'layout {\n    pane name="%s" command="sleep" {\n        args "100000"\n    }\n}\n' "$1" >"$2"; }
+pane_layout 'same title' /tmp/same.kdl
+pane_layout 'notes v1.2.md' /tmp/dotted.kdl
+pane_layout 'notes from the long planning meeting about the next release' /tmp/long.kdl
+mkdir -p /srv/api
+start twin-a /tmp/same.kdl
+start twin-b /tmp/same.kdl
+start dotted /tmp/dotted.kdl
+start long /tmp/long.kdl
+(cd /srv/api && start here)
+check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title named 'build watcher' && wait_title twin-a 'same title' && wait_title twin-b 'same title' && wait_title dotted 'notes v1.2.md' && wait_title long 'notes from the long planning meeting about the next release'"
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
-new=$($Z list-sessions -n -s | grep '^build-watcher_' || true)
-check "the session is named after its pane" test -n "$new"
+check "a session is named after its pane" listed build-watcher
 check "the old name is gone" gone named
-check "a second pass keeps the name" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
-check "renamed once only" test "$(grep -c -- '-> renamed: named' "$LOG")" = 1
-check "and still listed" listed "$new"
+check "a dot stays in a word" listed notes-v1.2.md
+check "a name with a dot still reaches its server" $Z --session notes-v1.2.md action list-clients
+check "a shell is named after its directory" listed api
+check "the same title takes a tail" sh -c "$Z list-sessions -n -s | grep -qxF same-title && $Z list-sessions -n -s | grep -qxF same-title-2"
+long_name='notes-from-the-long-planning'
+check "a long title is cut at a word" listed "$long_name"
+check "a cut name still reaches its server" $Z --session "$long_name" action list-clients
+
+renames() { grep -c -- '-> renamed:' "$LOG"; }
+before=$(renames)
+check "a second pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "and renames nothing" test "$(renames)" = "$before"
+check "the names stay" sh -c "$Z list-sessions -n -s | grep -qxF build-watcher && $Z list-sessions -n -s | grep -qxF same-title-2"
+
+check "zellij deletes a name with a dot" $Z delete-session notes-v1.2.md --force
+check "and it is gone" gone notes-v1.2.md
+
+# zellij remembers the names a session has had and refuses them, so a session
+# that goes back to a name it had before takes a tail. Its name then stays.
+check "a stamp can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=date $R run --quiet
+check "the name ends in the day of last use" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}\$'"
+check "the minute can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=time $R run --quiet
+check "the name ends in its minute" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}-[0-9]{4}\$'"
+check "without a stamp the name comes back" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "and the stamp is gone" sh -c "$Z list-sessions -n -s | grep -Eq '^api(-[0-9]+)?\$'"
+before=$(renames)
+check "one more pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "and leaves that name alone" test "$(renames)" = "$before"
 
 echo "-- recover"
-start first2 && $Z --session first2 action rename-session second2
+start first2 && rename_to first2 second2
 # A session whose name is too long for a socket: its saved layout makes zellij
 # keep it and list it, but it can never be reached.
 info=$INFO
@@ -234,7 +286,7 @@ check "recover --aggressive succeeds" $R recover --aggressive
 check "the server with a client is kept" running orph-client
 check "the server with a busy pane is kept" running orph-busy
 check "the idle orphan is stopped" stopped orph-idle
-check "a healthy session is untouched" listed shell-busy
+check "a healthy session is untouched" listed keepme
 
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"

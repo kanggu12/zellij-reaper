@@ -81,6 +81,10 @@ type PaneMeta struct {
 	Plugin bool
 	// Exited is true for a command pane whose command has finished.
 	Exited bool
+	// Focused is true for the pane that has the focus in its tab, and Tab is
+	// the position of that tab.
+	Focused bool
+	Tab     int
 }
 
 // Metadata is what the reaper reads from session-metadata.kdl.
@@ -94,6 +98,8 @@ type Metadata struct {
 	WebClients int
 	// Panes lists every pane, plugins included, in the file's order.
 	Panes []PaneMeta
+	// ActiveTab is the position of the tab the session shows.
+	ActiveTab int
 }
 
 // ParseMetadata reads session-metadata.kdl line by line. zellij writes it in
@@ -103,6 +109,8 @@ type Metadata struct {
 func ParseMetadata(text string) Metadata {
 	var md Metadata
 	var cur *PaneMeta
+	// tabPos is the position of the tab block being read, -1 outside one.
+	tabPos := -1
 	for _, line := range strings.Split(text, "\n") {
 		switch {
 		// The client count is a top-level node.
@@ -112,13 +120,25 @@ func ParseMetadata(text string) Metadata {
 			}
 		case strings.HasPrefix(line, "web_client_count "):
 			md.WebClients, _ = strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "web_client_count ")))
+		// A tab block opens four spaces in, like a pane block.
+		case line == "    tab {":
+			tabPos = 0
 		// A pane block opens four spaces in.
 		case strings.HasPrefix(line, "    pane ") || line == "    pane {":
 			md.Panes = append(md.Panes, PaneMeta{})
 			cur = &md.Panes[len(md.Panes)-1]
-		// ... and closes at the same depth.
+		// ... and either closes at the same depth.
 		case line == "    }":
-			cur = nil
+			cur, tabPos = nil, -1
+		// The position comes before "active" in the file.
+		case tabPos >= 0:
+			field := strings.TrimSpace(line)
+			if v, ok := strings.CutPrefix(field, "position "); ok {
+				tabPos, _ = strconv.Atoi(v)
+			}
+			if field == "active true" {
+				md.ActiveTab = tabPos
+			}
 		case cur != nil:
 			field := strings.TrimSpace(line)
 			switch {
@@ -126,6 +146,10 @@ func ParseMetadata(text string) Metadata {
 				cur.Plugin = true
 			case field == "exited true":
 				cur.Exited = true
+			case field == "is_focused true":
+				cur.Focused = true
+			case strings.HasPrefix(field, "tab_position "):
+				cur.Tab, _ = strconv.Atoi(strings.TrimPrefix(field, "tab_position "))
 			case strings.HasPrefix(field, "title "):
 				if s, ok := unquoteKDL(strings.TrimPrefix(field, "title ")); ok {
 					cur.Title = s
@@ -145,6 +169,27 @@ func (m Metadata) TerminalTitles() []string {
 		}
 	}
 	return t
+}
+
+// TitlesByFocus returns the titles of the panes still running, the one the
+// session shows first: the focused pane of the active tab, then the other
+// panes in the file's order. It is what a session is named after; the log keeps
+// TerminalTitles, whose order does not move with the focus.
+func (m Metadata) TitlesByFocus() []string {
+	var first, rest []string
+	for _, p := range m.Panes {
+		// A plugin says nothing about the session, and a command pane whose
+		// command has finished only says what used to run there.
+		if p.Plugin || p.Exited || p.Title == "" {
+			continue
+		}
+		if p.Focused && p.Tab == m.ActiveTab {
+			first = append(first, p.Title)
+			continue
+		}
+		rest = append(rest, p.Title)
+	}
+	return append(first, rest...)
 }
 
 // Layout is what the reaper reads from session-layout.kdl, the file zellij

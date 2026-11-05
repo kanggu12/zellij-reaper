@@ -50,9 +50,10 @@ type Config struct {
 	// Shells are extra process names that count as an idle prompt, on top of
 	// the common shells the tool knows.
 	Shells []string
-	// AutoRename names surviving sessions after their first pane's title and
-	// the time of their last activity.
+	// AutoRename names surviving sessions after what they show.
 	AutoRename bool
+	// AutoRenameStamp is what those names end in: "none", "date" or "time".
+	AutoRenameStamp string
 	// Interval is how often the systemd timer starts a pass.
 	Interval time.Duration
 	// ZellijPath is the zellij binary to run; empty means look it up in PATH.
@@ -78,7 +79,7 @@ type Config struct {
 // Keys lists every setting in the order `config show` prints them.
 var Keys = []string{
 	"dry_run", "idle_after", "exited_after", "protect", "protect_commands", "shells",
-	"auto_rename", "interval", "zellij", "log.path", "log.max_bytes",
+	"auto_rename", "auto_rename_stamp", "interval", "zellij", "log.path", "log.max_bytes",
 }
 
 // DefaultProtectCommands are coding agents and other long-lived programs that
@@ -97,6 +98,7 @@ func Default(env Env) *Config {
 		ProtectCommands: append([]string(nil), DefaultProtectCommands...),
 		Shells:          nil,
 		AutoRename:      false,
+		AutoRenameStamp: "none",
 		Interval:        time.Hour,
 		ZellijPath:      "",
 		LogPath:         filepath.Join(StateDir(env), "reaper.log"),
@@ -121,6 +123,7 @@ type fileShape struct {
 	ProtectCommands *[]string `toml:"protect_commands"`
 	Shells          *[]string `toml:"shells"`
 	AutoRename      *bool     `toml:"auto_rename"`
+	AutoRenameStamp *string   `toml:"auto_rename_stamp"`
 	Interval        *string   `toml:"interval"`
 	Zellij          *string   `toml:"zellij"`
 	Log             struct {
@@ -210,6 +213,13 @@ func (c *Config) loadFile(path string, env Env) error {
 		c.AutoRename = *f.AutoRename
 		set("auto_rename")
 	}
+	if f.AutoRenameStamp != nil {
+		if err := checkStamp(*f.AutoRenameStamp); err != nil {
+			return fmt.Errorf("%s: auto_rename_stamp: %w", path, err)
+		}
+		c.AutoRenameStamp = *f.AutoRenameStamp
+		set("auto_rename_stamp")
+	}
 	if f.Interval != nil {
 		d, err := duration.Parse(*f.Interval)
 		if err != nil {
@@ -235,14 +245,15 @@ func (c *Config) loadFile(path string, env Env) error {
 
 // EnvNames maps settings to the variables that override them.
 var EnvNames = map[string]string{
-	"dry_run":       "ZELLIJ_REAPER_DRY_RUN",
-	"idle_after":    "ZELLIJ_REAPER_IDLE_AFTER",
-	"exited_after":  "ZELLIJ_REAPER_EXITED_AFTER",
-	"protect":       "ZELLIJ_REAPER_PROTECT",
-	"auto_rename":   "ZELLIJ_REAPER_AUTO_RENAME",
-	"zellij":        "ZELLIJ_REAPER_ZELLIJ",
-	"log.path":      "ZELLIJ_REAPER_LOG",
-	"log.max_bytes": "ZELLIJ_REAPER_LOG_MAX_BYTES",
+	"dry_run":           "ZELLIJ_REAPER_DRY_RUN",
+	"idle_after":        "ZELLIJ_REAPER_IDLE_AFTER",
+	"exited_after":      "ZELLIJ_REAPER_EXITED_AFTER",
+	"protect":           "ZELLIJ_REAPER_PROTECT",
+	"auto_rename":       "ZELLIJ_REAPER_AUTO_RENAME",
+	"auto_rename_stamp": "ZELLIJ_REAPER_AUTO_RENAME_STAMP",
+	"zellij":            "ZELLIJ_REAPER_ZELLIJ",
+	"log.path":          "ZELLIJ_REAPER_LOG",
+	"log.max_bytes":     "ZELLIJ_REAPER_LOG_MAX_BYTES",
 }
 
 // loadEnv applies ZELLIJ_REAPER_* overrides. A malformed value is an error
@@ -285,6 +296,13 @@ func (c *Config) loadEnv(env Env) error {
 		}
 		c.AutoRename = b
 		c.Sources["auto_rename"] = FromEnv
+	}
+	if v, ok := get("auto_rename_stamp"); ok {
+		if err := checkStamp(v); err != nil {
+			return fmt.Errorf("%s: %w", EnvNames["auto_rename_stamp"], err)
+		}
+		c.AutoRenameStamp = v
+		c.Sources["auto_rename_stamp"] = FromEnv
 	}
 	if v, ok := get("zellij"); ok {
 		c.ZellijPath = expandHome(v, env)
@@ -353,6 +371,8 @@ func (c *Config) Value(key string) string {
 		return quoteList(c.Shells)
 	case "auto_rename":
 		return strconv.FormatBool(c.AutoRename)
+	case "auto_rename_stamp":
+		return strconv.Quote(c.AutoRenameStamp)
 	case "interval":
 		return strconv.Quote(duration.Setting(c.Interval))
 	case "zellij":
@@ -363,6 +383,17 @@ func (c *Config) Value(key string) string {
 		return strconv.FormatInt(c.LogMaxBytes, 10)
 	}
 	return ""
+}
+
+// checkStamp refuses a stamp setting that is none of the three, the way a
+// malformed duration is refused: silently renaming with another stamp would
+// rename every session once more when the typo is fixed.
+func checkStamp(v string) error {
+	switch v {
+	case "none", "date", "time":
+		return nil
+	}
+	return fmt.Errorf("%q is not none, date or time", v)
 }
 
 // quoteList prints a list as a TOML array of strings.

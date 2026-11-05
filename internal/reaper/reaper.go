@@ -43,6 +43,9 @@ type Env struct {
 	Log      *logfile.Log
 	LockPath string
 	Now      func() time.Time
+	// Home and Host are this user's home and this machine's name, which a
+	// session's name has no use for repeating.
+	Home, Host string
 }
 
 // LockWait is how long a pass waits for another one to finish. Everything
@@ -72,6 +75,10 @@ type Outcome struct {
 	RenamedTo   string
 	WouldRename string
 	RenameErr   error
+	// Suggested is the name this session's panes point to, set by Plan for
+	// every running session whatever auto_rename says: what the dashboard
+	// offers when someone renames it by hand. "" when it already has it.
+	Suggested string
 	// KeptName says why a session auto_rename would have renamed kept its
 	// name after all: a client attached between the check and the rename.
 	KeptName string
@@ -237,14 +244,29 @@ func Plan(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if err != nil {
 		return r, err
 	}
-	// Show the names a pass would give, as a dry run would log them.
-	if e.Config.AutoRename {
-		taken := takenNames(r)
-		for i := range r.Outcomes {
-			_, r.Outcomes[i].WouldRename = e.renameTarget(r.Outcomes[i], taken)
+	// Show the names a pass would give, in the order it would give them, so
+	// two sessions showing the same title come out as a pass would name them.
+	taken := takenNames(r)
+	for i := range r.Outcomes {
+		o := &r.Outcomes[i]
+		if o.Session.Listed.Exited {
+			continue
+		}
+		_, o.Suggested = e.nameFor(o.Session, taken)
+		if e.Config.AutoRename {
+			_, o.WouldRename = e.renameTarget(*o, taken)
+			reserve(taken, o.Session.Name(), o.WouldRename)
 		}
 	}
 	return r, nil
+}
+
+// reserve moves a session to the name it will have, for the sessions after it.
+func reserve(taken map[string]bool, name, target string) {
+	if target != "" {
+		delete(taken, name)
+		taken[target] = true
+	}
 }
 
 // Run is one pass: take the lock, rotate the log, decide, act, log.
@@ -334,6 +356,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		}
 		if dry {
 			o.WouldRename = target
+			reserve(taken, s.Name(), target)
 			e.Log.Printf("  -> DRY_RUN: would rename '%s' → '%s'", s.Name(), target)
 			continue
 		}
@@ -373,20 +396,28 @@ func takenNames(r Report) map[string]bool {
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
 func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
-	s := o.Session
 	if !mayRename(o) {
 		return "", ""
 	}
+	return e.nameFor(o.Session, taken)
+}
+
+// nameFor returns the name a running session's panes point to (desired) and
+// the first free variant of it (target). target is "" when the panes say
+// nothing, when the session has that name already, or when every variant is
+// taken.
+func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target string) {
 	budget := rename.MaxBase
 	if s.Socket != "" {
 		budget = rename.BaseBudget(filepath.Dir(s.Socket))
 	}
-	titles := s.Titles()
-	first := ""
-	if len(titles) > 0 {
-		first = titles[0]
-	}
-	base := rename.Suggest(first, s.Files.Layout.Cwd, budget)
+	base := rename.Suggest(rename.Input{
+		Titles: s.Files.Metadata.TitlesByFocus(),
+		Busy:   s.Facts.BusyWith,
+		Cwd:    s.WorkDir(),
+		Home:   e.Home,
+		Host:   e.Host,
+	}, budget)
 	if base == "" {
 		return "", ""
 	}
@@ -394,9 +425,11 @@ func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target st
 	if when.IsZero() {
 		when = e.Now()
 	}
-	desired = rename.Desired(base, when)
-	// Already named this way: nothing to do this pass.
-	if desired == s.Name() {
+	desired = rename.Desired(base, rename.Stamp(e.Config.AutoRenameStamp), when)
+	// Named this way already, perhaps with a tail from a collision: nothing
+	// to do. The tail stays even once the other session is gone, because a
+	// name changes only when what the session shows changes.
+	if rename.Same(s.Name(), desired) {
 		return desired, ""
 	}
 	free, ok := rename.Free(desired, taken)

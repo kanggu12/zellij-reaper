@@ -177,6 +177,16 @@ func (t *Table) Descendants(pid, max int) []*Proc {
 	return out
 }
 
+// Cwd is the directory a process works in, "" when it cannot be read or the
+// directory is gone.
+func (t *Table) Cwd(pid int) string {
+	p, err := os.Readlink(filepath.Join(t.Root, strconv.Itoa(pid), "cwd"))
+	if err != nil || strings.HasSuffix(p, " (deleted)") {
+		return ""
+	}
+	return p
+}
+
 // Server is a running zellij server.
 type Server struct {
 	// PID is the server process.

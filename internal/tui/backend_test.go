@@ -67,6 +67,8 @@ func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, err
 		if f.renameErr != nil {
 			return "", f.renameErr.Error(), f.renameErr
 		}
+		// The new name is listed from now on, as zellij would.
+		f.sessions += args[4] + " [Created 1m ago]\n"
 		return "", "", nil
 	}
 	return "", "unexpected call", errors.New("exit status 2")
@@ -253,5 +255,18 @@ func TestRenameByHandRefusesANameTooLongForTheSocket(t *testing.T) {
 	}
 	if z.did("--session work action rename-session") {
 		t.Error("zellij renamed it anyway")
+	}
+}
+
+func TestRenameByHandRefusesATakenName(t *testing.T) {
+	i18n.Set(i18n.English)
+	// zellij 0.44 and later would accept this and cut the other session off.
+	z := &fakeZellij{sessions: "work [Created 1h ago]\nnotes [Created 2h ago]\n"}
+	b, _ := backendFor(t, z, "")
+	if _, err := b.Rename(context.Background(), "work", "notes"); !errors.Is(err, zellij.ErrNameTaken) {
+		t.Errorf("rename to a taken name: %v", err)
+	}
+	if z.did("--session work action rename-session") {
+		t.Errorf("zellij was asked to rename onto a taken name: %v", z.calls)
 	}
 }

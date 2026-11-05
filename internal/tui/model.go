@@ -383,7 +383,7 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode, m.target = modeRename, o.Session.Name()
 		// The prompt sits on its own line in the dialog; the field holds
 		// only the name, as wide as the dialog.
-		suggest := o.WouldRename
+		suggest := o.Suggested
 		if suggest == "" {
 			suggest = o.Session.Name()
 		}

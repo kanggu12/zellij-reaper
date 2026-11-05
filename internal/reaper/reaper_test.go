@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,18 +25,15 @@ import (
 type fakeZellij struct {
 	listed  []zellij.Listed
 	listErr error
-	clients map[string]int
-	// during runs on the first question to a session: something another
-	// process does while the pass reads the facts.
-	during map[string]func()
-	// late are clients that appear from the second question on: someone
-	// attaching between the check and the delete.
+	// during runs when the sessions are listed: something another process
+	// does while the pass reads the facts.
+	during func()
+	// late are clients that appear before the second look: someone attaching
+	// between the check and the delete. The facts come from the socket table,
+	// so list-clients is asked only then.
 	late map[string]int
-	// lateErr makes the second question on fail: zellij no longer answers.
+	// lateErr makes that second look fail: zellij no longer answers.
 	lateErr map[string]error
-	asked   map[string]int
-	// mu guards asked: the attach checks ask in parallel.
-	mu      sync.Mutex
 	refuse  map[string]bool
 	deleted []string
 	renamed []string
@@ -45,6 +41,10 @@ type fakeZellij struct {
 
 func (f *fakeZellij) Available() bool { return true }
 func (f *fakeZellij) ListSessions(context.Context) ([]zellij.Listed, error) {
+	if f.during != nil {
+		f.during()
+		f.during = nil
+	}
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -54,22 +54,13 @@ func (f *fakeZellij) ListSessions(context.Context) ([]zellij.Listed, error) {
 	return f.listed, nil
 }
 func (f *fakeZellij) ListClients(_ context.Context, name string) ([]zellij.ClientRow, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.asked == nil {
-		f.asked = map[string]int{}
-	}
-	f.asked[name]++
-	if f.asked[name] == 1 && f.during[name] != nil {
-		f.during[name]()
-	}
-	if f.asked[name] > 1 && f.lateErr[name] != nil {
+	if f.lateErr[name] != nil {
 		return nil, f.lateErr[name]
 	}
-	if f.asked[name] > 1 && f.late[name] > 0 {
+	if f.late[name] > 0 {
 		return make([]zellij.ClientRow, f.late[name]), nil
 	}
-	return make([]zellij.ClientRow, f.clients[name]), nil
+	return nil, nil
 }
 func (f *fakeZellij) Delete(_ context.Context, name string) error {
 	f.deleted = append(f.deleted, name)
@@ -93,6 +84,8 @@ type world struct {
 	env  *reaper.Env
 	zj   *fakeZellij
 	logp string
+	// attach connects a client to a session, as the kernel would show it.
+	attach func(name string)
 }
 
 func newWorld(t *testing.T) *world {
@@ -103,8 +96,10 @@ func newWorld(t *testing.T) *world {
 	info := filepath.Join(t.TempDir(), "session_info")
 	ttys := t.TempDir()
 	var socks []procfs.UnixSocket
+	servers := map[string]int{}
 	add := func(name string, pid int, comm string, argv []string, used time.Time, title string) {
 		sock := testutil.Socket(t, sockDir, name)
+		servers[name] = pid
 		ino, dev, _ := procfs.FileID(sock)
 		socks = append(socks, procfs.UnixSocket{Inode: uint32(pid), State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
 		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", sock}, Sockets: []uint32{uint32(pid)}})
@@ -141,7 +136,16 @@ func newWorld(t *testing.T) *world {
 		LockPath: filepath.Join(home, "lock"),
 		Now:      time.Now,
 	}
-	return &world{env: env, zj: zj, logp: logp}
+	attach := func(name string) {
+		// One accepted connection in the server and its other end elsewhere.
+		pid := servers[name]
+		conn, peer := uint32(pid+50), uint32(pid+51)
+		fp.AddSocket(pid, conn)
+		socks = append(socks,
+			procfs.UnixSocket{Inode: conn, State: 1, Name: filepath.Join(sockDir, name), Peer: peer},
+			procfs.UnixSocket{Inode: peer, State: 1, Peer: conn})
+	}
+	return &world{env: env, zj: zj, logp: logp, attach: attach}
 }
 
 func (w *world) log(t *testing.T) string {
@@ -212,7 +216,7 @@ func TestDryRunTouchesNothing(t *testing.T) {
 	}
 	log := w.log(t)
 	if !strings.Contains(log, "  -> DRY_RUN: would run: zellij delete-session idle-old --force") ||
-		!strings.Contains(log, "  -> DRY_RUN: would rename 'busy' → 'htop_") {
+		!strings.Contains(log, "  -> DRY_RUN: would rename 'busy' → 'htop'") {
 		t.Errorf("dry run log:\n%s", log)
 	}
 }
@@ -242,7 +246,7 @@ func TestAutoRenameStepsPastRefusedNames(t *testing.T) {
 			desired = o.WouldRename
 		}
 	}
-	if !strings.HasPrefix(desired, "htop_") {
+	if desired != "htop" {
 		t.Fatalf("planned name %q", desired)
 	}
 	w.zj.refuse[desired] = true
@@ -422,7 +426,7 @@ func TestAutoRenameLeavesAttachedSessionsAlone(t *testing.T) {
 	// busy runs a protected program and a client is attached: its verdict is
 	// decided before its clients are looked at, and it keeps its name anyway.
 	w.env.Config.ProtectCommands = []string{"htop"}
-	w.zj.clients = map[string]int{"busy": 1}
+	w.attach("busy")
 	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -450,7 +454,7 @@ func TestAProtectionAddedDuringThePassKeepsTheSession(t *testing.T) {
 	w := newWorld(t)
 	// While the pass reads the facts, `zellij-reaper protect idle-old` runs
 	// in another terminal: another List writes the file.
-	w.zj.during = map[string]func(){"idle-old": func() {
+	w.zj.during = func() {
 		other, err := protect.Load(w.env.Protected.Path)
 		if err == nil {
 			err = other.Set("idle-old", true)
@@ -458,7 +462,7 @@ func TestAProtectionAddedDuringThePassKeepsTheSession(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-	}}
+	}
 	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
 		t.Fatal(err)
 	}

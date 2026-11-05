@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // versions are the zellij releases the fixtures were recorded from.
@@ -215,11 +216,188 @@ func TestCLIErrors(t *testing.T) {
 	if err == nil || errors.Is(err, ErrNoSessions) || !strings.Contains(err.Error(), "Error occurred: Os { code: 13 } second line") {
 		t.Errorf("real failure: %v", err)
 	}
-	if err := fake("", "A session by this name already exists\n", exit1).Rename(context.Background(), "a", "b"); !errors.Is(err, ErrNameTaken) {
-		t.Errorf("rename taken: %v", err)
-	}
 	c := fake("zellij 0.45.1\n", "", nil)
 	if v, err := c.Version(context.Background()); err != nil || v != "0.45.1" {
 		t.Errorf("version: %q %v", v, err)
+	}
+}
+
+// script answers zellij's commands by name and records every call.
+type script struct {
+	// listed is what list-sessions prints, and the first rename adds to it
+	// unless ignoreRename is set.
+	listed       string
+	ignoreRename bool
+	// renameOut and renameErr are what rename-session says.
+	renameOut string
+	renameErr error
+	// clients are the answers list-clients gives, one per call.
+	clients []string
+	calls   []string
+}
+
+func (s *script) run(_ context.Context, args ...string) (string, string, error) {
+	s.calls = append(s.calls, strings.Join(args, " "))
+	switch {
+	case args[0] == "list-sessions":
+		return s.listed, "", nil
+	case len(args) == 5 && args[3] == "rename-session":
+		if s.renameErr != nil {
+			return "", s.renameOut, s.renameErr
+		}
+		if !s.ignoreRename {
+			s.listed += args[4] + " [Created 1m ago]\n"
+		}
+		return "", "", nil
+	case len(args) == 4 && args[3] == "list-clients":
+		out := s.clients[0]
+		s.clients = s.clients[1:]
+		return out, "", nil
+	}
+	return "", "unexpected call", errors.New("exit status 2")
+}
+
+// count says how many calls contain a word.
+func (s *script) count(word string) int {
+	n := 0
+	for _, c := range s.calls {
+		if strings.Contains(c, word) {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *script) cli() *CLI { return &CLI{Bin: "zellij", Timeout: time.Second, Run: s.run} }
+
+func TestRename(t *testing.T) {
+	ctx := context.Background()
+	// A rename returns once zellij lists the new name.
+	s := &script{listed: "a [Created 1h ago]\n"}
+	if err := s.cli().Rename(ctx, "a", "b"); err != nil {
+		t.Errorf("plain rename: %v", err)
+	}
+	// A taken name never reaches zellij, because since 0.44 it would accept
+	// it and cut the other session off.
+	s = &script{listed: "a [Created 1h ago]\nb [Created 1h ago]\n"}
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("taken name: %v", err)
+	}
+	if s.count("rename-session") != 0 {
+		t.Errorf("asked zellij to rename onto a taken name: %v", s.calls)
+	}
+	// A name zellij remembers without listing it, as 0.43 says it.
+	s = &script{listed: "a [Created 1h ago]\n", renameOut: "A session by this name already exists.\n", renameErr: errors.New("exit status 2")}
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("name refused by zellij: %v", err)
+	}
+	// A rename zellij accepts and does not do is not reported as done.
+	old := renameSettles
+	renameSettles = 60 * time.Millisecond
+	defer func() { renameSettles = old }()
+	s = &script{listed: "a [Created 1h ago]\n", ignoreRename: true}
+	if err := s.cli().Rename(ctx, "a", "b"); err == nil || !strings.Contains(err.Error(), "does not list it") {
+		t.Errorf("rename without effect: %v", err)
+	}
+}
+
+func TestListClientsAsksAgainWhenTheAnswerCannotHold(t *testing.T) {
+	ctx := context.Background()
+	const none = "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
+	const one = none + "1 terminal_0 bash\n"
+	cases := []struct {
+		name    string
+		answers []string
+		want    int
+		wantErr bool
+		calls   int
+	}{
+		{"nobody: asked once", []string{none}, 0, false, 1},
+		// zellij 0.44.2 prints nothing when commands overlap.
+		{"no answer, then an answer", []string{"", one, one}, 1, false, 2},
+		{"no answer twice stays an error", []string{"", ""}, 0, true, 2},
+		// zellij 0.43 names the creating client the first time only.
+		{"a client that was never there", []string{one, none}, 0, false, 2},
+		// A real client is there both times.
+		{"a real client", []string{one, one}, 1, false, 2},
+	}
+	for _, c := range cases {
+		s := &script{clients: append([]string(nil), c.answers...)}
+		rows, err := s.cli().ListClients(ctx, "a")
+		if (err != nil) != c.wantErr || len(rows) != c.want || len(s.calls) != c.calls {
+			t.Errorf("%s: %d rows, err %v, %d calls", c.name, len(rows), err, len(s.calls))
+		}
+	}
+}
+
+func TestTitlesByFocus(t *testing.T) {
+	md := ParseMetadata(`name "x"
+tabs {
+    tab {
+        position 0
+        name "Tab #1"
+        active false
+    }
+    tab {
+        position 1
+        name "Tab #2"
+        active true
+    }
+}
+panes {
+    pane {
+        is_plugin false
+        is_focused true
+        title "focused in a tab nobody sees"
+        exited false
+        tab_position 0
+    }
+    pane {
+        is_plugin false
+        is_focused false
+        title "shown beside it"
+        exited false
+        tab_position 1
+    }
+    pane {
+        is_plugin false
+        is_focused true
+        title "the one the session shows"
+        exited false
+        tab_position 1
+    }
+    pane {
+        is_plugin false
+        is_focused false
+        title "its command finished"
+        exited true
+        tab_position 1
+    }
+    pane {
+        is_plugin true
+        is_focused true
+        title "tab-bar"
+        tab_position 1
+    }
+}
+`)
+	got := strings.Join(md.TitlesByFocus(), " | ")
+	want := "the one the session shows | focused in a tab nobody sees | shown beside it"
+	if got != want {
+		t.Errorf("titles by focus: %s", got)
+	}
+}
+
+// A real file from each release: the focused pane comes first, and the fields
+// this reads are still where it reads them.
+func TestTitlesByFocusOnRecordedFiles(t *testing.T) {
+	for _, v := range versions {
+		b, err := os.ReadFile(filepath.Join("testdata", v, "metadata-attached.kdl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if titles := ParseMetadata(string(b)).TitlesByFocus(); len(titles) == 0 {
+			t.Errorf("%s: no titles", v)
+		}
 	}
 }
