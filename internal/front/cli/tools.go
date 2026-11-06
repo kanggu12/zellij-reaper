@@ -115,11 +115,11 @@ old size after the window changed. --shallow signals the clients only.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
 			t := theme()
-			table, err := procfs.Read("/proc")
+			table, err := procfs.Read(procfs.Native)
 			if err != nil {
 				return err
 			}
-			targets := resize.Targets(table, os.Getuid(), os.Getpid(), shallow)
+			targets := resize.Targets(table, procfs.CurrentUID(), os.Getpid(), shallow)
 			if len(targets) == 0 {
 				println(w, warn(t)+i18n.T("resize.none"))
 				return nil

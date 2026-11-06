@@ -41,7 +41,7 @@ type Inputs struct {
 	ProtectCommands []string
 	// Shells are extra prompt programs (config.Shells).
 	Shells []string
-	// Signal sends a signal to a process; nil means syscall.Kill. Tests
+	// Signal sends a signal to a process; nil means procfs.Signal. Tests
 	// record the signals instead of sending any.
 	Signal func(pid int, sig syscall.Signal) error
 }
@@ -51,7 +51,7 @@ func (in Inputs) signal() func(int, syscall.Signal) error {
 	if in.Signal != nil {
 		return in.Signal
 	}
-	return syscall.Kill
+	return procfs.Signal
 }
 
 // Step is one thing Repair did or tried.

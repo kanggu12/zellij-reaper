@@ -14,7 +14,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -167,7 +167,7 @@ func headline(ctx context.Context, a *app.App, t ui.Theme) string {
 }
 
 // timerWords describes the timer: when it runs next, or that it is off.
-func timerWords(st systemd.TimerStatus, t ui.Theme) string {
+func timerWords(st timers.TimerStatus, t ui.Theme) string {
 	switch {
 	case !st.Installed:
 		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.none"))

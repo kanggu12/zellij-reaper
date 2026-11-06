@@ -28,7 +28,7 @@ Exits 1, printing nothing, outside zellij or when the name cannot be told.`,
 			// No settings and no zellij process: only /proc, the kernel's socket
 			// table and the socket directory, read up from this process (the
 			// shell that asked, its pane, the server).
-			src := inspect.Sources{ProcRoot: "/proc", UID: os.Getuid(), Sockets: procfs.UnixSockets}
+			src := inspect.Sources{ProcRoot: procfs.Native, UID: procfs.CurrentUID(), Sockets: procfs.UnixSockets}
 			name, err := inspect.Here(src, os.Getpid())
 			// Outside zellij, or with no name to give: nothing printed, status 1,
 			// so a prompt hook leaves ZELLIJ_SESSION_NAME as it is.

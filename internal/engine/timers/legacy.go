@@ -1,4 +1,4 @@
-package systemd
+package timers
 
 import (
 	"io"

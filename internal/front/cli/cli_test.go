@@ -16,7 +16,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/repair"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
@@ -74,7 +74,7 @@ func fakeApp(t *testing.T, env config.MapEnv) *app.App {
 	}}
 	a := &app.App{Env: env, Config: cfg, Protected: pl, Zellij: zj, InfoDir: filepath.Join(env.Home(), "session_info")}
 	a.Reaper = &reaper.Env{Config: cfg, Protected: pl, Zellij: zj, Log: logfile.New(cfg.LogPath, cfg.LogMaxBytes), LockPath: config.LockFile(env), Now: time.Now}
-	a.System = systemd.System{Env: env, User: "u", Run: func(name string, args ...string) (string, error) { return "", nil }}
+	a.System = timers.Systemd{Env: env, User: "u", Run: func(name string, args ...string) (string, error) { return "", nil }}
 	return a
 }
 

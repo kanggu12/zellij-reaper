@@ -5,10 +5,8 @@
 package procfs
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -29,6 +27,8 @@ type Proc struct {
 	State string
 	// CTTY is the device of its controlling terminal, 0 when it has none.
 	CTTY int
+	// started is when it started, where the reader knows it.
+	started time.Time
 }
 
 // Name is the program's name as people know it: the command line's first
@@ -37,7 +37,9 @@ type Proc struct {
 // Name is the interpreter; ScriptName finds the script.
 func (p *Proc) Name() string {
 	if len(p.Argv) > 0 && p.Argv[0] != "" {
-		return strings.TrimPrefix(filepath.Base(p.Argv[0]), "-")
+		// A Windows program's name goes without its ".exe", as its kernel
+		// name does there.
+		return strings.TrimSuffix(strings.TrimPrefix(baseName(p.Argv[0]), "-"), ".exe")
 	}
 	return p.Comm
 }
@@ -49,7 +51,7 @@ func (p *Proc) Name() string {
 func (p *Proc) Names() []string {
 	names := []string{p.Comm, p.Name()}
 	if len(p.Argv) > 1 && !strings.HasPrefix(p.Argv[1], "-") {
-		names = append(names, filepath.Base(p.Argv[1]))
+		names = append(names, baseName(p.Argv[1]))
 	}
 	return names
 }
@@ -68,79 +70,15 @@ type Table struct {
 	ByPID map[int]*Proc
 	// children maps a parent to its children, sorted by PID.
 	children map[int][]int
-	// Root is the /proc directory the snapshot came from.
+	// Root is the /proc directory the snapshot came from, empty for a native
+	// reader on a system without one.
 	Root string
+	// cwds and sockets, when a native reader set them, answer Cwd and
+	// SocketInodes in place of Root.
+	cwds    map[int]string
+	sockets map[int]map[uint32]bool
 	// Taken is when the snapshot was made.
 	Taken time.Time
-}
-
-// Read takes a snapshot of root (normally "/proc"). Processes that exit while
-// it is being read are skipped, not reported as errors.
-func Read(root string) (*Table, error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
-	t := &Table{ByPID: map[int]*Proc{}, children: map[int][]int{}, Root: root, Taken: time.Now()}
-	for _, e := range entries {
-		pid, err := strconv.Atoi(e.Name())
-		// Only the numeric entries are processes.
-		if err != nil {
-			continue
-		}
-		p, ok := readProc(root, pid)
-		if !ok {
-			continue
-		}
-		t.ByPID[pid] = p
-	}
-	t.index()
-	return t, nil
-}
-
-// ReadSessions is Read for a pass: every process's stat, which gives the tree,
-// and the rest (uid, command line, fd 0) only for zellij's own processes and
-// everything under them, the only processes a pass looks at. The others keep a
-// UID of -1 and no command line. On a machine with 166 processes this read took
-// 11.9 ms in full and about a third of that this way.
-func ReadSessions(root string) (*Table, error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
-	t := &Table{ByPID: map[int]*Proc{}, children: map[int][]int{}, Root: root, Taken: time.Now()}
-	for _, e := range entries {
-		pid, err := strconv.Atoi(e.Name())
-		// Only the numeric entries are processes.
-		if err != nil {
-			continue
-		}
-		if p, ok := readStat(root, pid); ok {
-			p.UID = -1
-			t.ByPID[pid] = p
-		}
-	}
-	t.index()
-	// zellij's processes (servers and clients) and their descendants: panes,
-	// the programs in them, a protected agent however deep.
-	var queue []int
-	for pid, p := range t.ByPID {
-		if strings.Contains(p.Comm, "zellij") {
-			queue = append(queue, pid)
-		}
-	}
-	seen := map[int]bool{}
-	for len(queue) > 0 {
-		pid := queue[0]
-		queue = queue[1:]
-		if seen[pid] {
-			continue
-		}
-		seen[pid] = true
-		readDetails(root, t.ByPID[pid])
-		queue = append(queue, t.children[pid]...)
-	}
-	return t, nil
 }
 
 // index builds the child index once, in PID order: a session's first pane is
@@ -153,65 +91,6 @@ func (t *Table) index() {
 	for _, kids := range t.children {
 		sort.Ints(kids)
 	}
-}
-
-// readProc reads one process's stat, status, cmdline and fd 0.
-func readProc(root string, pid int) (*Proc, bool) {
-	p, ok := readStat(root, pid)
-	if ok {
-		readDetails(root, p)
-	}
-	return p, ok
-}
-
-// readStat reads one process's stat: its name, state, parent and terminal.
-func readStat(root string, pid int) (*Proc, bool) {
-	dir := filepath.Join(root, strconv.Itoa(pid))
-	stat, err := os.ReadFile(filepath.Join(dir, "stat"))
-	if err != nil {
-		return nil, false
-	}
-	// stat is "pid (comm) state ppid ...", and comm may itself contain spaces
-	// and parentheses, so split at the last ")".
-	s := string(stat)
-	open, closing := strings.IndexByte(s, '('), strings.LastIndexByte(s, ')')
-	if open < 0 || closing < open {
-		return nil, false
-	}
-	p := &Proc{PID: pid, Comm: s[open+1 : closing]}
-	fields := strings.Fields(s[closing+1:])
-	if len(fields) < 2 {
-		return nil, false
-	}
-	p.State = fields[0]
-	p.PPID, _ = strconv.Atoi(fields[1])
-	// After the state and the parent: process group, session, tty_nr.
-	if len(fields) > 4 {
-		p.CTTY, _ = strconv.Atoi(fields[4])
-	}
-	return p, true
-}
-
-// readDetails reads a process's real uid, command line and fd 0.
-func readDetails(root string, p *Proc) {
-	dir := filepath.Join(root, strconv.Itoa(p.PID))
-	// The real uid is the first number on the Uid: line of status.
-	if status, err := os.ReadFile(filepath.Join(dir, "status")); err == nil {
-		for _, line := range strings.Split(string(status), "\n") {
-			if strings.HasPrefix(line, "Uid:") {
-				if f := strings.Fields(line); len(f) > 1 {
-					p.UID, _ = strconv.Atoi(f[1])
-				}
-				break
-			}
-		}
-	}
-	// cmdline separates arguments with NUL and usually ends with one.
-	if raw, err := os.ReadFile(filepath.Join(dir, "cmdline")); err == nil && len(raw) > 0 {
-		p.Argv = strings.Split(strings.TrimRight(string(raw), "\x00"), "\x00")
-	}
-	// fd 0 of another user's process is unreadable; that leaves Stdin empty.
-	p.Stdin, _ = os.Readlink(filepath.Join(dir, "fd", "0"))
 }
 
 // Children returns the direct children of pid.
@@ -248,22 +127,15 @@ func (t *Table) Descendants(pid, max int) []*Proc {
 	return out
 }
 
-// Cwd is the directory a process works in, "" when it cannot be read or the
-// directory is gone.
-func (t *Table) Cwd(pid int) string {
-	p, err := os.Readlink(filepath.Join(t.Root, strconv.Itoa(pid), "cwd"))
-	if err != nil || strings.HasSuffix(p, " (deleted)") {
-		return ""
-	}
-	return p
-}
-
 // Server is a running zellij server.
 type Server struct {
 	// PID is the server process.
 	PID int
 	// Socket is the socket path from its command line.
 	Socket string
+	// Started is when the server started, zero where the reader does not
+	// know it.
+	Started time.Time
 }
 
 // Session is the session name the server serves: its socket file's name.
@@ -281,12 +153,12 @@ func (t *Table) Servers(uid int) []Server {
 		// The program must be zellij (a path or a renamed copy still has
 		// "zellij" in its name); a shell running `grep zellij --server`
 		// would otherwise look like one.
-		if !strings.Contains(filepath.Base(p.Argv[0]), "zellij") {
+		if !strings.Contains(baseName(p.Argv[0]), "zellij") {
 			continue
 		}
 		for i := 1; i+1 < len(p.Argv); i++ {
 			if p.Argv[i] == "--server" {
-				out = append(out, Server{PID: p.PID, Socket: p.Argv[i+1]})
+				out = append(out, Server{PID: p.PID, Socket: p.Argv[i+1], Started: p.started})
 				break
 			}
 		}
@@ -295,23 +167,88 @@ func (t *Table) Servers(uid int) []Server {
 	return out
 }
 
+// Started is when a process started, zero where the reader does not know it.
+func (p *Proc) Started() time.Time { return p.started }
+
 // IsZombie reports whether the process has exited and waits to be reaped by
 // its parent.
 func (p *Proc) IsZombie() bool { return p.State == "Z" }
 
-// Process reads one process in full, as Read would. ok is false when it is gone.
-func Process(root string, pid int) (*Proc, bool) { return readProc(root, pid) }
-
 // ServerOf reports whether p is a zellij server, and the socket it was started on.
 func ServerOf(p *Proc) (Server, bool) {
 	// The same test Servers makes: zellij in the program's name, then --server.
-	if len(p.Argv) < 3 || !strings.Contains(filepath.Base(p.Argv[0]), "zellij") {
+	if len(p.Argv) < 3 || !strings.Contains(baseName(p.Argv[0]), "zellij") {
 		return Server{}, false
 	}
 	for i := 1; i+1 < len(p.Argv); i++ {
 		if p.Argv[i] == "--server" {
-			return Server{PID: p.PID, Socket: p.Argv[i+1]}, true
+			return Server{PID: p.PID, Socket: p.Argv[i+1], Started: p.started}, true
 		}
 	}
 	return Server{}, false
+}
+
+// Native is the root that means "this machine": /proc on Linux, and the
+// system's own process interfaces elsewhere. Any other root is read as a
+// directory laid out like /proc, which is how the tests fake a machine.
+const Native = ""
+
+// Read takes a snapshot of every process.
+func Read(root string) (*Table, error) {
+	if root == Native {
+		return readNative(false)
+	}
+	return readDirAll(root)
+}
+
+// ReadSessions is Read for a pass: every process's parent and name, and the
+// rest (uid, command line, input) only for zellij's own processes and
+// everything under them, the only processes a pass looks at. The others keep
+// a UID of -1 and no command line. On a machine with 166 processes this read
+// took 11.9 ms in full and about a third of that this way.
+func ReadSessions(root string) (*Table, error) {
+	if root == Native {
+		return readNative(true)
+	}
+	return readDirSessions(root)
+}
+
+// Process reads one process in full, as Read would. ok is false when it is gone.
+func Process(root string, pid int) (*Proc, bool) {
+	if root == Native {
+		return processNative(pid)
+	}
+	return readProc(root, pid)
+}
+
+// ReadZellij reads only what finds zellij's servers: their command lines and
+// start times, without the directories panes work in. `here` reads this at
+// every prompt.
+func ReadZellij(root string) (*Table, error) {
+	if root == Native {
+		return readZellijNative()
+	}
+	return readDirSessions(root)
+}
+
+// FileOwner reports which of servers a session's socket file belongs to, from
+// the file itself where the system allows it: the process ID zellij writes into
+// it on Windows, its creation time on macOS. On Linux the kernel's socket table
+// answers instead, so this says nothing there.
+func FileOwner(path string, servers []Server) (Server, bool) { return fileOwner(path, servers) }
+
+// Empty is a table with no process in it yet, which still reads a process's
+// sockets and directory from root as they are asked for.
+func Empty(root string) *Table {
+	return &Table{ByPID: map[int]*Proc{}, children: map[int][]int{}, Root: nativeRoot(root)}
+}
+
+// baseName is the last element of a path written with either separator: a
+// Windows command line names its program with backslashes, which
+// filepath.Base reads as part of a name on other systems.
+func baseName(p string) string {
+	if i := strings.LastIndexAny(p, `/\`); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }

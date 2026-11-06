@@ -10,7 +10,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 )
 
@@ -45,7 +45,7 @@ type (
 		report reaper.Report
 		err    error
 	}
-	timerMsg struct{ st systemd.TimerStatus }
+	timerMsg struct{ st timers.TimerStatus }
 	tickMsg  time.Time
 	// doneMsg reports an action's result as a toast and asks for a refresh.
 	doneMsg struct {
@@ -100,7 +100,7 @@ type model struct {
 	logTop   int
 	follow   bool
 
-	timer systemd.TimerStatus
+	timer timers.TimerStatus
 	// timerKnown is false until systemd has answered, so the header does
 	// not claim a missing timer while it is still asking.
 	timerKnown bool

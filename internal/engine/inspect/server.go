@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
 // socketDirs collects the directories servers keep their sockets in, plus the
@@ -32,7 +33,7 @@ func socketDirs(servers []procfs.Server, extra []string) []string {
 func findSocket(dirs []string, name string) string {
 	for _, d := range dirs {
 		p := filepath.Join(d, name)
-		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSocket != 0 {
+		if info, err := os.Lstat(p); err == nil && zellij.IsSocket(info.Mode()) {
 			return p
 		}
 	}
@@ -66,6 +67,15 @@ func findServer(socket string, servers []procfs.Server, socks []procfs.UnixSocke
 						return &servers[i], "socket file"
 					}
 				}
+			}
+		}
+	}
+	// From the socket file itself, where the system allows it: the process ID
+	// zellij writes into it on Windows, its creation time on macOS.
+	if s, ok := procfs.FileOwner(socket, servers); ok {
+		for i := range servers {
+			if servers[i].PID == s.PID {
+				return &servers[i], "socket file"
 			}
 		}
 	}

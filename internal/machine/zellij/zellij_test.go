@@ -160,21 +160,21 @@ func TestUnquoteKDL(t *testing.T) {
 
 func TestSessionInfoDir(t *testing.T) {
 	cache := t.TempDir()
-	if got := SessionInfoDir(cache, "0.45.1"); got != filepath.Join(cache, "zellij", "contract_version_1", "session_info") {
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1"); got != filepath.Join(cache, "zellij", "contract_version_1", "session_info") {
 		t.Errorf("default = %q", got)
 	}
 	for _, d := range []string{"contract_version_1", "contract_version_2", "0.45.1"} {
 		os.MkdirAll(filepath.Join(cache, "zellij", d), 0o755)
 	}
-	if got := SessionInfoDir(cache, "0.45.1"); !strings.Contains(got, "contract_version_2") {
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1"); !strings.Contains(got, "contract_version_2") {
 		t.Errorf("highest contract not picked: %q", got)
 	}
 	// Before 0.44, the data directory is named after the version.
-	if got := SessionInfoDir(cache, "0.43.1"); got != filepath.Join(cache, "zellij", "0.43.1", "session_info") {
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.43.1"); got != filepath.Join(cache, "zellij", "0.43.1", "session_info") {
 		t.Errorf("0.43 = %q", got)
 	}
 	// An unknown version is taken to be a current one.
-	if got := SessionInfoDir(cache, ""); !strings.Contains(got, "contract_version_2") {
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), ""); !strings.Contains(got, "contract_version_2") {
 		t.Errorf("unknown version: %q", got)
 	}
 }

@@ -15,10 +15,11 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
@@ -46,7 +47,7 @@ type Backend interface {
 	// PatternProtects reports whether the settings' pattern protects a name.
 	PatternProtects(name string) bool
 	// Timer is the systemd timer's state.
-	Timer() systemd.TimerStatus
+	Timer() timers.TimerStatus
 	// ZellijVersion is the zellij version, or "".
 	ZellijVersion(ctx context.Context) string
 	// Config is the settings in effect.
@@ -224,7 +225,7 @@ func (r real) nameLimit() int {
 
 // socketDir is zellij's socket directory here; "" when it is not known.
 func (r real) socketDir() string {
-	return zellij.SocketDir(os.LookupEnv, os.Getuid(), r.a.ZellijVersion)
+	return zellij.SocketDir(os.LookupEnv, procfs.CurrentUID(), r.a.ZellijVersion)
 }
 
 // renameListed renames a session on the protected list without a moment in
@@ -264,7 +265,7 @@ func (r real) renameListed(ctx context.Context, name, to string) error {
 func (r real) SetProtected(name string, on bool) error { return r.a.Protected.Set(name, on) }
 func (r real) Protected(name string) bool              { return r.a.Protected.Has(name) }
 func (r real) PatternProtects(name string) bool        { return r.a.Config.ProtectMatches(name) }
-func (r real) Timer() systemd.TimerStatus              { return r.a.System.Status() }
+func (r real) Timer() timers.TimerStatus               { return r.a.System.Status() }
 func (r real) Config() *config.Config                  { return r.a.Config }
 
 func (r real) ZellijVersion(ctx context.Context) string {

@@ -231,7 +231,7 @@ var uninformative = map[string]bool{
 	"sh": true, "bash": true, "zsh": true, "fish": true, "dash": true, "ash": true, "ksh": true, "mksh": true,
 	"oksh": true, "pdksh": true, "yash": true, "csh": true, "tcsh": true, "nu": true, "elvish": true, "xonsh": true,
 	"pwsh": true, "ion": true, "osh": true, "oil": true, "hush": true, "rc": true, "es": true, "murex": true,
-	"login": true,
+	"powershell": true, "cmd": true, "login": true,
 }
 
 // defaultTitleRe matches zellij's own pane and tab titles once normalized.

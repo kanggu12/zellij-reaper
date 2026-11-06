@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,11 +28,12 @@ func DataDirName(version string) string {
 }
 
 // SessionInfoDir finds the directory with one subdirectory per session, under
-// the user's cache directory. Before 0.44 it is <cache>/zellij/<version>/
-// session_info; since then <cache>/zellij/contract_version_N/session_info,
-// where zellij bumps N when the format changes, so the highest N present wins.
-func SessionInfoDir(cacheDir, version string) string {
-	base := filepath.Join(cacheDir, "zellij")
+// zellij's cache directory (config.ZellijCacheDir). Before 0.44 it is
+// <cache>/<version>/session_info; since then <cache>/contract_version_N/
+// session_info, where zellij bumps N when the format changes, so the highest N
+// present wins.
+func SessionInfoDir(zellijCache, version string) string {
+	base := zellijCache
 	if d := DataDirName(version); !strings.HasPrefix(d, "contract_version_") {
 		return filepath.Join(base, d, "session_info")
 	}
@@ -53,25 +55,46 @@ func SessionInfoDir(cacheDir, version string) string {
 	return filepath.Join(base, best, "session_info")
 }
 
+// GOOS is the system the rules below follow; tests set it to check the others.
+var GOOS = runtime.GOOS
+
 // SocketDir is where zellij creates a session's socket, following zellij's own
-// rule: $ZELLIJ_SOCKET_DIR, else $XDG_RUNTIME_DIR/zellij, else /tmp/zellij-<uid>,
-// each with the data directory (DataDirName) below it. Running servers name
-// their socket on their command line, which is what the reaper trusts; this is
-// only for sessions with no server, such as those `recover` repairs.
+// rule: $ZELLIJ_SOCKET_DIR, else $XDG_RUNTIME_DIR/zellij (Linux only), else
+// <temp>/zellij-<uid>, or <temp>/zellij on Windows, which has no uids; each
+// with the data directory (DataDirName) below it. Running servers name their
+// socket on their command line, which is what the reaper trusts; this is only
+// for sessions with no server, such as those `recover` repairs.
 func SocketDir(lookup func(string) (string, bool), uid int, version string) string {
 	sub := DataDirName(version)
 	if v, ok := lookup("ZELLIJ_SOCKET_DIR"); ok && v != "" {
 		return filepath.Join(v, sub)
 	}
-	if v, ok := lookup("XDG_RUNTIME_DIR"); ok && v != "" {
-		return filepath.Join(v, "zellij", sub)
+	switch GOOS {
+	case "windows":
+		return filepath.Join(os.TempDir(), "zellij", sub)
+	case "linux":
+		if v, ok := lookup("XDG_RUNTIME_DIR"); ok && v != "" {
+			return filepath.Join(v, "zellij", sub)
+		}
 	}
 	return filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(uid), sub)
 }
 
-// SocketPathLimit is the longest path a Unix socket can have on Linux
-// (sizeof(sun_path) is 108, one byte goes to the terminating NUL).
-const SocketPathLimit = 107
+// SocketPathLimit is the longest path a session's socket can have: on Linux
+// sizeof(sun_path) is 108 and on macOS 104, one byte going to the terminating
+// NUL. Windows names a pipe after the path and refuses a path of 256 or more.
+var SocketPathLimit = socketPathLimit(GOOS)
+
+// socketPathLimit is SocketPathLimit for one system.
+func socketPathLimit(goos string) int {
+	switch goos {
+	case "darwin":
+		return 103
+	case "windows":
+		return 255
+	}
+	return 107
+}
 
 // NameRoom is how many bytes a session's name can take in a socket directory
 // before its socket path passes the limit. A name past it leaves a server no
@@ -81,7 +104,9 @@ func NameRoom(socketDir string) int {
 }
 
 // Sockets lists the names of the socket files in dir: one per session zellij
-// serves there, whether it lists that session at this moment or not.
+// serves there, whether it lists that session at this moment or not. On
+// Windows they are plain files holding the server's process ID, next to the
+// named pipes zellij really talks through.
 func Sockets(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -89,11 +114,20 @@ func Sockets(dir string) []string {
 	}
 	var names []string
 	for _, e := range entries {
-		if e.Type()&os.ModeSocket != 0 {
+		if IsSocket(e.Type()) {
 			names = append(names, e.Name())
 		}
 	}
 	return names
+}
+
+// IsSocket reports whether a file in the socket directory stands for a
+// session: a Unix socket, or on Windows a regular file.
+func IsSocket(mode os.FileMode) bool {
+	if GOOS == "windows" {
+		return mode.IsRegular()
+	}
+	return mode&os.ModeSocket != 0
 }
 
 // SocketTaken reports whether a file sits at dir/name. zellij moves a session's

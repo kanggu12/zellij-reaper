@@ -42,22 +42,32 @@ func Here(src Sources, pid int) (string, error) {
 	if !found {
 		return "", ErrNotInSession
 	}
-	if src.Sockets == nil {
-		return "", ErrNameUnknown
-	}
-	socks, err := src.Sockets()
-	if err != nil {
-		return "", ErrNameUnknown
-	}
-	// The socket file the server listens on, whatever it is called now:
-	// only a match through the socket table counts, since after a rename
-	// another session may have taken the name on the server's command line.
-	table := &procfs.Table{Root: src.ProcRoot}
-	servers := []procfs.Server{server}
-	owners := socketOwners(table, servers)
+	// The socket file the server listens on, whatever it is called now: only
+	// a match through the socket table or the file itself counts, since after
+	// a rename another session may have taken the name on the server's
+	// command line.
 	dir := filepath.Dir(server.Socket)
+	var socks []procfs.UnixSocket
+	if src.Sockets != nil {
+		socks, _ = src.Sockets()
+	}
+	var table *procfs.Table
+	servers := []procfs.Server{server}
+	if len(socks) > 0 {
+		// The socket table needs only this server's sockets.
+		table = procfs.Empty(src.ProcRoot)
+	} else {
+		// Matching by the file needs every server, to tell them apart.
+		t, err := procfs.ReadZellij(src.ProcRoot)
+		if err != nil {
+			return "", ErrNameUnknown
+		}
+		table, servers = t, t.Servers(src.UID)
+	}
+	owners := socketOwners(table, servers)
 	for _, name := range zellij.Sockets(dir) {
-		if s, how := findServer(filepath.Join(dir, name), servers, socks, owners); s != nil && how == "socket file" {
+		s, how := findServer(filepath.Join(dir, name), servers, socks, owners)
+		if s != nil && s.PID == server.PID && how == "socket file" {
 			return name, nil
 		}
 	}

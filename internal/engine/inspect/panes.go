@@ -1,10 +1,7 @@
 package inspect
 
 import (
-	"os"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 )
@@ -55,12 +52,16 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 			pane.Busy = short(kids[0].CommandLine())
 		}
 		if tty := p.Stdin; tty != "" && strings.HasPrefix(tty, "/") && tty != "/dev/null" {
-			pane.LastIO = lastIO(tty)
+			pane.LastIO = procfs.LastIO(tty)
 		}
 		out = append(out, pane)
 	}
 	return out
 }
+
+// consoleHosts are the programs Windows runs behind every pseudoconsole: one
+// per pane, and none of them a program the pane runs.
+var consoleHosts = map[string]bool{"conhost": true, "openconsole": true}
 
 // isHelper reports whether a server's child is one of its helpers. Every pane
 // has its terminal as its controlling terminal, whatever its input was pointed
@@ -70,26 +71,14 @@ func panes(t *procfs.Table, server int, shells map[string]bool) []Pane {
 // either. A stdin that cannot be read says nothing, so it does not count: a
 // process of another user is no reason to call a session idle.
 func isHelper(p *procfs.Proc) bool {
+	// On Windows every pane's pseudoconsole runs as a child of the server.
+	if consoleHosts[p.Comm] {
+		return true
+	}
 	if p.CTTY != 0 {
 		return false
 	}
 	return p.Stdin == "/dev/null" || strings.HasPrefix(p.Stdin, "pipe:") || strings.HasPrefix(p.Stdin, "socket:")
-}
-
-// lastIO is the later of a terminal's last write (mtime) and last read
-// (atime): output and input both mean someone or something used the pane.
-func lastIO(tty string) time.Time {
-	info, err := os.Stat(tty)
-	if err != nil {
-		return time.Time{}
-	}
-	t := info.ModTime()
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		if a := time.Unix(st.Atim.Sec, st.Atim.Nsec); a.After(t) {
-			t = a
-		}
-	}
-	return t
 }
 
 // isPrompt reports whether a process is an interactive shell: both its kernel

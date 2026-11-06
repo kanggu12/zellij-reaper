@@ -209,7 +209,7 @@ func Follow(path string, w io.Writer, stop <-chan struct{}) error {
 	var off int64
 	var ino uint64
 	if info, err := os.Stat(path); err == nil {
-		off, ino = info.Size(), inode(info)
+		off, ino = info.Size(), inode(path, info)
 	}
 	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
@@ -224,7 +224,7 @@ func Follow(path string, w io.Writer, stop <-chan struct{}) error {
 			continue
 		}
 		// A new inode means the log was rotated: read the new file from 0.
-		if i := inode(info); i != ino {
+		if i := inode(path, info); i != ino {
 			ino, off = i, 0
 		}
 		if info.Size() <= off {

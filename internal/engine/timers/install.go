@@ -1,4 +1,4 @@
-package systemd
+package timers
 
 import (
 	"errors"
@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
-	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
 
 // Result says what an install or an uninstall did.
@@ -42,7 +41,7 @@ type InstallOptions struct {
 
 // Install writes the units, moves a legacy install over, writes a settings
 // file if there is none, and enables the timer and lingering.
-func (s System) Install(o InstallOptions) (Result, error) {
+func (s Systemd) Install(o InstallOptions) (Result, error) {
 	var r Result
 	// Refused before anything is written: a unit that cannot hold these
 	// paths would run something else, or nothing.
@@ -124,7 +123,7 @@ func (s System) Install(o InstallOptions) (Result, error) {
 
 // installNames writes and starts the names timer, or, with rename_interval 0,
 // stops and removes it.
-func (s System) installNames(o InstallOptions, r *Result) error {
+func (s Systemd) installNames(o InstallOptions, r *Result) error {
 	if o.Config.RenameInterval <= 0 {
 		s.systemctl("disable", "--now", NamesTimerName)
 		for _, p := range []string{s.namesTimerPath(), s.namesServicePath()} {
@@ -152,7 +151,7 @@ func (s System) installNames(o InstallOptions, r *Result) error {
 }
 
 // enableLinger turns on lingering for the user, if it is not on yet.
-func (s System) enableLinger() string {
+func (s Systemd) enableLinger() string {
 	if out, err := s.Run("loginctl", "show-user", s.User, "--property=Linger"); err == nil && strings.Contains(out, "Linger=yes") {
 		return "already"
 	}
@@ -164,7 +163,7 @@ func (s System) enableLinger() string {
 
 // Uninstall stops and removes the timer and the service. With purge it also
 // removes the settings, the log and the protected list.
-func (s System) Uninstall(purge bool, logPath string) (Result, error) {
+func (s Systemd) Uninstall(purge bool, logPath string) (Result, error) {
 	var r Result
 	if s.Available() {
 		// "not loaded" is fine: there may be nothing to disable.
@@ -179,19 +178,20 @@ func (s System) Uninstall(purge bool, logPath string) (Result, error) {
 		s.systemctl("daemon-reload")
 	}
 	if purge {
-		// The name lists' own lock files go too, or they alone would
-		// keep the state directory from being removed.
-		for _, p := range []string{config.ConfigFile(s.Env), logPath, logPath + ".1", config.ProtectedFile(s.Env),
-			protect.LockPath(config.ProtectedFile(s.Env)), config.GivenFile(s.Env), protect.LockPath(config.GivenFile(s.Env)),
-			config.KeptFile(s.Env), protect.LockPath(config.KeptFile(s.Env)),
-			config.LockFile(s.Env)} {
-			if err := os.Remove(p); err == nil {
-				r.Removed = append(r.Removed, p)
-			}
-		}
-		// Remove the directories too, but only if nothing else is in them.
-		os.Remove(config.ConfigDir(s.Env))
-		os.Remove(config.StateDir(s.Env))
+		purgeState(s.Env, logPath, &r)
 	}
 	return r, nil
+}
+
+// Kind names systemd for messages.
+func (s Systemd) Kind() string { return "systemd" }
+
+// Persists reports lingering, which keeps the user's systemd, and its
+// timers, running without a login.
+func (s Systemd) Persists() (on, known bool) {
+	out, err := s.Run("loginctl", "show-user", s.User, "--property=Linger")
+	if err != nil {
+		return false, false
+	}
+	return strings.Contains(out, "Linger=yes"), true
 }

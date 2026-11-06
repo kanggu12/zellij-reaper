@@ -27,6 +27,14 @@ const clockTicks = 100
 // command line only for zellij processes started in the last SettleAge, so a
 // pass that finds none spends about a millisecond.
 func YoungestServer(root string, uid int) (time.Duration, bool) {
+	if root == Native {
+		return youngestNative(uid)
+	}
+	return youngestDir(root, uid)
+}
+
+// youngestDir is YoungestServer on a directory laid out like /proc.
+func youngestDir(root string, uid int) (time.Duration, bool) {
 	up, ok := uptime(root)
 	if !ok {
 		return 0, false

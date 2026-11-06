@@ -18,6 +18,8 @@ import (
 var KnownShells = []string{
 	"sh", "bash", "zsh", "fish", "dash", "ash", "ksh", "mksh", "oksh", "pdksh", "yash",
 	"csh", "tcsh", "nu", "elvish", "xonsh", "pwsh", "ion", "osh", "oil", "hush", "rc", "es", "murex",
+	// Windows's own.
+	"powershell", "cmd",
 }
 
 // ClientLister asks a running session for its attached clients.

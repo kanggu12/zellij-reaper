@@ -16,7 +16,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
@@ -66,8 +66,8 @@ func (f *fake) KeepName(_ context.Context, name string) error {
 func (f *fake) SetProtected(name string, on bool) error { f.protected[name] = on; return nil }
 func (f *fake) Protected(name string) bool              { return f.protected[name] }
 func (f *fake) PatternProtects(string) bool             { return false }
-func (f *fake) Timer() systemd.TimerStatus {
-	return systemd.TimerStatus{Installed: true, Enabled: true, Active: true, Next: time.Now().Add(42 * time.Minute), Interval: time.Hour}
+func (f *fake) Timer() timers.TimerStatus {
+	return timers.TimerStatus{Installed: true, Enabled: true, Active: true, Next: time.Now().Add(42 * time.Minute), Interval: time.Hour}
 }
 func (f *fake) ZellijVersion(context.Context) string { return "0.45.1" }
 func (f *fake) Config() *config.Config               { return f.cfg }

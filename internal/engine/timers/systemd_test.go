@@ -1,4 +1,4 @@
-package systemd
+package timers
 
 import (
 	"os"
@@ -34,11 +34,11 @@ func (f *fakeRun) run(name string, args ...string) (string, error) {
 	return "", nil
 }
 
-func newSystem(t *testing.T) (System, *fakeRun, config.MapEnv) {
+func newSystem(t *testing.T) (Systemd, *fakeRun, config.MapEnv) {
 	t.Helper()
 	env := config.MapEnv{"HOME": t.TempDir()}
 	f := &fakeRun{linger: "no"}
-	return System{Env: env, Run: f.run, User: "u"}, f, env
+	return Systemd{Env: env, Run: f.run, User: "u"}, f, env
 }
 
 func TestUnits(t *testing.T) {

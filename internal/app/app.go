@@ -13,7 +13,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/repair"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -28,7 +28,7 @@ type App struct {
 	Protected *protect.List
 	Zellij    *zellij.CLI
 	Reaper    *reaper.Env
-	System    systemd.System
+	System    timers.Scheduler
 	// InfoDir is zellij's session_info directory.
 	InfoDir string
 	// ZellijVersion is the version zellij reported at load ("" if none).
@@ -48,14 +48,14 @@ func Load(configPath string) (*App, error) {
 		return nil, err
 	}
 	zj := zellij.New(cfg.ZellijPath)
-	uid := os.Getuid()
-	zj.Settle = func(ctx context.Context) { procfs.Settle(ctx, "/proc", uid) }
+	uid := procfs.CurrentUID()
+	zj.Settle = func(ctx context.Context) { procfs.Settle(ctx, procfs.Native, uid) }
 	// The data directory's name depends on the zellij version (0.43 and
 	// earlier name it after the version), so ask zellij first.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ver, _ := zj.Version(ctx)
-	info := zellij.SessionInfoDir(config.CacheDir(env), ver)
+	info := zellij.SessionInfoDir(config.ZellijCacheDir(env), ver)
 	a := &App{Env: env, Config: cfg, Protected: pl, Zellij: zj, InfoDir: info, ZellijVersion: ver}
 	a.Reaper = &reaper.Env{
 		Config:    cfg,
@@ -70,17 +70,17 @@ func Load(configPath string) (*App, error) {
 		Home:      homeDir(),
 		Host:      hostName(),
 	}
-	a.System = systemd.System{Env: env, Run: systemd.Exec, User: userName()}
+	a.System = timers.For(env, userName())
 	return a, nil
 }
 
 // Sources are the real machine's: /proc, the kernel's sockets, zellij.
 func (a *App) Sources() inspect.Sources {
 	return inspect.Sources{
-		ProcRoot:   "/proc",
+		ProcRoot:   procfs.Native,
 		InfoDir:    a.InfoDir,
-		SocketDirs: []string{zellij.SocketDir(os.LookupEnv, os.Getuid(), a.ZellijVersion)},
-		UID:        os.Getuid(),
+		SocketDirs: []string{zellij.SocketDir(os.LookupEnv, procfs.CurrentUID(), a.ZellijVersion)},
+		UID:        procfs.CurrentUID(),
 		Clients:    a.Zellij,
 		Sockets:    procfs.UnixSockets,
 		Now:        time.Now,

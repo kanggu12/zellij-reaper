@@ -1,6 +1,6 @@
 // Package systemd installs zellij-reaper as a systemd user timer, removes it,
 // reports its state, and moves an install of the earlier shell version over.
-package systemd
+package timers
 
 import (
 	"os"
@@ -32,7 +32,7 @@ func Exec(name string, args ...string) (string, error) {
 }
 
 // System is the part of the machine the installer touches.
-type System struct {
+type Systemd struct {
 	// Env locates the unit, settings and state directories.
 	Env config.Env
 	// Run executes systemctl and loginctl.
@@ -49,23 +49,23 @@ type System struct {
 const FirstPassDelay = 10 * time.Minute
 
 // systemctl runs `systemctl --user ...`.
-func (s System) systemctl(args ...string) (string, error) {
+func (s Systemd) systemctl(args ...string) (string, error) {
 	return s.Run("systemctl", append([]string{"--user"}, args...)...)
 }
 
 // Available reports whether a systemd user instance answers.
-func (s System) Available() bool {
+func (s Systemd) Available() bool {
 	_, err := s.systemctl("show-environment")
 	return err == nil
 }
 
 // servicePath and timerPath are the unit files.
-func (s System) servicePath() string { return filepath.Join(config.UnitDir(s.Env), ServiceName) }
-func (s System) timerPath() string   { return filepath.Join(config.UnitDir(s.Env), TimerName) }
-func (s System) namesServicePath() string {
+func (s Systemd) servicePath() string { return filepath.Join(config.UnitDir(s.Env), ServiceName) }
+func (s Systemd) timerPath() string   { return filepath.Join(config.UnitDir(s.Env), TimerName) }
+func (s Systemd) namesServicePath() string {
 	return filepath.Join(config.UnitDir(s.Env), NamesServiceName)
 }
-func (s System) namesTimerPath() string { return filepath.Join(config.UnitDir(s.Env), NamesTimerName) }
+func (s Systemd) namesTimerPath() string { return filepath.Join(config.UnitDir(s.Env), NamesTimerName) }
 
 // PathDirs are put in the service's PATH so it finds zellij wherever the usual
 // installers put it (cargo, nix, Homebrew on Linux, distro packages). systemd

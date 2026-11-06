@@ -1,0 +1,67 @@
+name: platforms
+
+# zellij-reaper on macOS and Windows: the unit tests, and real zellij sessions
+# on the runner itself, since no container can stand in for those systems.
+on:
+  push:
+    branches: [main, "v*"]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit tests on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  real:
+    name: real sessions on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            asset: zellij-aarch64-apple-darwin.tar.gz
+          - os: windows-latest
+            asset: zellij-x86_64-pc-windows-msvc.zip
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: zellij 0.45.1
+        run: |
+          mkdir -p "$RUNNER_TEMP/zellij"
+          curl -fsSL -o "$RUNNER_TEMP/zellij/$ASSET" "https://github.com/zellij-org/zellij/releases/download/v0.45.1/$ASSET"
+          cd "$RUNNER_TEMP/zellij"
+          case "$ASSET" in
+            *.zip) unzip -q "$ASSET" ;;
+            *) tar -xzf "$ASSET" ;;
+          esac
+          echo "$RUNNER_TEMP/zellij" >> "$GITHUB_PATH"
+        env:
+          ASSET: ${{ matrix.asset }}
+      - name: build
+        run: go build -o zellij-reaper ./cmd/zellij-reaper
+      - name: explore
+        run: test/native/explore.sh
+        timeout-minutes: 15

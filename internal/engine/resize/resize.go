@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 )
@@ -69,7 +68,7 @@ func Targets(t *procfs.Table, uid, self int, shallow bool) []Target {
 // Send signals every target, recording failures (a process that just exited).
 func Send(targets []Target) []Target {
 	for i := range targets {
-		targets[i].Err = syscall.Kill(targets[i].PID, syscall.SIGWINCH)
+		targets[i].Err = procfs.Resize(targets[i].PID)
 	}
 	return targets
 }

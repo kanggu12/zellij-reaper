@@ -79,10 +79,17 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	}
 
 	// The timer.
-	if !a.System.Available() {
+	switch {
+	case !a.System.Available() && a.System.Kind() == "systemd":
 		fail(i18n.T("doctor.systemd.none"))
-	} else {
-		pass(i18n.T("doctor.systemd"))
+	case !a.System.Available():
+		fail(i18n.T("doctor.scheduler.none", a.System.Kind()))
+	default:
+		if a.System.Kind() == "systemd" {
+			pass(i18n.T("doctor.systemd"))
+		} else {
+			pass(i18n.T("doctor.scheduler", a.System.Kind()))
+		}
 		st := a.System.Status()
 		switch {
 		case !st.Installed:
@@ -122,9 +129,10 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 				note(i18n.T("doctor.names.leftover"))
 			}
 		}
-		if out, err := a.System.Run("loginctl", "show-user", a.System.User, "--property=Linger"); err == nil && strings.Contains(out, "Linger=yes") {
+		// Only systemd can be asked whether the timers outlive a login.
+		if on, known := a.System.Persists(); known && on {
 			pass(i18n.T("doctor.linger"))
-		} else {
+		} else if known {
 			note(i18n.T("doctor.linger.off"))
 		}
 	}

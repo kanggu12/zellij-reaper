@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Env is the process environment as the settings see it. Tests pass a MapEnv
@@ -51,9 +52,23 @@ func xdg(env Env, name, fallback string) string {
 	return filepath.Join(env.Home(), fallback)
 }
 
-// ConfigDir is where the settings file lives.
+// ConfigDir is where the settings file lives: ~/.config/zellij-reaper on Linux
+// and macOS, as most command-line tools keep theirs, and %APPDATA% on Windows.
 func ConfigDir(env Env) string {
+	if GOOS == "windows" {
+		if _, ok := env.Lookup("XDG_CONFIG_HOME"); !ok {
+			return filepath.Join(appData(env), "zellij-reaper")
+		}
+	}
 	return filepath.Join(xdg(env, "XDG_CONFIG_HOME", ".config"), "zellij-reaper")
+}
+
+// appData is %APPDATA%, or where Windows puts it by default.
+func appData(env Env) string {
+	if v, ok := env.Lookup("APPDATA"); ok && filepath.IsAbs(v) {
+		return v
+	}
+	return filepath.Join(env.Home(), "AppData", "Roaming")
 }
 
 // ConfigFile is the settings file, or the one named by ZELLIJ_REAPER_CONFIG.
@@ -67,6 +82,11 @@ func ConfigFile(env Env) string {
 // StateDir holds the log, the lock and the list of protected sessions:
 // things the tool writes that are not settings.
 func StateDir(env Env) string {
+	if GOOS == "windows" {
+		if _, ok := env.Lookup("XDG_STATE_HOME"); !ok {
+			return filepath.Join(localAppData(env), "zellij-reaper")
+		}
+	}
 	return filepath.Join(xdg(env, "XDG_STATE_HOME", ".local/state"), "zellij-reaper")
 }
 
@@ -89,5 +109,26 @@ func UnitDir(env Env) string {
 	return filepath.Join(xdg(env, "XDG_CONFIG_HOME", ".config"), "systemd", "user")
 }
 
-// CacheDir is the user's cache directory, which zellij uses for session data.
-func CacheDir(env Env) string { return xdg(env, "XDG_CACHE_HOME", ".cache") }
+// GOOS is the system the paths follow; tests set it to check the others.
+var GOOS = runtime.GOOS
+
+// ZellijCacheDir is zellij's own cache directory, which holds its session
+// data. zellij takes it from the directories crate: the XDG cache directory on
+// Linux, ~/Library/Caches on macOS, %LOCALAPPDATA% on Windows.
+func ZellijCacheDir(env Env) string {
+	switch GOOS {
+	case "darwin":
+		return filepath.Join(env.Home(), "Library", "Caches", "org.Zellij-Contributors.Zellij")
+	case "windows":
+		return filepath.Join(localAppData(env), "Zellij", "cache")
+	}
+	return filepath.Join(xdg(env, "XDG_CACHE_HOME", ".cache"), "zellij")
+}
+
+// localAppData is %LOCALAPPDATA%, or where Windows puts it by default.
+func localAppData(env Env) string {
+	if v, ok := env.Lookup("LOCALAPPDATA"); ok && filepath.IsAbs(v) {
+		return v
+	}
+	return filepath.Join(env.Home(), "AppData", "Local")
+}

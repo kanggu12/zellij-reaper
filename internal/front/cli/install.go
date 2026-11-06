@@ -12,7 +12,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -21,12 +21,13 @@ import (
 func cmdInstall() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
-		Short: "Install the systemd user timer that runs a pass every interval",
-		Long: `Write zellij-reaper.service and zellij-reaper.timer to ~/.config/systemd/user,
-enable the timer, and turn on lingering so it runs without a login. A settings file
-is written if there is none. An install of the earlier shell version is moved over:
-its settings go to the settings file, its log next to the new one. Running install
-again after changing the interval applies it.`,
+		Short: "Install the timers that run a pass every interval",
+		Long: `Set up the timers that run the passes: on Linux, systemd user units in
+~/.config/systemd/user with lingering turned on, so they run without a login; on
+macOS, launch agents in ~/Library/LaunchAgents; on Windows, two tasks in the Task
+Scheduler. A settings file is written if there is none. On Linux an install of the
+earlier shell version is moved over: its settings go to the settings file, its log
+next to the new one. Running install again after changing the interval applies it.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()
@@ -52,7 +53,7 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 			zdir = filepath.Dir(abs)
 		}
 	}
-	res, err := a.System.Install(systemd.InstallOptions{Exe: exe, ZellijDir: zdir, Config: a.Config, ConfigFile: chosenConfig()})
+	res, err := a.System.Install(timers.InstallOptions{Exe: exe, ZellijDir: zdir, Config: a.Config, ConfigFile: chosenConfig()})
 	printResult(cmd, res)
 	if err != nil {
 		return err
@@ -64,14 +65,16 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 		a = b
 	}
 	println(w, ok(t)+i18n.T("install.enabled", duration.Format(a.Config.Interval)))
-	linger := res.Linger
-	switch linger {
-	case "already":
-		linger = i18n.T("linger.already")
-	case "enabled":
-		linger = i18n.T("linger.enabled")
+	// Lingering is systemd's alone.
+	if linger := res.Linger; linger != "" {
+		switch linger {
+		case "already":
+			linger = i18n.T("linger.already")
+		case "enabled":
+			linger = i18n.T("linger.enabled")
+		}
+		println(w, ok(t)+i18n.T("install.linger", linger))
 	}
-	println(w, ok(t)+i18n.T("install.linger", linger))
 	// When the next pass runs and what it would reap: on a fresh
 	// install there is time to protect a session first.
 	if st := a.System.Status(); !st.Next.IsZero() {
@@ -111,7 +114,7 @@ func envOnly(c *config.Config, file string) []string {
 }
 
 // printResult lists what an install or uninstall wrote, moved and removed.
-func printResult(cmd *cobra.Command, r systemd.Result) {
+func printResult(cmd *cobra.Command, r timers.Result) {
 	w := cmd.OutOrStdout()
 	t := theme()
 	for _, p := range r.Wrote {

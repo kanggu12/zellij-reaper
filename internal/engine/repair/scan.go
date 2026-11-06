@@ -217,7 +217,7 @@ func keep(in Inputs, t *procfs.Table, socks []procfs.UnixSocket, o Orphan) strin
 // socketExists reports whether any of dirs has a socket file named name.
 func socketExists(dirs []string, name string) bool {
 	for _, d := range dirs {
-		if info, err := os.Lstat(filepath.Join(d, name)); err == nil && info.Mode()&os.ModeSocket != 0 {
+		if info, err := os.Lstat(filepath.Join(d, name)); err == nil && zellij.IsSocket(info.Mode()) {
 			return true
 		}
 	}

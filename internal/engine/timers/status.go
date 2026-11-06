@@ -1,4 +1,4 @@
-package systemd
+package timers
 
 import (
 	"os"
@@ -27,16 +27,16 @@ type TimerStatus struct {
 // systemd will fire at, read against the same clock; failing that, from the
 // last run and the interval, because systemd leaves NextElapseUSecRealtime empty for
 // monotonic timers like this one.
-func (s System) Status() TimerStatus {
+func (s Systemd) Status() TimerStatus {
 	return s.statusOf(TimerName, s.timerPath(), s.servicePath())
 }
 
 // NamesStatus asks systemd about the names timer.
-func (s System) NamesStatus() TimerStatus {
+func (s Systemd) NamesStatus() TimerStatus {
 	return s.statusOf(NamesTimerName, s.namesTimerPath(), s.namesServicePath())
 }
 
-func (s System) statusOf(timer, timerPath, servicePath string) TimerStatus {
+func (s Systemd) statusOf(timer, timerPath, servicePath string) TimerStatus {
 	var st TimerStatus
 	out, err := s.systemctl("show", timer, "--property=LoadState,ActiveState,UnitFileState,LastTriggerUSec,NextElapseUSecRealtime,NextElapseUSecMonotonic")
 	if err != nil {
@@ -71,7 +71,7 @@ func (s System) statusOf(timer, timerPath, servicePath string) TimerStatus {
 
 // fromMonotonic turns systemd's monotonic "2d 13h 55min 46.6s" (time since
 // boot) into a wall-clock time, using the same clock.
-func (s System) fromMonotonic(v string) (time.Time, bool) {
+func (s Systemd) fromMonotonic(v string) (time.Time, bool) {
 	at, ok := parseTimespan(v)
 	if !ok || at <= 0 {
 		return time.Time{}, false
