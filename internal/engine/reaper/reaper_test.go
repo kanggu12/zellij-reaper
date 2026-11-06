@@ -566,6 +566,51 @@ func TestAutoRenameAttachedLeavesASessionWhoseClientsCannotBeTold(t *testing.T) 
 	}
 }
 
+func TestAutoRenameAttachedLeavesAProtectedNameAlone(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename, w.env.Config.AutoRenameAttached = true, true
+	if err := w.env.Protected.Set("busy", true); err != nil {
+		t.Fatal(err)
+	}
+	w.attach("busy")
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && (o.Verdict.Code != policy.ProtectedName || o.WouldRename != "") {
+			t.Fatalf("plan: %s, next name %q", o.Verdict.Code, o.WouldRename)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, rn := range w.zj.renamed {
+		if strings.HasPrefix(rn, "busy->") {
+			t.Fatalf("renamed a protected session: %s", rn)
+		}
+	}
+}
+
+func TestAutoRenameAttachedLeavesASessionWhoseServerDidNotAnswer(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename, w.env.Config.AutoRenameAttached = true, true
+	// zellij's file counts a client, the table cannot tell who holds the
+	// connection, and the server does not answer list-clients.
+	testutil.SessionFiles(t, w.env.Sources.InfoDir, "busy", testutil.Metadata(1, "htop"), "", time.Now())
+	w.attachUnseen("busy")
+	w.zj.lateErr = map[string]error{"busy": errors.New("no answer within 10s")}
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && (o.Session.Facts.Attached != policy.Yes || o.WouldRename != "") {
+			t.Fatalf("plan: attached %v, next name %q", o.Session.Facts.Attached, o.WouldRename)
+		}
+	}
+}
+
 func TestAProtectionAddedDuringThePassKeepsTheSession(t *testing.T) {
 	w := newWorld(t)
 	// While the pass reads the facts, `zellij-reaper protect idle-old` runs

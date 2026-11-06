@@ -215,3 +215,22 @@ func TestRecoverWaitsForThePassLock(t *testing.T) {
 		t.Errorf("after the pass: deleted %v, signals %v\n%s", m.zj.deleted, m.signals, out)
 	}
 }
+
+func TestConfigShowLinesUpTheValues(t *testing.T) {
+	isolate(t)
+	root := newRoot()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"config", "show"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")[1:]
+	at := strings.Index(lines[0], " = ")
+	for _, l := range lines {
+		if i := strings.Index(l, " = "); i != at {
+			t.Errorf("%q has its = at %d, the first line at %d", l, i, at)
+		}
+	}
+}

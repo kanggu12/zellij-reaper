@@ -284,9 +284,10 @@ func (v Verdict) LogText() string {
 	return "SKIP " + string(v.Code)
 }
 
-// MayRename reports whether a kept, running session may be renamed by
-// auto_rename: never one somebody is looking at, never one whose state is
-// uncertain, never a protected one.
+// MayRename reports whether a kept, running session's verdict lets auto_rename
+// rename it: never one whose state is uncertain, never a protected one. A
+// session kept only for its client says no here; auto_rename_attached decides
+// about those.
 func (v Verdict) MayRename() bool {
 	if v.Action != Keep {
 		return false

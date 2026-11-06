@@ -5,9 +5,11 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
@@ -51,10 +53,17 @@ type Backend interface {
 	Config() *config.Config
 	// LogLines returns the last n lines of the decision log.
 	LogLines(n int) ([]string, error)
-	// AttachCommand returns the command that attaches to (or, inside
-	// zellij, switches to) a session; interactive is true when it needs the
-	// terminal.
-	AttachCommand(name string) (cmd *exec.Cmd, interactive bool)
+	// HasSession reports whether zellij lists a session by that name, or
+	// whether it could not tell.
+	HasSession(ctx context.Context, name string) bool
+	// InsideZellij reports whether the dashboard runs in a zellij pane.
+	InsideZellij() bool
+	// AttachCommand returns the command that attaches this terminal to a
+	// session, outside zellij.
+	AttachCommand(name string) *exec.Cmd
+	// SwitchTo moves the zellij client the dashboard runs in over to a
+	// session: name, or the session server serves now.
+	SwitchTo(ctx context.Context, name string, server int) error
 }
 
 // real is the Backend of a loaded App.
@@ -286,30 +295,64 @@ func (r real) LogLines(n int) ([]string, error) {
 	return lines, err
 }
 
-func (r real) AttachCommand(name string) (*exec.Cmd, bool) {
-	// Inside zellij, attaching would nest a session in a pane; switching
-	// moves this client over instead.
-	if os.Getenv("ZELLIJ") != "" {
-		return r.a.Zellij.SwitchTo(name, r.sessionHere()), false
+func (r real) HasSession(ctx context.Context, name string) bool {
+	listed, err := r.a.Zellij.ListSessions(ctx)
+	if err != nil {
+		return true
 	}
-	return r.a.Zellij.Attach(name), true
+	return slices.ContainsFunc(listed, func(l zellij.Listed) bool { return l.Name == name })
 }
 
-// sessionHere is the name the session this dashboard runs in has now, or ""
-// when that cannot be told. A pass or a person may have renamed it since this
-// process started, and zellij leaves the old name in ZELLIJ_SESSION_NAME.
-func (r real) sessionHere() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// InsideZellij: zellij sets ZELLIJ in every pane. Attaching from one would
+// nest a session in a pane, so the dashboard switches its client instead.
+func (r real) InsideZellij() bool { return os.Getenv("ZELLIJ") != "" }
+
+func (r real) AttachCommand(name string) *exec.Cmd { return r.a.Zellij.Attach(name) }
+
+// switchWait bounds a switch: zellij retries a socket that is not there for as
+// long as it runs.
+const switchWait = 10 * time.Second
+
+// SwitchTo looks at the sessions first. A pass may have renamed the selected
+// one since the last plan, and switch-session makes a new, empty session for
+// a name nobody has; and the session this dashboard runs in may have been
+// renamed since it started, while zellij leaves the old name in
+// ZELLIJ_SESSION_NAME, where a zellij command waits for a session by it.
+func (r real) SwitchTo(ctx context.Context, name string, server int) error {
+	ctx, cancel := context.WithTimeout(ctx, switchWait)
 	defer cancel()
 	rep, err := reaper.Plan(ctx, r.a.Reaper, reaper.Options{})
 	if err != nil {
-		return ""
+		return err
 	}
-	t, err := procfs.Read(r.a.Reaper.Sources.ProcRoot)
-	if err != nil {
-		return ""
+	to := nameNow(rep, name, server)
+	if to == "" {
+		return errors.New(i18n.T("keep.gone", name))
 	}
-	return sessionAbove(t, os.Getpid(), rep)
+	here := ""
+	if t, err := procfs.Read(r.a.Reaper.Sources.ProcRoot); err == nil {
+		here = sessionAbove(t, os.Getpid(), rep)
+	}
+	if out, err := r.a.Zellij.SwitchTo(ctx, to, here).CombinedOutput(); err != nil {
+		return fmt.Errorf("%s %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+// nameNow is the name a session has in rep: name, while some session has it,
+// or else the name of the running session server serves; "" when neither.
+func nameNow(rep reaper.Report, name string, server int) string {
+	for _, o := range rep.Outcomes {
+		if o.Session.Name() == name {
+			return name
+		}
+	}
+	for _, o := range rep.Outcomes {
+		if s := o.Session; server > 0 && !s.Listed.Exited && s.Server != nil && s.Server.PID == server {
+			return s.Name()
+		}
+	}
+	return ""
 }
 
 // sessionAbove names the running session whose server pid descends from: a

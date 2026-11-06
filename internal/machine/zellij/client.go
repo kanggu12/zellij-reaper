@@ -390,8 +390,8 @@ func (c *CLI) Attach(name string) *exec.Cmd {
 // has now, or "" when it is not known: a pane keeps the name its session had when
 // the pane opened, in ZELLIJ_SESSION_NAME, and after a rename a zellij command
 // sent under the old name waits for a session by it.
-func (c *CLI) SwitchTo(name, here string) *exec.Cmd {
-	cmd := exec.Command(c.Bin, "action", "switch-session", name)
+func (c *CLI) SwitchTo(ctx context.Context, name, here string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, c.Bin, "action", "switch-session", name)
 	if here != "" {
 		// The last value of a variable is the one a process sees.
 		cmd.Env = append(os.Environ(), "ZELLIJ_SESSION_NAME="+here)

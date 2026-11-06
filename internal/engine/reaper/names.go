@@ -27,8 +27,10 @@ func mayRename(o Outcome, attachedToo bool) bool {
 	case policy.No:
 		return o.Verdict.MayRename()
 	case policy.Yes:
-		// Kept for its client, or for a reason that allows a rename anyway.
-		return attachedToo && (o.Verdict.Code == policy.Attached || o.Verdict.MayRename())
+		// Kept for its client, or for a reason that allows a rename anyway. A
+		// server that did not answer list-clients would not answer a rename
+		// either: it may be starting or stopping.
+		return attachedToo && !s.ServerSilent && (o.Verdict.Code == policy.Attached || o.Verdict.MayRename())
 	}
 	// Nobody could tell whether a client is attached: the server may be
 	// starting or stopping, so the session keeps its name.

@@ -28,6 +28,8 @@ type Row struct {
 	Wait time.Duration
 	// Index is the session's position in the report the row came from.
 	Index int
+	// Server is the session's server process, 0 for none: a rename leaves it.
+	Server int
 }
 
 // rank orders the groups: what goes first, then what is waiting, then what is
@@ -55,6 +57,9 @@ func RowsFrom(r reaper.Report, now time.Time) []Row {
 	rows := make([]Row, 0, len(r.Outcomes))
 	for i, o := range r.Outcomes {
 		row := Row{Name: o.Session.Name(), Exited: o.Session.Listed.Exited, Index: i}
+		if s := o.Session.Server; s != nil {
+			row.Server = s.PID
+		}
 		if t := o.Session.Facts.LastActive; !t.IsZero() {
 			row.Idle = duration.Format(now.Sub(t))
 		} else {

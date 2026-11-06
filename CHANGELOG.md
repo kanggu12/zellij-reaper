@@ -16,9 +16,13 @@ the project uses [semantic versioning](https://semver.org/).
 
 ### Fixed
 
-- Inside zellij, Enter in the dashboard switches to the selected session even when the session the dashboard runs in
-  has been renamed. `zellij action switch-session` went by the old name the pane still had and waited for a session by
-  that name.
+- Inside zellij, Enter in the dashboard switches to the selected session even when it, or the session the dashboard
+  runs in, has been renamed since. `zellij action switch-session` went by the old names: it waited for a session by
+  the old name, or made a new, empty session under it. The switch also gives up after ten seconds, and the screen no
+  longer stops while it looks.
+- The dashboard keeps its selection on a session a pass renamed. The selection used to move to whatever took its row,
+  where `p` could protect, or stop protecting, another session. `p` also says so when no session has the name any
+  more.
 
 ## [0.3.5] - 2026-11-06
 

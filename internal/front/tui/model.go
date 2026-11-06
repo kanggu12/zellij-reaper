@@ -74,10 +74,12 @@ type model struct {
 	now     time.Time
 
 	// sel is the selected row among the visible ones; selName keeps the
-	// selection on the same session across refreshes.
-	sel     int
-	selName string
-	top     int
+	// selection on the same session across refreshes, and selServer keeps it
+	// there when a pass renamed the session in between.
+	sel       int
+	selName   string
+	selServer int
+	top       int
 
 	mode   mode
 	filter string
@@ -281,16 +283,37 @@ func (m *model) reselect() {
 	rows := m.rows()
 	for i, r := range rows {
 		if r.Name == m.selName {
-			m.sel = i
+			m.sel, m.selServer = i, r.Server
 			m.clampScroll()
 			return
 		}
 	}
+	// Renamed since the last plan: the same server, if it is the only row
+	// with that server, is the same session.
+	if i := uniqueServer(rows, m.selServer); i >= 0 {
+		m.sel, m.selName = i, rows[i].Name
+		m.clampScroll()
+		return
+	}
 	m.sel = min(m.sel, max(0, len(rows)-1))
 	if len(rows) > 0 {
-		m.selName = rows[m.sel].Name
+		m.selName, m.selServer = rows[m.sel].Name, rows[m.sel].Server
 	}
 	m.clampScroll()
+}
+
+// uniqueServer is the index of the one row whose server is pid, or -1.
+func uniqueServer(rows []ui.Row, pid int) int {
+	at := -1
+	for i, r := range rows {
+		if pid > 0 && r.Server == pid {
+			if at >= 0 {
+				return -1
+			}
+			at = i
+		}
+	}
+	return at
 }
 
 // move changes the selection by delta rows.
@@ -300,7 +323,7 @@ func (m *model) move(delta int) {
 		return
 	}
 	m.sel = max(0, min(len(rows)-1, m.sel+delta))
-	m.selName = rows[m.sel].Name
+	m.selName, m.selServer = rows[m.sel].Name, rows[m.sel].Server
 	m.clampScroll()
 }
 

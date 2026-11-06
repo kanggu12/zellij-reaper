@@ -449,3 +449,27 @@ func TestTheSessionADashboardRunsInIsTheOneItsServerHasNow(t *testing.T) {
 		t.Errorf("from a shell in no session: %q", got)
 	}
 }
+
+func TestASwitchFindsTheSessionUnderTheNameItHasNow(t *testing.T) {
+	rep := reaper.Report{Outcomes: []reaper.Outcome{
+		{Session: inspect.Session{Listed: zellij.Listed{Name: "review-the-draft"}, Server: &procfs.Server{PID: 100}}},
+		{Session: inspect.Session{Listed: zellij.Listed{Name: "old-build", Exited: true}}},
+	}}
+	for _, c := range []struct {
+		name   string
+		server int
+		want   string
+	}{
+		{"review-the-draft", 100, "review-the-draft"},
+		// A pass renamed it since the plan on screen: its server says which.
+		{"quiet-magpie", 100, "review-the-draft"},
+		{"old-build", 0, "old-build"},
+		// Gone: zellij would make a new, empty session under that name.
+		{"gone", 0, ""},
+		{"gone", 999, ""},
+	} {
+		if got := nameNow(rep, c.name, c.server); got != c.want {
+			t.Errorf("nameNow(%q, %d) = %q, want %q", c.name, c.server, got, c.want)
+		}
+	}
+}

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"errors"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -77,9 +76,14 @@ func (m model) toggleProtect() tea.Cmd {
 		return nil
 	}
 	name := o.Session.Name()
-	b := m.b
+	b, ctx := m.b, m.ctx
 	on := !b.Protected(name)
 	return func() tea.Msg {
+		// A pass may have renamed it since the last plan, and a protection
+		// for a name nobody has keeps nothing.
+		if !b.HasSession(ctx, name) {
+			return doneMsg{text: i18n.T("keep.gone", name), cat: ui.CatUnknown}
+		}
 		if err := b.SetProtected(name, on); err != nil {
 			return doneMsg{text: i18n.T("toast.protect.failed", name, err), cat: ui.CatUnknown}
 		}
@@ -100,18 +104,24 @@ func (m model) attach() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	cmd, interactive := m.b.AttachCommand(o.Session.Name())
-	if cmd == nil {
-		return m, nil
+	name, server := o.Session.Name(), 0
+	if s := o.Session.Server; s != nil {
+		server = s.PID
 	}
-	if !interactive {
-		b := cmd
+	// Inside zellij the switch finds its sessions first, which takes a look
+	// at the machine: off the event loop, so the screen does not stop.
+	if m.b.InsideZellij() {
+		b, ctx := m.b, m.ctx
 		return m, func() tea.Msg {
-			if out, err := b.CombinedOutput(); err != nil {
-				return doneMsg{text: i18n.T("toast.attach.failed", strings.TrimSpace(string(out))+" "+err.Error()), cat: ui.CatUnknown}
+			if err := b.SwitchTo(ctx, name, server); err != nil {
+				return doneMsg{text: i18n.T("toast.attach.failed", err.Error()), cat: ui.CatUnknown}
 			}
 			return doneMsg{}
 		}
+	}
+	cmd := m.b.AttachCommand(name)
+	if cmd == nil {
+		return m, nil
 	}
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 		if err != nil {

@@ -77,6 +77,7 @@ func attachCheck(ctx context.Context, src Sources, s *Session, c connections) {
 	}
 	// The server did not answer either: zellij's own count in the metadata
 	// file. It lags, so it can only add a client, never rule one out.
+	s.ServerSilent = true
 	if md.HasClientCount && md.ConnectedClients > 0 {
 		s.Clients = md.ConnectedClients
 		s.Facts.Attached = policy.Yes

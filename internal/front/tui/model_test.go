@@ -38,6 +38,12 @@ type fake struct {
 	renameNote string
 	// kept are the names KeepName was asked to keep.
 	kept []string
+	// inside runs the dashboard in a zellij pane; switched records SwitchTo
+	// as name@server.
+	inside   bool
+	switched []string
+	// gone are the names zellij no longer lists.
+	gone map[string]bool
 }
 
 func (f *fake) Plan(context.Context) (reaper.Report, error) { return f.report, f.planErr }
@@ -63,10 +69,16 @@ func (f *fake) PatternProtects(string) bool             { return false }
 func (f *fake) Timer() systemd.TimerStatus {
 	return systemd.TimerStatus{Installed: true, Enabled: true, Active: true, Next: time.Now().Add(42 * time.Minute), Interval: time.Hour}
 }
-func (f *fake) ZellijVersion(context.Context) string   { return "0.45.1" }
-func (f *fake) Config() *config.Config                 { return f.cfg }
-func (f *fake) LogLines(n int) ([]string, error)       { return f.log, nil }
-func (f *fake) AttachCommand(string) (*exec.Cmd, bool) { return nil, false }
+func (f *fake) ZellijVersion(context.Context) string { return "0.45.1" }
+func (f *fake) Config() *config.Config               { return f.cfg }
+func (f *fake) LogLines(n int) ([]string, error)     { return f.log, nil }
+func (f *fake) AttachCommand(string) *exec.Cmd       { return nil }
+func (f *fake) InsideZellij() bool                   { return f.inside }
+func (f *fake) SwitchTo(_ context.Context, name string, server int) error {
+	f.switched = append(f.switched, fmt.Sprintf("%s@%d", name, server))
+	return nil
+}
+func (f *fake) HasSession(_ context.Context, name string) bool { return !f.gone[name] }
 
 // session builds one outcome from facts, as a plan would.
 func session(name string, exited bool, f func(*policy.Facts), panes ...inspect.Pane) reaper.Outcome {
@@ -714,5 +726,97 @@ func TestRenameShowsTheBackendsWarning(t *testing.T) {
 	m = press(t, m, "enter")
 	if !strings.Contains(m.statusLine(), "no longer protected") {
 		t.Errorf("status after a rename that lost a protection: %q", m.statusLine())
+	}
+}
+
+// ownServers gives every running session its own server, as on a machine.
+func ownServers(b *fake) {
+	for i := range b.report.Outcomes {
+		if s := b.report.Outcomes[i].Session.Server; s != nil {
+			s.PID = 5000 + i
+		}
+	}
+}
+
+// renamedTo changes a session's name in the plan, as a pass does.
+func renamedTo(b *fake, from, to string) {
+	for i := range b.report.Outcomes {
+		if b.report.Outcomes[i].Session.Name() == from {
+			b.report.Outcomes[i].Session.Listed.Name = to
+		}
+	}
+}
+
+func TestTheSelectionFollowsASessionAPassRenamed(t *testing.T) {
+	b := sample()
+	ownServers(b)
+	m := pick(t, loaded(t, b, 120, 40), "notes")
+	// The pass renames notes and reaps the sessions listed above it, so the
+	// row it had now holds another session.
+	renamedTo(b, "notes", "meeting-notes")
+	at := m.sel
+	var left []reaper.Outcome
+	for i, o := range b.report.Outcomes {
+		above := false
+		for j, r := range m.rows() {
+			above = above || (r.Index == i && j < at)
+		}
+		if !above {
+			left = append(left, o)
+		}
+	}
+	b.report.Outcomes = left
+	r, _ := b.Plan(context.Background())
+	m = step(t, m, planMsg{report: r})
+	if o, ok := m.selected(); !ok || o.Session.Name() != "meeting-notes" {
+		t.Fatalf("selected %q after the rename", o.Session.Name())
+	}
+	// p then protects it under its new name, not the row that took its place.
+	m = press(t, m, "p")
+	if !b.protected["meeting-notes"] || len(b.protected) != 1 {
+		t.Errorf("protected %v", b.protected)
+	}
+}
+
+func TestProtectingANameNobodyHasAnyMoreSaysSo(t *testing.T) {
+	b := sample()
+	m := pick(t, loaded(t, b, 120, 40), "scratch")
+	// A pass renamed it after the plan on screen.
+	b.gone = map[string]bool{"scratch": true}
+	m = press(t, m, "p")
+	if len(b.protected) != 0 {
+		t.Errorf("protected %v", b.protected)
+	}
+	if !strings.Contains(m.toast, "no session is called scratch any more") {
+		t.Errorf("toast %q", m.toast)
+	}
+}
+
+func TestEnterInsideZellijSwitchesToTheSessionAndItsServer(t *testing.T) {
+	b := sample()
+	ownServers(b)
+	b.inside = true
+	m := pick(t, loaded(t, b, 120, 40), "api-server")
+	o, _ := m.selected()
+	press(t, m, "enter")
+	if want := fmt.Sprintf("api-server@%d", o.Session.Server.PID); strings.Join(b.switched, ",") != want {
+		t.Errorf("switched %v, want %s", b.switched, want)
+	}
+}
+
+func TestTheSettingsSayWhenRenamesWaitForNobodyAttached(t *testing.T) {
+	for _, c := range []struct {
+		attached bool
+		want     string
+	}{
+		{true, "auto rename: on"},
+		{false, "auto rename: on, unattached sessions only"},
+	} {
+		b := sample()
+		b.cfg.AutoRename, b.cfg.AutoRenameAttached = true, c.attached
+		view := ansi.Strip(loaded(t, b, 160, 60).View().Content)
+		if !strings.Contains(view, c.want) || c.attached && strings.Contains(view, "unattached") {
+			t.Errorf("auto_rename_attached = %v: no %q in\n%s", c.attached, c.want, view)
+		}
 	}
 }

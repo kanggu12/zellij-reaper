@@ -90,6 +90,9 @@ type Session struct {
 	Panes []Pane
 	// Clients is the number of attached clients, or -1 when unknown.
 	Clients int
+	// ServerSilent is set when the server did not answer list-clients: what
+	// is known of its clients came from elsewhere, if from anywhere.
+	ServerSilent bool
 	// Facts is what the policy reads.
 	Facts policy.Facts
 }
