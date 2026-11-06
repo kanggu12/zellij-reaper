@@ -1,8 +1,8 @@
 #!/bin/sh
 # Write docs/THIRD_PARTY_NOTICES.md: the license of every module compiled into
-# zellij-reaper, of Go itself, of zellij, whose word lists it copies, and of the font
-# the logo and figures are drawn from. The release archives and packages carry it next to the binary. Run it after
-# changing dependencies:
+# zellij-reaper, of Go itself, of zellij, whose word lists it copies, and of the
+# font the logo and figures are drawn from. The release archives and packages
+# carry it next to the binary. Run it after changing dependencies:
 #
 #   make notices
 set -eu
