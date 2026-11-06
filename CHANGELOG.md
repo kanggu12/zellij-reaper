@@ -5,6 +5,8 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-07
+
 ### Added
 
 - macOS. The process table comes from sysctl and lsof, and two launch agents run the passes. A renamed session's
@@ -306,7 +308,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.4.0
 [0.3.5]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.5
