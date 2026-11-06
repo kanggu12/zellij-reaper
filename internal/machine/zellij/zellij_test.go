@@ -557,3 +557,17 @@ func TestTitlesByFocusOnRecordedFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestSwitchToSaysWhichSessionItRunsIn(t *testing.T) {
+	c := &CLI{Bin: "zellij"}
+	cmd := c.SwitchTo("there", "here-renamed")
+	if strings.Join(cmd.Args, " ") != "zellij action switch-session there" {
+		t.Errorf("args %q", cmd.Args)
+	}
+	if len(cmd.Env) == 0 || cmd.Env[len(cmd.Env)-1] != "ZELLIJ_SESSION_NAME=here-renamed" {
+		t.Errorf("the session's name now is not the last ZELLIJ_SESSION_NAME: %q", cmd.Env)
+	}
+	if cmd := c.SwitchTo("there", ""); cmd.Env != nil {
+		t.Errorf("the environment changed with no name to give: %q", cmd.Env)
+	}
+}

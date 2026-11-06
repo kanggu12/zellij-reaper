@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -385,9 +386,17 @@ func (c *CLI) Attach(name string) *exec.Cmd {
 }
 
 // SwitchTo returns the command that moves the zellij client this process runs
-// in over to another session.
-func (c *CLI) SwitchTo(name string) *exec.Cmd {
-	return exec.Command(c.Bin, "action", "switch-session", name)
+// in over to another session. here is the name the session this process runs in
+// has now, or "" when it is not known: a pane keeps the name its session had when
+// the pane opened, in ZELLIJ_SESSION_NAME, and after a rename a zellij command
+// sent under the old name waits for a session by it.
+func (c *CLI) SwitchTo(name, here string) *exec.Cmd {
+	cmd := exec.Command(c.Bin, "action", "switch-session", name)
+	if here != "" {
+		// The last value of a variable is the one a process sees.
+		cmd.Env = append(os.Environ(), "ZELLIJ_SESSION_NAME="+here)
+	}
+	return cmd
 }
 
 // oneLine keeps an error message to one line for the log.

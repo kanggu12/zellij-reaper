@@ -16,6 +16,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
@@ -289,7 +290,48 @@ func (r real) AttachCommand(name string) (*exec.Cmd, bool) {
 	// Inside zellij, attaching would nest a session in a pane; switching
 	// moves this client over instead.
 	if os.Getenv("ZELLIJ") != "" {
-		return r.a.Zellij.SwitchTo(name), false
+		return r.a.Zellij.SwitchTo(name, r.sessionHere()), false
 	}
 	return r.a.Zellij.Attach(name), true
+}
+
+// sessionHere is the name the session this dashboard runs in has now, or ""
+// when that cannot be told. A pass or a person may have renamed it since this
+// process started, and zellij leaves the old name in ZELLIJ_SESSION_NAME.
+func (r real) sessionHere() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rep, err := reaper.Plan(ctx, r.a.Reaper, reaper.Options{})
+	if err != nil {
+		return ""
+	}
+	t, err := procfs.Read(r.a.Reaper.Sources.ProcRoot)
+	if err != nil {
+		return ""
+	}
+	return sessionAbove(t, os.Getpid(), rep)
+}
+
+// sessionAbove names the running session whose server pid descends from: a
+// process in a pane is a child of the session's server, or of its children.
+func sessionAbove(t *procfs.Table, pid int, rep reaper.Report) string {
+	servers := map[int]string{}
+	for _, o := range rep.Outcomes {
+		if s := o.Session; s.Server != nil && !s.Listed.Exited {
+			servers[s.Server.PID] = s.Name()
+		}
+	}
+	// A pane's process tree is shallow; the bound ends the walk in a table
+	// taken while processes come and go.
+	for range 64 {
+		if name, ok := servers[pid]; ok {
+			return name
+		}
+		p := t.ByPID[pid]
+		if p == nil || p.PPID == pid || p.PPID <= 0 {
+			return ""
+		}
+		pid = p.PPID
+	}
+	return ""
 }
