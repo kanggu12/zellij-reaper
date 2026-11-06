@@ -48,6 +48,8 @@ func Load(configPath string) (*App, error) {
 		return nil, err
 	}
 	zj := zellij.New(cfg.ZellijPath)
+	uid := os.Getuid()
+	zj.Settle = func(ctx context.Context) { procfs.Settle(ctx, "/proc", uid) }
 	// The data directory's name depends on the zellij version (0.43 and
 	// earlier name it after the version), so ask zellij first.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

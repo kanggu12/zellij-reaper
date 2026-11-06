@@ -54,6 +54,10 @@ type CLI struct {
 	Timeout time.Duration
 	// Run executes Bin; nil means start the real process.
 	Run Runner
+	// Settle, when set, runs before list-sessions, which connects to every
+	// session's socket: it waits out a server that is still starting, which
+	// such a connection can kill (procfs.Settle).
+	Settle func(ctx context.Context)
 }
 
 // New returns a CLI for bin (empty means "zellij" from PATH).
@@ -165,6 +169,9 @@ func ParseSessions(out string) []Listed {
 
 // ListSessions lists running and exited sessions.
 func (c *CLI) ListSessions(ctx context.Context) ([]Listed, error) {
+	if c.Settle != nil {
+		c.Settle(ctx)
+	}
 	out, errOut, err := c.call(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
 		// zellij 0.44 and 0.45 print this and exit 1 when nothing is there.

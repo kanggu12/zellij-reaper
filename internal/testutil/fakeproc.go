@@ -32,6 +32,8 @@ type Proc struct {
 	// CTTY is the device of its controlling terminal; 0 means none, like a
 	// helper a server starts.
 	CTTY int
+	// Started is when it started, counted from boot (see FakeProc.Uptime).
+	Started time.Duration
 }
 
 // FakeProc is a directory laid out like /proc.
@@ -60,9 +62,11 @@ func (f *FakeProc) Add(p Proc) {
 	}
 	dir := filepath.Join(f.Root, strconv.Itoa(p.PID))
 	must(f.t, os.MkdirAll(filepath.Join(dir, "fd"), 0o755))
-	// The fields after ppid are not read; a few zeros keep the shape real.
+	// Of the fields after ppid, only tty_nr and starttime (in 1/100 s) are
+	// read; zeros keep the shape real.
 	must(f.t, os.WriteFile(filepath.Join(dir, "stat"),
-		[]byte(fmt.Sprintf("%d (%s) %s %d 0 0 %d -1 4194560\n", p.PID, p.Comm, p.State, p.PPID, p.CTTY)), 0o644))
+		[]byte(fmt.Sprintf("%d (%s) %s %d 0 0 %d -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 %d\n",
+			p.PID, p.Comm, p.State, p.PPID, p.CTTY, p.Started/(10*time.Millisecond))), 0o644))
 	must(f.t, os.WriteFile(filepath.Join(dir, "status"),
 		[]byte(fmt.Sprintf("Name:\t%s\nUid:\t%d\t%d\t%d\t%d\n", p.Comm, p.UID, p.UID, p.UID, p.UID)), 0o644))
 	argv := ""
@@ -79,6 +83,12 @@ func (f *FakeProc) Add(p Proc) {
 	if p.Cwd != "" {
 		must(f.t, os.Symlink(p.Cwd, filepath.Join(dir, "cwd")))
 	}
+}
+
+// Uptime sets how long the fake machine has been up.
+func (f *FakeProc) Uptime(d time.Duration) {
+	f.t.Helper()
+	must(f.t, os.WriteFile(filepath.Join(f.Root, "uptime"), []byte(fmt.Sprintf("%.2f 0.00\n", d.Seconds())), 0o644))
 }
 
 // AddSocket gives a process one more socket, which is what a server gets when

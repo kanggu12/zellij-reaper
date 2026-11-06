@@ -70,10 +70,12 @@ wait_reachable() {
 
 # Start a background session, optionally from a layout file.
 start() {
+  # zellij's client waits for the new server's socket with no end: a server
+  # that dies starting would hold the run forever.
   if [ -n "${2:-}" ]; then
-    $Z --layout "$2" attach --create-background "$1" >/dev/null 2>&1
+    timeout 20 $Z --layout "$2" attach --create-background "$1" >/dev/null 2>&1
   else
-    $Z attach --create-background "$1" >/dev/null 2>&1
+    timeout 20 $Z attach --create-background "$1" >/dev/null 2>&1
   fi
   wait_pane "$1" && wait_reachable "$1"
 }
@@ -467,6 +469,10 @@ for round in plain renamed; do
     *) check "Enter moves the client to the session ($round)" test "$(clients_on "$to")" = 1 ;;
   esac
   exec 7>&-
+  # The dashboard reads the sessions every few seconds. zellij 0.45.1 can die
+  # starting when a client connects and leaves before it is up, so a dashboard
+  # left running here can stall a later start.
+  $Z kill-session "$from" >/dev/null 2>&1
 done
 
 echo "-- recover"
