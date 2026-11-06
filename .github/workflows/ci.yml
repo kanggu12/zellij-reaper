@@ -41,13 +41,16 @@ jobs:
           fi
 
   integration:
-    name: zellij ${{ matrix.zellij }}${{ matrix.runner && ' on arm64' || '' }}
+    name: zellij ${{ matrix.zellij }}${{ matrix.runner != 'ubuntu-latest' && ' on arm64' || '' }}
     needs: check
-    runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         zellij: ["0.43.1", "0.44.3", "0.45.1"]
+        # Named in the matrix, so the arm64 entry below adds a job instead of
+        # moving the amd64 0.45.1 one to arm64.
+        runner: ["ubuntu-latest"]
         # Releases ship for arm64 too: the newest zellij runs there as well.
         include:
           - zellij: "0.45.1"

@@ -112,6 +112,15 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 			default:
 				pass(i18n.T("doctor.names", duration.Format(ns.Interval)))
 			}
+			if exe, err := app.Executable(); err == nil && ns.ExecStart != "" && !strings.Contains(ns.ExecStart, exe) {
+				note(i18n.T("doctor.timer.stale", ns.ExecStart))
+			}
+		}
+		// Turned off in the settings, but still installed from before.
+		if a.Config.RenameInterval <= 0 {
+			if ns := a.System.NamesStatus(); ns.Installed && ns.Active {
+				note(i18n.T("doctor.names.leftover"))
+			}
 		}
 		if out, err := a.System.Run("loginctl", "show-user", a.System.User, "--property=Linger"); err == nil && strings.Contains(out, "Linger=yes") {
 			pass(i18n.T("doctor.linger"))

@@ -25,9 +25,9 @@ its wait over:
   <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes a session it looks again, and a session that changed is kept. A session it keeps gets a name from what its panes show when auto_rename is on, unless someone chose its name." src="assets/pass-light.svg">
 </picture>
 
-1. **Takes the pass lock.** The timer, `zellij-reaper run` and the dashboard's actions share one lock, so two of them
-   never act at once. A pass waits five seconds for it and a dashboard action two seconds, then leaves the work to
-   whoever holds it. The protected list is read again once the lock is held.
+1.  **Takes the pass lock.** The timer, `zellij-reaper run` and the dashboard's actions share one lock, so two of them
+   never act at once. A pass waits 30 seconds for it, a dashboard action two and a names pass one, then leaves the work
+   to whoever holds it. The protected list is read again once the lock is held.
 2. **Rotates the log** to `reaper.log.1` if it has grown past `log.max_bytes`, so a pass never spans two files.
 3. **Lists the sessions** with `zellij list-sessions --no-formatting`. zellij answers "No active zellij sessions found."
    with the same exit status as an error; the pass tells the two apart and logs `no sessions`.
@@ -48,8 +48,9 @@ A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
 
 The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, and step 2 only when
-it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing, and writes to the
-log only when it renames something.
+it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing, writes to the log
+only when a name changed, does nothing in a dry run, and leaves dropping tails (`auto_rename_drop_tail`) to the hourly
+pass.
 
 ## The checks
 
@@ -158,7 +159,7 @@ Every line the log can hold:
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
-| `=== names start (dry_run=...) ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that renames nothing writes no line |
+| `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
 | `NAME :: name kept from the command line`, `NAME :: name no longer kept, from the command line` | `keep-name` and `forget-name` |
 
 The words stay the same across releases, so months of the log can be grepped. New kinds of lines may be added.

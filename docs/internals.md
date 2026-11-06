@@ -230,10 +230,10 @@ fails is written into the log instead of stopping the pass.
 ### One lock, and a second look
 
 The timer, `zellij-reaper run`, `recover` and the dashboard's actions take the same `flock`; a pass that cannot get it
-within five seconds (two for a dashboard action) leaves the work to the one that holds it. A pass gathers every fact
-first and then acts one session at a time, and each delete can take a moment, so it asks again just before each
-delete and, with `auto_rename_attached = false`, each rename. The dashboard asks too before a delete by hand. Someone
-who attached in between keeps the session.
+within 30 seconds (two for a dashboard action, one for a names pass, five for the other commands) leaves the work to the
+one that holds it. A pass gathers every fact first and then acts one session at a time, and each delete can take a
+moment, so it asks again just before each delete and, with `auto_rename_attached = false`, each rename. The dashboard
+asks too before a delete by hand. Someone who attached in between keeps the session.
 
 ### The dashboard
 

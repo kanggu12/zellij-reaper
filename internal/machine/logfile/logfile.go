@@ -24,6 +24,34 @@ type Log struct {
 	MaxBytes int64
 	// Now is the clock for timestamps (tests fix it).
 	Now func() time.Time
+	// held, while not nil, keeps the lines Printf is given instead of
+	// writing them (see Hold).
+	held *[]string
+}
+
+// Hold keeps the lines Printf is given in memory, with their times, until Take
+// hands them over. A names pass holds its lines and writes them only when it
+// renamed something.
+func (l *Log) Hold() { l.held = &[]string{} }
+
+// Take returns the held lines and writes to the file again from then on.
+func (l *Log) Take() []string {
+	if l.held == nil {
+		return nil
+	}
+	lines := *l.held
+	l.held = nil
+	return lines
+}
+
+// Write appends lines Take returned, as they were.
+func (l *Log) Write(lines []string) error {
+	for _, s := range lines {
+		if err := l.append(s); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // New returns a log at path that rotates past maxBytes.
@@ -55,6 +83,17 @@ func (l *Log) Rotate() {
 // a rotation by another pass is picked up at once and nothing holds the file
 // open between passes.
 func (l *Log) Printf(format string, args ...any) error {
+	msg := strings.ReplaceAll(fmt.Sprintf(format, args...), "\n", " ")
+	line := fmt.Sprintf("[%s] %s\n", l.Now().Format("2006-01-02 15:04:05"), msg)
+	if l.held != nil {
+		*l.held = append(*l.held, line)
+		return nil
+	}
+	return l.append(line)
+}
+
+// append writes one whole line to the file.
+func (l *Log) append(line string) error {
 	if err := os.MkdirAll(filepath.Dir(l.Path), 0o755); err != nil {
 		return err
 	}
@@ -64,8 +103,7 @@ func (l *Log) Printf(format string, args ...any) error {
 	}
 	defer f.Close()
 	// One write per line keeps lines whole even if two writers interleave.
-	msg := strings.ReplaceAll(fmt.Sprintf(format, args...), "\n", " ")
-	_, err = fmt.Fprintf(f, "[%s] %s\n", l.Now().Format("2006-01-02 15:04:05"), msg)
+	_, err = f.WriteString(line)
 	return err
 }
 

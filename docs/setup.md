@@ -294,8 +294,8 @@ In a shell started before you added the hook, run `export ZELLIJ_SESSION_NAME=$(
 The names timer runs a pass that only renames every `rename_interval` (5 minutes). It deletes nothing and writes to
 the log only when it renames. The hourly pass renames too. `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and
 Enter do; `forget-name NAME` lets passes rename it again, and `keep-name` alone lists the kept names. With
-`auto_rename_drop_tail = true`, a session a pass named `api-2` gets `api` once no other session has it; zellij refuses a
-name the session had before, and then the tail stays.
+`auto_rename_drop_tail = true`, the hourly pass gives a session it named `api-2` the name `api` once no other session
+has it; zellij refuses a name the session had before, and then the tail stays.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.

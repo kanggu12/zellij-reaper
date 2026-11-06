@@ -17,7 +17,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if opts.NamesOnly {
 		return namesPass(ctx, e, opts)
 	}
-	l, err := lock.Acquire(e.LockPath, LockWait)
+	l, err := lock.Acquire(e.LockPath, PassLockWait)
 	if err != nil {
 		return Report{}, err
 	}
@@ -54,7 +54,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	}
 	taken := takenNames(r)
 	for i := range r.Outcomes {
-		e.act(ctx, &r, &r.Outcomes[i], dry, taken)
+		e.act(ctx, &r, &r.Outcomes[i], dry, true, taken)
 	}
 	if !dry {
 		e.forgetGone(taken)
@@ -83,7 +83,7 @@ func (e *Env) stopsHere(r Report, err error) bool {
 }
 
 // act logs a session's verdict and does what the verdict calls for.
-func (e *Env) act(ctx context.Context, r *Report, o *Outcome, dry bool, taken map[string]bool) {
+func (e *Env) act(ctx context.Context, r *Report, o *Outcome, dry, full bool, taken map[string]bool) {
 	s := o.Session
 	state := "RUNNING"
 	if s.Listed.Exited {
@@ -95,7 +95,7 @@ func (e *Env) act(ctx context.Context, r *Report, o *Outcome, dry bool, taken ma
 		return
 	}
 	// A survivor: give it a name that says what it is doing.
-	e.name(ctx, r, o, dry, taken)
+	e.name(ctx, r, o, dry, full, taken)
 }
 
 // reap deletes a session the policy let go, unless something changed since.
@@ -121,13 +121,15 @@ func (e *Env) reap(ctx context.Context, o *Outcome, dry bool, taken map[string]b
 	e.Log.Printf("  -> deleted: %s", s.Name())
 }
 
-// name renames a survivor after what it shows, when auto_rename is on.
-func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry bool, taken map[string]bool) {
+// name renames a survivor after what it shows, when auto_rename is on. full is
+// a full pass, the only one that drops collision tails (auto_rename_drop_tail):
+// a tail zellij refuses to drop is then tried once an hour, not every few minutes.
+func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry, full bool, taken map[string]bool) {
 	if !e.Config.AutoRename || r.NoRenames != nil {
 		return
 	}
 	s := o.Session
-	desired, target := e.renameTarget(*o, taken)
+	desired, target := e.renameTarget(*o, taken, full)
 	if target == "" {
 		return
 	}
@@ -209,21 +211,21 @@ func titleSummary(titles []string) string {
 	return strings.Join(parts, "|")
 }
 
-// namesPass renames what a full pass would rename and nothing else. It runs
-// every few minutes, so it writes to the log only when it renames something,
-// between a names start and a names end line. It deletes nothing, so it needs
-// neither the waits nor a second look before a delete.
+// namesPass renames what a full pass would rename and nothing else, every few
+// minutes. It deletes nothing, so it needs neither the waits nor a second look
+// before a delete. It writes to the log only when a name changed, so attempts
+// that keep failing do not fill the log every few minutes; the hourly pass logs
+// those. A dry run does nothing: plan and the hourly dry pass show the names.
 func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
 	r := Report{Started: e.Now()}
-	if !e.Config.AutoRename {
+	if !e.Config.AutoRename || e.Config.DryRun || opts.DryRun {
 		return r, nil
 	}
-	l, err := lock.Acquire(e.LockPath, LockWait)
+	l, err := lock.Acquire(e.LockPath, NamesLockWait)
 	if err != nil {
 		return r, err
 	}
 	defer l.Release()
-	dry := e.Config.DryRun || opts.DryRun
 	// A name protected since the last pass is never renamed.
 	if e.Protected != nil {
 		if err := e.Protected.Reload(); err != nil {
@@ -235,30 +237,24 @@ func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
 		return r, err
 	}
 	taken := takenNames(r)
-	started := false
+	e.Log.Hold()
 	for i := range r.Outcomes {
 		o := &r.Outcomes[i]
 		// A session the next full pass deletes keeps its name until then.
 		if o.Verdict.Action == policy.Reap {
 			continue
 		}
-		if _, target := e.renameTarget(*o, taken); target == "" {
-			continue
-		}
-		if !started {
-			e.Log.Rotate()
-			e.Log.Printf("=== names start (dry_run=%t) ===", dry)
-			started = true
-		}
-		e.name(ctx, &r, o, dry, taken)
+		e.name(ctx, &r, o, false, false, taken)
 	}
-	if !started {
+	held := e.Log.Take()
+	_, _, renamed := r.Counts()
+	if renamed == 0 {
 		return r, nil
 	}
-	if !dry {
-		e.forgetGone(taken)
-	}
-	_, _, renamed := r.Counts()
+	e.forgetGone(taken)
+	e.Log.Rotate()
+	e.Log.Printf("=== names start ===")
+	e.Log.Write(held)
 	e.Log.Printf("=== names end (%d renamed) ===", renamed)
 	return r, nil
 }

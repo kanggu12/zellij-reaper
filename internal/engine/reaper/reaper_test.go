@@ -351,17 +351,32 @@ func TestNoSessionsAndFailures(t *testing.T) {
 
 func TestLockKeepsPassesApart(t *testing.T) {
 	w := newWorld(t)
+	w.env.Config.AutoRename = true
 	held, err := lock.Acquire(w.env.LockPath, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer held.Release()
+	// A full pass waits PassLockWait (30s, shortened here); a names pass gives
+	// way after NamesLockWait.
+	defer func(p time.Duration) { reaper.PassLockWait = p }(reaper.PassLockWait)
+	reaper.PassLockWait = 3 * time.Second
 	start := time.Now()
 	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); !errors.Is(err, lock.ErrBusy) {
 		t.Errorf("Run with the lock held: %v", err)
 	}
-	if time.Since(start) < 4*time.Second {
+	if time.Since(start) < 2*time.Second {
 		t.Error("Run did not wait for the other pass")
+	}
+	start = time.Now()
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true}); !errors.Is(err, lock.ErrBusy) {
+		t.Errorf("a names pass with the lock held: %v", err)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("a names pass waited %v", d)
+	}
+	if len(w.zj.renamed) != 0 {
+		t.Error("a names pass ran without the lock")
 	}
 	if len(w.zj.deleted) != 0 {
 		t.Error("a pass ran without the lock")

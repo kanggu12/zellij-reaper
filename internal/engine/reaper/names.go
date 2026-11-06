@@ -60,11 +60,11 @@ func takenNames(r Report) map[string]bool {
 
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
-func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
+func (e *Env) renameTarget(o Outcome, taken map[string]bool, dropTail bool) (desired, target string) {
 	if !mayRename(o, e.Config.AutoRenameAttached) || !e.replaceable(o.Session) {
 		return "", ""
 	}
-	return e.nameFor(o.Session, taken)
+	return e.nameFor(o.Session, taken, dropTail)
 }
 
 // replaceable reports whether auto_rename may replace a session's name. A name
@@ -102,7 +102,7 @@ func (e *Env) replaceable(s inspect.Session) bool {
 // the first free variant of it (target). target is "" when the panes say
 // nothing, when the session has that name already, or when every variant is
 // taken.
-func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target string) {
+func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (desired, target string) {
 	// The client count is near the end of zellij's metadata file: without it
 	// the file is being rewritten, and titles that are not there yet must not
 	// read as a session with nothing to show.
@@ -134,7 +134,7 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target
 	if rename.Same(s.Name(), desired) {
 		// auto_rename_drop_tail: the plain name is free again, so the tail
 		// can go. Only names a pass may replace get here.
-		if e.Config.AutoRenameDropTail && s.Name() != desired && !taken[desired] {
+		if dropTail && e.Config.AutoRenameDropTail && s.Name() != desired && !taken[desired] {
 			return desired, desired
 		}
 		return desired, ""

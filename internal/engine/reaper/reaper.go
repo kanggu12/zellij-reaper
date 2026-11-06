@@ -53,6 +53,14 @@ type Env struct {
 // that changes sessions outside a pass (recover) waits the same.
 const LockWait = 5 * time.Second
 
+// PassLockWait is how long a full pass waits: a names pass may hold the lock
+// when the hourly timer fires, and an hour's reaping must not be skipped for it.
+var PassLockWait = 30 * time.Second
+
+// NamesLockWait is how long a names pass waits. It comes back in a few
+// minutes, so it gives way to anything else that holds the lock.
+var NamesLockWait = time.Second
+
 // Options change one pass.
 type Options struct {
 	// DryRun forces a dry run on top of the setting.
@@ -240,9 +248,9 @@ func Plan(ctx context.Context, e *Env, opts Options) (Report, error) {
 		if o.Session.Listed.Exited {
 			continue
 		}
-		_, o.Suggested = e.nameFor(o.Session, taken)
+		_, o.Suggested = e.nameFor(o.Session, taken, false)
 		if e.Config.AutoRename && r.NoRenames == nil {
-			_, o.WouldRename = e.renameTarget(*o, taken)
+			_, o.WouldRename = e.renameTarget(*o, taken, false)
 			reserve(taken, o.Session.Name(), o.WouldRename)
 		}
 	}
