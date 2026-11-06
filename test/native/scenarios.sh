@@ -4,9 +4,9 @@
 # stand in for the system. It starts sessions, renames them and runs passes,
 # so never run it on a machine whose sessions matter: it deletes sessions.
 #
-# A Windows runner gives a shell pane no input, so the shell ends at once and
-# its session with it; sessions there run a long command instead, and the
-# idle cases are checked on macOS and Linux.
+# On Windows it must run in a console: started without one, as a CI step is,
+# zellij gives a shell pane a console with no input, so the shell ends at once
+# and its session with it. The platforms workflow starts it in a hidden one.
 set -uo pipefail
 R=${R:-$PWD/zellij-reaper$(go env GOEXE)}
 Z=${Z:-zellij}
@@ -70,16 +70,16 @@ step "sessions"
 start busy-one
 start to-rename
 start wise-panda "$tmp/launch.kdl"
-$windows || tmo 30 "$Z" attach --create-background idle-one >/dev/null 2>&1
+tmo 30 "$Z" attach --create-background idle-one >/dev/null 2>&1
 sleep 3
 show "$Z" list-sessions --no-formatting
 check "the sessions are up" listed busy-one
-$windows || check "the idle one is up" listed idle-one
+check "the idle one is up" listed idle-one
 
 step "what a pass sees"
 show "$R" plan
 check "a session running a command is kept" is busy-one busy
-$windows || check "a shell at its prompt waits its turn" is idle-one idle-recent
+check "a shell at its prompt waits its turn" is idle-one idle-recent
 check "doctor names how renamed sessions are found" sh -c "'$R' doctor | grep -q 'renamed sessions are matched'"
 
 step "here, from inside a pane"
@@ -122,14 +122,14 @@ printf 'idle_after = "1m"\nauto_rename = true\n' >>"$("$R" config path | tr -d '
 show "$R" run --names-only
 if $windows; then
   check "a names pass renames nothing" listed wise-panda
-  check "and the log says why" sh -c "'$R' logs -n 20 | grep -q 'cannot reach a session after a rename'"
+  check "and says why" sh -c "'$R' run --names-only | grep -q 'cannot reach a session after a rename'"
 else
   check "a names pass names a session after its title" listed plan-the-launch
 fi
 show "$R" run --force
 show "$Z" list-sessions --no-formatting
 check "a session running a command stays" listed busy-one
-$windows || check "the idle session is reaped" gone idle-one
+check "the idle session is reaped" gone idle-one
 show "$R" logs -n 30
 show "$R" tui --snapshot 120x30 --theme light
 

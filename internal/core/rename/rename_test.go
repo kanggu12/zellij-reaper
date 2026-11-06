@@ -251,6 +251,29 @@ func TestBaseBudget(t *testing.T) {
 	if BaseBudget(10) != 0 || BaseBudget(-5) != 0 {
 		t.Error("no room should give no budget")
 	}
+	// macOS's socket directory leaves 24 bytes: without a stamp only the tail
+	// is kept, which is room for "plan-the-launch".
+	for _, c := range []struct {
+		stamp Stamp
+		want  int
+	}{{StampNone, 21}, {StampDate, 16}, {StampTime, 11}} {
+		if got := BaseBudgetFor(24, c.stamp); got != c.want {
+			t.Errorf("room 24, stamp %q: %d, want %d", c.stamp, got, c.want)
+		}
+	}
+	if BaseBudgetFor(66, StampNone) != MaxBase || BaseBudgetFor(2, StampNone) != 0 {
+		t.Error("BaseBudgetFor bounds")
+	}
+}
+
+func TestATightNameEndsAtAWord(t *testing.T) {
+	// 11 bytes used to give "plan-the-la".
+	if got := Fit("plan-the-launch", 11); got != "plan" {
+		t.Errorf("Fit 11: %q", got)
+	}
+	if got := Fit("plan-the-launch", 15); got != "plan-the-launch" {
+		t.Errorf("Fit 15: %q", got)
+	}
 }
 
 func TestDesired(t *testing.T) {

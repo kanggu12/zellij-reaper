@@ -72,7 +72,10 @@ but keeps every other check.`,
 						println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
 					}
 				}
-				if n == 0 {
+				switch {
+				case n == 0 && r.NoRenames != nil:
+					println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")+" "+r.NoRenames.Error()))
+				case n == 0:
 					println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")))
 				}
 				return nil

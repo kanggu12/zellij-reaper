@@ -27,7 +27,8 @@ const MaxWidth = 32
 
 // tailLen is the room kept for the longest stamp ("_MMDD-HHMM") and a "-NN"
 // tail, whichever stamp is set, so changing the setting cannot make a name
-// that fitted stop fitting.
+// that fitted stop fitting. BaseBudgetFor keeps only what a stamp needs, for a
+// socket directory with little room, such as macOS's long temporary directory.
 const tailLen = 13
 
 // Stamp is the setting auto_rename_stamp: what a name ends in.
@@ -376,7 +377,7 @@ func Fit(s string, maxBytes int) string {
 	cut := s[:limit]
 	// Back to the last word's end, unless that throws away most of it: a
 	// long first word is better cut than lost.
-	if at := strings.LastIndexAny(cut, "-_"); at > 0 && at >= MaxWidth/2 {
+	if at := strings.LastIndexAny(cut, "-_"); at > 0 && at >= min(limit, MaxWidth)/2 {
 		cut = cut[:at]
 	}
 	return strings.TrimRight(dropDangling(cut), "-_.")
@@ -401,6 +402,23 @@ func dropDangling(s string) string {
 // BaseBudget is the byte budget for a base name when room bytes are left for a
 // whole name in the session's socket directory: enough for a stamp and a
 // collision tail to fit as well. It never exceeds MaxBase.
+// BaseBudgetFor is BaseBudget keeping room for one stamp's length only:
+// "_MMDD-HHMM", "_MMDD" or nothing, then a "-NN" tail. A name that a later
+// change of stamp no longer fits is fitted again by the next pass.
+func BaseBudgetFor(room int, stamp Stamp) int {
+	keep := 3
+	switch stamp {
+	case StampDate:
+		keep += len("_0102")
+	case StampTime:
+		keep += len("_0102-1504")
+	}
+	room -= keep
+	return max(0, min(room, MaxBase))
+}
+
+// BaseBudget is the budget for a base name in room bytes, keeping room for the
+// longest stamp and a tail.
 func BaseBudget(room int) int {
 	room -= tailLen
 	if room > MaxBase {

@@ -63,5 +63,24 @@ jobs:
       - name: build
         run: go build -o "zellij-reaper$(go env GOEXE)" ./cmd/zellij-reaper
       - name: real sessions, checked
+        if: runner.os != 'Windows'
         run: test/native/scenarios.sh
         timeout-minutes: 15
+      # In a console of its own: a CI step has none, and zellij then gives a
+      # shell pane a console with no input, so the shell ends at once. The
+      # scenarios start zellij servers that outlive them, so the step waits
+      # for the file the run writes last, not for its processes.
+      - name: real sessions, checked, in a console
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $done = Join-Path $env:RUNNER_TEMP 'scenarios.done'
+          $out = Join-Path $env:RUNNER_TEMP 'scenarios.out'
+          $bash = 'C:\Program Files\Git\bin\bash.exe'
+          $cmd = "test/native/scenarios.sh > '$($out -replace '\\','/')' 2>&1; echo `$? > '$($done -replace '\\','/')'"
+          Start-Process -FilePath $bash -ArgumentList '-c', "`"$cmd`"" -WorkingDirectory $PWD -WindowStyle Hidden
+          for ($i = 0; $i -lt 600 -and -not (Test-Path $done); $i++) { Start-Sleep 1 }
+          Get-Content $out -ErrorAction SilentlyContinue
+          if (-not (Test-Path $done)) { Write-Output 'the scenarios did not finish'; exit 1 }
+          exit [int](Get-Content $done)

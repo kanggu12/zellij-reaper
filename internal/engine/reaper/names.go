@@ -111,7 +111,7 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 	}
 	budget := rename.MaxBase
 	if s.Socket != "" {
-		budget = rename.BaseBudget(zellij.NameRoom(filepath.Dir(s.Socket)))
+		budget = rename.BaseBudgetFor(zellij.NameRoom(filepath.Dir(s.Socket)), rename.Stamp(e.Config.AutoRenameStamp))
 	}
 	base := rename.Suggest(rename.Input{
 		Titles: s.Files.Metadata.TitlesByFocus(),
