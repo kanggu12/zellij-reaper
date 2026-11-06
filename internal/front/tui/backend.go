@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
+	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/systemd"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
-	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
@@ -304,6 +304,11 @@ const switchWait = 10 * time.Second
 // renamed since it started, while zellij leaves the old name in
 // ZELLIJ_SESSION_NAME, where a zellij command waits for a session by it.
 func (r real) SwitchTo(ctx context.Context, name string, server int) error {
+	// zellij 0.43 has no switch-session: say what to do instead of passing
+	// on its usage error.
+	if v := r.a.ZellijVersion; strings.HasPrefix(v, "0.43.") || v == "0.43" {
+		return errors.New(i18n.T("switch.old", v, name))
+	}
 	ctx, cancel := context.WithTimeout(ctx, switchWait)
 	defer cancel()
 	rep, err := reaper.Plan(ctx, r.a.Reaper, reaper.Options{})
@@ -314,10 +319,9 @@ func (r real) SwitchTo(ctx context.Context, name string, server int) error {
 	if to == "" {
 		return errors.New(i18n.T("keep.gone", name))
 	}
-	here := ""
-	if t, err := procfs.Read(r.a.Reaper.Sources.ProcRoot); err == nil {
-		here = sessionAbove(t, os.Getpid(), rep)
-	}
+	// The name this dashboard's own session has now, as zellij-reaper here
+	// finds it; "" leaves ZELLIJ_SESSION_NAME as it is.
+	here, _ := inspect.Here(r.a.Reaper.Sources, os.Getpid())
 	if out, err := r.a.Zellij.SwitchTo(ctx, to, here).CombinedOutput(); err != nil {
 		return fmt.Errorf("%s %w", strings.TrimSpace(string(out)), err)
 	}
@@ -336,30 +340,6 @@ func nameNow(rep reaper.Report, name string, server int) string {
 		if s := o.Session; server > 0 && !s.Listed.Exited && s.Server != nil && s.Server.PID == server {
 			return s.Name()
 		}
-	}
-	return ""
-}
-
-// sessionAbove names the running session whose server pid descends from: a
-// process in a pane is a child of the session's server, or of its children.
-func sessionAbove(t *procfs.Table, pid int, rep reaper.Report) string {
-	servers := map[int]string{}
-	for _, o := range rep.Outcomes {
-		if s := o.Session; s.Server != nil && !s.Listed.Exited {
-			servers[s.Server.PID] = s.Name()
-		}
-	}
-	// A pane's process tree is shallow; the bound ends the walk in a table
-	// taken while processes come and go.
-	for range 64 {
-		if name, ok := servers[pid]; ok {
-			return name
-		}
-		p := t.ByPID[pid]
-		if p == nil || p.PPID == pid || p.PPID <= 0 {
-			return ""
-		}
-		pid = p.PPID
 	}
 	return ""
 }

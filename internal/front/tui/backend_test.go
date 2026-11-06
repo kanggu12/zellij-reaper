@@ -423,30 +423,12 @@ func TestANameGivenByHandCountsAsChosen(t *testing.T) {
 	}
 }
 
-func TestTheSessionADashboardRunsInIsTheOneItsServerHasNow(t *testing.T) {
-	fp := testutil.NewFakeProc(t)
-	// A server, the shell in one of its panes and the dashboard that shell
-	// started; another server; a shell in no session.
-	fp.Add(testutil.Proc{PID: 100, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/run/zellij/brave-peach"}})
-	fp.Add(testutil.Proc{PID: 101, PPID: 100, Comm: "bash", Argv: []string{"-bash"}})
-	fp.Add(testutil.Proc{PID: 102, PPID: 101, Comm: "zellij-reaper", Argv: []string{"zellij-reaper"}})
-	fp.Add(testutil.Proc{PID: 200, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/run/zellij/other"}})
-	fp.Add(testutil.Proc{PID: 300, PPID: 1, Comm: "bash", Argv: []string{"-bash"}})
-	tbl, err := procfs.Read(fp.Root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// brave-peach was renamed since it started: the name it is listed under
-	// now is the one a zellij command must use.
-	rep := reaper.Report{Outcomes: []reaper.Outcome{
-		{Session: inspect.Session{Listed: zellij.Listed{Name: "review-the-draft"}, Server: &procfs.Server{PID: 100}}},
-		{Session: inspect.Session{Listed: zellij.Listed{Name: "other"}, Server: &procfs.Server{PID: 200}}},
-	}}
-	if got := sessionAbove(tbl, 102, rep); got != "review-the-draft" {
-		t.Errorf("from the dashboard: %q", got)
-	}
-	if got := sessionAbove(tbl, 300, rep); got != "" {
-		t.Errorf("from a shell in no session: %q", got)
+func TestEnterOnZellij043SaysWhatToDo(t *testing.T) {
+	// zellij 0.43 has no switch-session; the dashboard says so before it
+	// looks at anything.
+	err := real{a: &app.App{ZellijVersion: "0.43.1"}}.SwitchTo(context.Background(), "notes", 0)
+	if err == nil || !strings.Contains(err.Error(), "zellij attach notes") {
+		t.Errorf("got %v", err)
 	}
 }
 
