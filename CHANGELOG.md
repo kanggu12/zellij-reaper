@@ -5,6 +5,8 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-06
+
 ### Changed
 
 - `auto_rename` renames sessions with a client attached too, as you work in them. It renamed only sessions nobody was
@@ -239,7 +241,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.4.0
 [0.3.5]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.5
 [0.3.4]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.4
 [0.3.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.3
