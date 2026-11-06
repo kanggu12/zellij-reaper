@@ -17,17 +17,17 @@ import (
 func cmdHere() *cobra.Command {
 	return &cobra.Command{
 		Use:   "here",
-		Short: "Print the name the zellij session this shell runs in has now",
-		Long: `Print the name the zellij session this shell runs in has now. A pane keeps the
-name its session had when the pane opened, in ZELLIJ_SESSION_NAME, and a zellij
+		Short: "Print the current name of this shell's zellij session",
+		Long: `Print the current name of this shell's zellij session. A pane keeps the name
+its session had when the pane opened, in ZELLIJ_SESSION_NAME, and a zellij
 command run there waits for a session by that name once the session is renamed.
 It starts no zellij process, so a prompt can afford it: see shell-hook.
 Exits 1, printing nothing, outside zellij or when the name cannot be told.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// No settings and no zellij process: only /proc, the kernel's socket
-			// table and the socket directory, read up from this process (the
-			// shell that asked, its pane, the server).
+			// No settings and no zellij process: only the process table, the
+			// kernel's socket table on Linux and the socket directory, read up
+			// from this process (the shell that asked, its pane, the server).
 			src := inspect.Sources{ProcRoot: procfs.Native, UID: procfs.CurrentUID(), Sockets: procfs.UnixSockets}
 			name, err := inspect.Here(src, os.Getpid())
 			// Outside zellij, or with no name to give: nothing printed, status 1,

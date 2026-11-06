@@ -68,7 +68,7 @@ function per system (`native_linux.go`, `native_darwin.go`, `native_windows.go`)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing and a release build on every push to main and pull request. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing, a release build and the macOS and Windows checks on every push to main and pull request. A vX.Y.Z tag runs all of CI on Linux, macOS and Windows, then builds the archives, packages, installers and demo image, and installs the release to check the installers." src="../docs/assets/release-light.svg">
 </picture>
 
 Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen processes and terminals, real Unix sockets

@@ -6,6 +6,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Changed
+
+- `uninstall` says it removed the timers, which are launch agents or a scheduled task outside Linux; `here` says in
+  its help that it prints the current name of the shell's session; two Korean messages no longer put a particle
+  after a name it may not fit.
+
 ## [0.6.1] - 2026-11-07
 
 ### Fixed

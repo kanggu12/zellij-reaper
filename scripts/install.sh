@@ -1,5 +1,6 @@
 #!/bin/sh
-# Install zellij-reaper from a GitHub release and start its timer.
+# Install zellij-reaper on Linux or macOS from a GitHub release and start its
+# timers. Windows takes install.ps1 from the same release.
 #
 #   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 #

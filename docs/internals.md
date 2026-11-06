@@ -284,20 +284,22 @@ failure leaves its evidence in the test output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing and a release build on every push to main and pull request. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing, a release build and the macOS and Windows checks on every push to main and pull request. A vX.Y.Z tag runs all of CI on Linux, macOS and Windows, then builds the archives, packages, installers and demo image, and installs the release to check the installers." src="assets/release-light.svg">
 </picture>
 
 **CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a snapshot
-release build on every push to `main` and every pull request. A new zellij release joins the matrix, and
+release build on every push to `main` and every pull request; `.github/workflows/platforms.yml` runs the unit tests and
+real sessions on macOS and Windows alongside. A new zellij release joins the matrix, and
 `default_versions` in `test/integration/run.sh`, once it passes.
 
 **A release** is a `vX.Y.Z` tag, a `## [X.Y.Z]` section in `CHANGELOG.md` and a README release badge naming it. The
 README's badges are files that `make badges` writes, since GitHub shows an image from another site through a proxy that
 gives up after about four seconds, which shields.io often takes; CI checks that the release badge names the newest
-section. `.github/workflows/release.yml` runs all of CI on the tagged commit. Then
+section. `.github/workflows/release.yml` runs all of CI and the macOS and Windows checks on the tagged commit. Then
 GoReleaser builds the archives, `checksums.txt` and the packages from `.github/goreleaser.yaml` and attaches
-`scripts/install.sh` and `scripts/install.ps1`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
-arm64.
+`scripts/install.sh` and `scripts/install.ps1`, with the changelog section as the release notes; the demo image goes to
+ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` installs the published release with both scripts,
+on Linux, macOS and Windows.
 
 **Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
 install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the

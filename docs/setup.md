@@ -349,6 +349,7 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 | `~/.local/state/zellij-reaper/protected.lock` | held while the protected list is changed |
 | `~/.local/state/zellij-reaper/named`, `named.lock` | the list of given names: names a pass gave, so it can tell them from a name someone chose |
 | `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept with the dashboard or `keep-name`, which no pass renames |
+| `~/.local/state/zellij-reaper/quiet` | when a pass first found each session quiet, for sessions whose terminals cannot be read (every session on Windows) |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. On macOS the same paths apply, and the timers are the launch agents

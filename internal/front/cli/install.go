@@ -161,7 +161,7 @@ func cmdUninstall() *cobra.Command {
 	var purge bool
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Remove the timer and the service",
+		Short: "Remove the timers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()
