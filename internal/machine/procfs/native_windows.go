@@ -132,14 +132,26 @@ func commandLine(h windows.Handle) []string {
 	return argv
 }
 
-// processNative reads one process in full.
+// processNative reads one process in full: its entry in a Toolhelp snapshot,
+// which has its parent and name, then its own command line, start and owner.
 func processNative(pid int) (*Proc, bool) {
-	t, err := readNative(false)
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
 		return nil, false
 	}
-	p, ok := t.ByPID[pid]
-	return p, ok
+	defer windows.CloseHandle(snap)
+	var e windows.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
+		if int(e.ProcessID) != pid {
+			continue
+		}
+		p := &Proc{PID: pid, PPID: int(e.ParentProcessID), UID: -1, State: "S",
+			Comm: strings.TrimSuffix(strings.ToLower(windows.UTF16ToString(e.ExeFile[:])), ".exe")}
+		fillDetails(p, CurrentSID())
+		return p, true
+	}
+	return nil, false
 }
 
 // youngestNative needs no answer on Windows: zellij lists its sessions there
