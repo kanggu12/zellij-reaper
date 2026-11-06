@@ -61,7 +61,7 @@ jobs:
         env:
           ASSET: ${{ matrix.asset }}
       - name: build
-        run: go build -o zellij-reaper ./cmd/zellij-reaper
+        run: go build -o "zellij-reaper$(go env GOEXE)" ./cmd/zellij-reaper
       - name: explore
         run: test/native/explore.sh
         timeout-minutes: 15
