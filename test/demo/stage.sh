@@ -10,7 +10,7 @@ INFO=~/.cache/zellij/contract_version_1/session_info
 mkdir -p ~/.config/zellij ~/.config/zellij-reaper ~/.config/systemd/user /srv
 : >/srv/app.log
 printf 'serialization_interval 1\nshow_startup_tips false\nshow_release_notes false\n' >~/.config/zellij/config.kdl
-printf 'idle_after = "1h"\nexited_after = "3d"\nauto_rename = true\n' >~/.config/zellij-reaper/config.toml
+printf 'auto_rename = true\n' >~/.config/zellij-reaper/config.toml
 # Stand-ins for programs people leave running.
 for p in npm claude psql pytest; do cp /sleeper /usr/local/sbin/$p; done
 # A stand-in for systemd, so the dashboard has a timer to show: it reports one
@@ -66,7 +66,7 @@ earlier() {
 
 echo "starting the demo sessions (about a minute)..."
 # Earlier passes, so the log and the recent decisions have something to show.
-mk tmp && age tmp '-5 hours'
+mk tmp && age tmp '-15 hours'
 exited build-cache '-4 days'
 zellij-reaper plan --json >/dev/null
 earlier '26 hours'
@@ -93,7 +93,8 @@ timeout 15 $Z --layout /tmp/login.kdl attach --create-background brave-peach >/d
 pane_wait brave-peach
 exited old-experiment '-5 days'
 exited k8s-debug '-1 day'
-for s in api-server agent-refactor db-shell monitoring logs scratch dotfiles brave-peach; do age "$s" '-3 hours'; done
+for s in api-server agent-refactor db-shell monitoring logs dotfiles brave-peach; do age "$s" '-3 hours'; done
+age scratch '-13 hours'
 age docs-review '-25 min'
 age release-v2 '-50 min'
 # A client attached to notes, as a terminal left open on it would be. It

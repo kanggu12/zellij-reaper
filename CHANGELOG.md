@@ -10,11 +10,11 @@ the project uses [semantic versioning](https://semver.org/).
 ### Added
 
 - A names timer: `zellij-reaper-names.timer` runs `run --names-only` every `rename_interval` (5 minutes, `"0"` turns
-  it off), so a name follows its session within minutes instead of at the hourly pass. A names pass renames what a full
-  pass would, deletes nothing, and writes to the log only when it renames. `install` writes it, or removes it with
+  it off), so a name follows its session within minutes instead of at the hourly pass. A names pass renames what the
+  hourly pass would, deletes nothing, and writes to the log only when it renames. `install` writes it, or removes it with
   `rename_interval = "0"`, `uninstall` removes it, and `doctor` says when it is not running.
 - `zellij-reaper here` prints the current name of the shell's session, from `/proc`, the kernel's socket table
-  and the socket directory, in about a millisecond past start-up and with no zellij process. `shell-hook bash|zsh|fish`
+  and the socket directory, in about a millisecond, without starting zellij. `shell-hook bash|zsh|fish`
   prints a prompt hook that keeps `ZELLIJ_SESSION_NAME` at that name, so zellij commands in a pane opened before a
   rename keep working; it keeps the status of the command before.
 - `keep-name NAME` and `forget-name NAME` keep a session's name, or let passes rename it again, from a script, as `r`,
@@ -36,8 +36,14 @@ the project uses [semantic versioning](https://semver.org/).
 
 ### Fixed
 
-- A line of `list-sessions` output with a blank name no longer becomes a session with no name, and the collision tail
-  after a name that is no tail of the desired one is refused (both found by fuzzing).
+- A pass or the dashboard could stop a session that was starting: zellij 0.44 and 0.45 die when a connection to a new
+  server closes in its first tenth of a second (zellij issue 5632), and listing the sessions makes one. zellij-reaper
+  now waits until every server is a second old before it lists them. Measured on 0.45.1, a `plan` run at that moment
+  stopped 12 of 25 new sessions before, none after.
+- On a narrow terminal the dashboard keeps the verdict and drops the client count and the state, and keeps attach,
+  rename and protect in the key bar before the arrows and the run-a-pass key.
+- A line of `list-sessions` output with a blank name no longer becomes a session with no name, and a `-N` tail is added only to the
+  name it belongs to (both found by fuzzing).
 
 ## [0.4.0] - 2026-11-06
 

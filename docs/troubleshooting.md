@@ -31,8 +31,8 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 
 Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
 stays, because a name changes only when what the session shows changes; with `auto_rename_drop_tail = true` it goes
-once no other session has the name. With `r` you can give it the name without the
-tail, unless this session had that name before. A name given by hand stays as it is from then on.
+once no other session has the name. With `r` you can give it the name without the tail, unless this session had that
+name before. A name given by hand stays as it is from then on.
 
 ## A session is named after the wrong thing
 

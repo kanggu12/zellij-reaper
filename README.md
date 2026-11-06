@@ -39,11 +39,18 @@ before a session goes; when a fact is unclear, the session stays.
 
 ## Quick start
 
-Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl --user` works). On WSL 2,
-[turn on systemd](docs/setup.md#wsl-2) first.
+| | Needs | Best with |
+|:---|:---|:---|
+| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2) | |
+| zellij | 0.43 to 0.45 | 0.45.1 |
+| Timers | a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd) | systemd |
+| Dashboard | a terminal of 30 by 8 cells | 100 columns; 132 puts the details beside the list |
+| Prompt hook | bash, zsh or fish | |
+
+Binary size, memory and the rest are in [Requirements](docs/setup.md#requirements).
 
 1. **Install.** The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin`
-   and starts the timers. The first pass comes ten minutes later. If it says to add `~/.local/bin` to your `PATH`, run
+   and starts the timers. The first pass runs ten minutes later. If it says to add `~/.local/bin` to your `PATH`, run
    `export PATH="$HOME/.local/bin:$PATH"` or open a new login shell.
 
    ```sh
@@ -66,17 +73,16 @@ Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl
    `zellij-reaper protect NAME`.
 
 4. **Name sessions after what they show** (optional). In the settings, uncomment `auto_rename` and set it to `true`;
-   names change within five minutes. The prompt hook keeps the panes of a renamed session reaching it, in shells started
-   after this (zsh and fish lines are in [setup](docs/setup.md#naming-sessions-after-what-they-show)):
+   names change within five minutes. Add the prompt hook so open panes follow a rename (zsh and fish lines are in
+   [setup](docs/setup.md#naming-sessions-after-what-they-show)):
 
    ```sh
    zellij-reaper config edit
    echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
    ```
 
-Not ready to install? `docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo` opens the dashboard on demo
-sessions in a throwaway container. [Setup](docs/setup.md) has packages, upgrading, uninstalling and
-[machines with no internet access](docs/setup.md#without-internet-access).
+Not ready to install? [Try it in a sandbox](#try-it-in-a-sandbox). [Setup](docs/setup.md) has packages, upgrading,
+uninstalling and [machines with no internet access](docs/setup.md#without-internet-access).
 
 ## Why zellij-reaper
 
@@ -89,13 +95,13 @@ sessions in a throwaway container. [Setup](docs/setup.md) has packages, upgradin
 - **Names that say what a session is.** With `auto_rename = true`, `brave-peach` becomes `fix-the-login-bug`.
 - **It shows why.** The dashboard shows every check with its evidence, and the log keeps one line per
   session, in words that stay the same across releases.
-- **Light.** It runs as you, with no root and no network, and `plan` over ten sessions took 26 ms in the test container.
+- **Light.** It runs as you, with no root and no network. A pass takes about 35 ms and 12 MB, then exits.
 
 ## What goes and what stays
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/goes-dark.svg">
-  <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows: protected: claude, attached, running npm run dev, reap in 9m. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="docs/assets/goes-light.svg">
+  <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows: protected: claude, attached, running npm run dev, reap in 11h 10m. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="docs/assets/goes-light.svg">
 </picture>
 
 The waits are yours to set: 12 hours idle (`idle_after`) and 3 days exited (`exited_after`) by default. Idle time
@@ -134,8 +140,8 @@ they show, so the list of sessions reads like a list of what you were doing:
 </picture>
 
 A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. A second timer renames every five minutes, so a name changes within minutes, and the session
-list shows the name the next pass gives (`→ fix-the-login-bug`). The session you are in is renamed too;
+session shows changes. Names change within five minutes, and the session list shows the name a session gets next
+(`→ fix-the-login-bug`). The session you are in is renamed too;
 `auto_rename_attached = false` waits until nobody is attached.
 
 A pane keeps the session name it opened under, so after a rename a `zellij` command typed there waits for the old name.
@@ -239,7 +245,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their

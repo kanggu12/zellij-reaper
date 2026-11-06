@@ -104,8 +104,8 @@ read yet. Run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that releas
 word lists from zellij's source and compares them with `internal/core/rename/generated.go`, so a new word fails the run:
 add it to that file. Once the run passes, add the release to the matrix in `.github/workflows/ci.yml` and to
 `default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in
-`internal/front/cli/doctor.go`, or `doctor` warns it is untested, update `README.md` and `docs/setup.md`, and run
-`make badges`. If a scenario fails, record what changed (`list-sessions -n`, `action list-clients`, a
+`internal/front/cli/doctor.go`, or `doctor` warns it is untested, update the zellij rows of the Requirements tables in `README.md` and
+`docs/setup.md` and the CI line under [zellij versions](../docs/setup.md#zellij-versions), and run `make badges`. If a scenario fails, record what changed (`list-sessions -n`, `action list-clients`, a
 `session-metadata.kdl`) under `internal/machine/zellij/testdata/x.y.z/`, add a parser test, then fix.
 
 ### A dependency

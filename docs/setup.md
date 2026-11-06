@@ -1,30 +1,43 @@
 # Setting up zellij-reaper
 
-1. [Install](#install)
-2. [Coming from the shell scripts](#coming-from-the-shell-scripts)
-3. [Without internet access](#without-internet-access)
-4. [Upgrade and uninstall](#upgrade-and-uninstall)
-5. [Settings](#settings)
-6. [Protecting sessions](#protecting-sessions)
-7. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
-8. [Files](#files)
-9. [zellij versions](#zellij-versions)
-10. [WSL 2](#wsl-2)
+1. [Requirements](#requirements)
+2. [Install](#install)
+3. [Coming from the shell scripts](#coming-from-the-shell-scripts)
+4. [Without internet access](#without-internet-access)
+5. [Upgrade and uninstall](#upgrade-and-uninstall)
+6. [Settings](#settings)
+7. [Protecting sessions](#protecting-sessions)
+8. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
+9. [Files](#files)
+10. [zellij versions](#zellij-versions)
+11. [WSL 2](#wsl-2)
+
+## Requirements
+
+| | Needs | Best with |
+|:---|:---|:---|
+| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](#wsl-2) | a kernel with `unix_diag` (all common distributions), so clients and renamed sessions are found without asking zellij |
+| zellij | 0.43 to 0.45 ([what differs](#zellij-versions)) | 0.45.1 |
+| Timers | a systemd user instance, or [cron](#without-systemd) | systemd with lingering, which `install` turns on |
+| Dashboard | a terminal of 30 by 8 cells, and a font with `●`, `✓`, `✗` and `→` | 100 columns and 256 colors; from 132 columns the details sit beside the list |
+| Prompt hook | bash, zsh or fish | |
+| Install script | `curl`, `tar`, and `sha256sum` or `shasum` | |
+| Demo sandbox | Docker | |
+
+The binary is 7.5 MB and needs no other library. On a machine with 4 sessions and 150 processes a pass took 35 ms and
+at most 12 MB of memory, and nothing stays running between passes. The dashboard, while it is open, uses about 16 MB and
+reads the sessions every five seconds.
 
 ## Install
 
-The [Quick start](../README.md#quick-start) is the short way through this page. zellij-reaper is one static binary for
-Linux on x86_64 or arm64. It needs zellij and a systemd user instance for its timer. Without systemd,
+The [Quick start](../README.md#quick-start) covers the usual install. Without systemd,
 `ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and [cron can run the passes](#without-systemd).
 
 ```sh
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 ```
 
-To see the dashboard before installing anything, `docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo`
-opens it on demo sessions in a throwaway container.
-
-The script needs `curl`, `tar` and `sha256sum` (or `shasum`). It downloads the latest release for your architecture,
+The script downloads the latest release for your architecture,
 checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and runs `zellij-reaper install`.
 These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPER_BIN_DIR=~/bin sh`):
 
@@ -53,8 +66,7 @@ Other ways:
   removes them. A names pass does nothing while `auto_rename` is off.
 - Writes `~/.config/zellij-reaper/config.toml` if there is none, every key commented out at its default.
 - Enables the timer and turns on lingering (`loginctl enable-linger`), so the timer runs without a login.
-- Says when the first pass runs and how many sessions it would delete. The first pass waits ten minutes after the timer
-  starts; `zellij-reaper plan` shows what it will do, and `zellij-reaper protect NAME` keeps a session out of it.
+- Says when the first pass runs and how many sessions it would delete.
 
 Run it again after moving the binary or changing `interval` or `rename_interval`. It never overwrites a settings file.
 With `--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read that file too.
@@ -327,6 +339,11 @@ CI runs real sessions on zellij 0.43.1, 0.44.3 and 0.45.1. The differences it ha
 | A session made with `attach --create-background` | the first `list-clients` names the client that made it, so it is asked twice | counts none |
 | The client count in the metadata file | can keep counting that client until something happens | rewritten about once a minute |
 | Renaming to a name that is taken | refused | accepted, cutting the other session off, so zellij-reaper looks first |
+
+zellij 0.44 and 0.45 also stop a session that is starting when another program connects to it and leaves within
+about a tenth of a second ([zellij issue 5632](https://github.com/zellij-org/zellij/issues/5632)), and
+`list-sessions` connects to every session. Before it lists the sessions, zellij-reaper waits until every server is a
+second old, so a pass or the dashboard never stops a session you are opening.
 
 zellij 0.44.2 prints nothing when `list-clients` calls overlap, so zellij-reaper does not overlap them. The version comes
 from `zellij --version`. Older releases may work; they are not tested.
