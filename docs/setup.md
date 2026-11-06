@@ -267,8 +267,13 @@ A name changes only when what the session shows changes, so a script that attach
 When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij refuses a name a session has had before,
 so a title that comes back gives a tail too.
 
+Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
+in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
+session by the old name while any other session is running. Panes opened after the rename have the new name, and
+`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one.
+
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
-session in use once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
+session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
 
 ## Files
 

@@ -41,6 +41,13 @@ attached. When that title says nothing, the other running panes come next. Its r
 `zellij action rename-session`, and passes leave that name alone. To keep the name a running session has now, press `r`,
 then Tab and Enter. `auto_rename = false` turns renaming off.
 
+## A `zellij` command hangs in a renamed session
+
+A pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`, so after a rename a `zellij` command run
+there without `--session` waits for a session by the old name while any other session is running. Run
+`export ZELLIJ_SESSION_NAME=NEW-NAME` in that pane, or open a new pane, which has the new name. `zellij-reaper logs`
+shows what each session was renamed to.
+
 ## `plan` and the timer disagree
 
 Settings from variables in your shell (`ZELLIJ_REAPER_PROTECT=...`) apply to the commands you run there, not to the
