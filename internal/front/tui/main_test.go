@@ -15,12 +15,14 @@ import (
 // checks that refusal.
 func TestMain(m *testing.M) {
 	zellij.GOOS = "linux"
+	zellij.RenamesReachable = true
 	os.Exit(m.Run())
 }
 
 func TestRSaysWhyOnWindows(t *testing.T) {
 	i18n.Set(i18n.English)
-	zellijRulesOf(t, "windows")
+	defer func(g bool) { zellij.RenamesReachable = g }(zellij.RenamesReachable)
+	zellij.RenamesReachable = false
 	b := sample()
 	m := press(t, pick(t, loaded(t, b, 120, 40), "notes"), "r")
 	if m.mode == modeRename {

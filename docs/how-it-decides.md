@@ -109,9 +109,10 @@ dashboard's detail panel marks with ✗.
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
   files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every
-  session on Windows, a running session is idle from the first pass that found it quiet (no client, every pane at a
-  prompt): zellij's files do not change when a pane prints, so they cannot tell. That time is kept in the state
-  directory (`quiet`), and such a session goes up to one interval late, never early.
+  session on Windows, a running session is idle from the later of the first pass that found it quiet (no client,
+  every pane at a prompt) and the last change of its files, which zellij rewrites when a client attaches or leaves.
+  The files alone do not change when a pane prints. The first quiet pass is kept in the state directory (`quiet`),
+  and such a session can go up to one interval late.
 - **Attached clients** come from the kernel's socket table on Linux: each connection a server accepted, with its other
   end still open, is one client. When the table cannot tell, and always on macOS and Windows, `zellij action list-clients` asks the server itself, and when the
   server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web

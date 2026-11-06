@@ -154,12 +154,41 @@ func processNative(pid int) (*Proc, bool) {
 	return nil, false
 }
 
-// youngestNative needs no answer on Windows: zellij lists its sessions there
-// from the files that hold their servers' process IDs and never connects to a
-// starting server, so nothing waits.
+// youngestNative is the age of the youngest zellij server of this user.
+// zellij lists its sessions on Windows from the files that hold their servers'
+// process IDs, without connecting to them, but list-clients does connect.
 func youngestNative(uid int) (time.Duration, bool) {
 	_ = uid
-	return 0, false
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return 0, false
+	}
+	defer windows.CloseHandle(snap)
+	me := CurrentSID()
+	now := time.Now()
+	var youngest time.Duration
+	found := false
+	var e windows.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
+		if !strings.Contains(strings.ToLower(windows.UTF16ToString(e.ExeFile[:])), "zellij") {
+			continue
+		}
+		p := &Proc{PID: int(e.ProcessID), UID: -1}
+		fillDetails(p, me)
+		if p.UID != 0 || p.started.IsZero() {
+			continue
+		}
+		age := now.Sub(p.started)
+		if age >= SettleAge || (found && age >= youngest) {
+			continue
+		}
+		if _, ok := ServerOf(p); !ok {
+			continue
+		}
+		youngest, found = max(age, 0), true
+	}
+	return youngest, found
 }
 
 // CurrentSID is the user this program runs as.

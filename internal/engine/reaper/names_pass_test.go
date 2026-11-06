@@ -111,16 +111,20 @@ func (w *world) logBytes() ([]byte, error) { return os.ReadFile(w.logp) }
 
 func TestNoPassRenamesOnWindows(t *testing.T) {
 	// zellij on Windows cannot reach a session after a rename: the same world
-	// that renames busy on Linux renames nothing there, and says why.
-	defer func(g string) { zellij.GOOS = g }(zellij.GOOS)
+	// that renames busy on Linux renames nothing there, says why, and still
+	// reaps what it reaps elsewhere.
+	defer func(g bool) { zellij.RenamesReachable = g }(zellij.RenamesReachable)
 	w := newWorld(t)
 	w.env.Config.AutoRename = true
-	zellij.GOOS = "windows"
+	zellij.RenamesReachable = false
 	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(w.zj.renamed) != 0 {
 		t.Errorf("renamed %v", w.zj.renamed)
+	}
+	if !strings.Contains(strings.Join(w.zj.deleted, ","), "idle-old") {
+		t.Errorf("deleted %v", w.zj.deleted)
 	}
 	if log := w.log(t); !strings.Contains(log, "cannot reach a session after a rename") {
 		t.Errorf("no reason in the log:\n%s", log)

@@ -27,8 +27,14 @@ func TestByStartTimePicksOnlyAClearMatch(t *testing.T) {
 		// Too far from any server.
 		{"too late", ms(1500), two[:1], 0},
 		// Two servers about as near: none.
-		{"between", ms(125), two, 0},
-		{"nearer, not clearly", ms(40), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(400)}}, 0},
+		// The server that started after the file was made is no candidate,
+		// so the other one, 125 ms before, is the only one.
+		{"between, the later one too late", ms(125), two, 1},
+		{"just before it", ms(125), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(120)}}, 2},
+		{"two about as near", ms(125), []procfs.Server{{PID: 1, Started: ms(100)}, {PID: 2, Started: ms(120)}}, 0},
+		{"made before every server", ms(0), []procfs.Server{{PID: 1, Started: ms(300)}}, 0},
+		{"the only one that started before it", ms(40), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(400)}}, 1},
+		{"nearer, not clearly", ms(40), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(-300)}}, 0},
 		{"started together", ms(5), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(20)}}, 0},
 		// A server whose start is unknown is no candidate.
 		{"unknown start", ms(3), []procfs.Server{{PID: 1}, {PID: 2, Started: ms(0)}}, 2},

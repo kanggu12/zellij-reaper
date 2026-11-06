@@ -62,6 +62,15 @@ func attachCheck(ctx context.Context, src Sources, s *Session, c connections) {
 		noClientOnTheSocket(s, md)
 		return
 	}
+	// A server that started a moment ago is not asked: zellij 0.44 and 0.45
+	// panic when a connection to a server closes before its first client has
+	// set the session up (zellij issue 5632). It is kept for now.
+	if now := src.now(); s.Server != nil && !s.Server.Started.IsZero() && now.Sub(s.Server.Started) < procfs.SettleAge {
+		s.ServerSilent = true
+		s.Facts.Attached = policy.Unknown
+		s.Facts.AttachDetail = "started a moment ago"
+		return
+	}
 	// zellij on Windows cannot reach a renamed session: asking would only wait
 	// out the time limit. The session is kept as one nobody can tell about.
 	if !zellij.RenameReachable() && s.Server != nil && s.Server.Session() != s.Name() {

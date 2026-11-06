@@ -407,10 +407,10 @@ as anywhere, with these differences:
   cannot be reached: every command for the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing,
   and `r` and `doctor` say why. Do not rename sessions by hand there either: a session renamed that way can no longer
   be attached to or deleted, and zellij-reaper keeps it. The prompt hook is of no use for the same reason.
-- **Idle time** counts from the first pass that found the session quiet: no client attached and every pane at a
-  prompt. A Windows console has no terminal file to read, and zellij's session files do not change when a pane
-  prints, so they cannot tell a job that just ended. A session therefore goes up to one `interval` after its wait,
-  never before.
+- **Idle time** counts from the later of two times: the first pass that found the session quiet (no client
+  attached, every pane at a prompt), and the last time a client left it, which zellij's session files record. A
+  Windows console has no terminal file to read, and the session files do not change when a pane prints, so a job a
+  pass saw running starts the wait over only from that pass. A session can go up to one `interval` after its wait.
 - **The timer** is a scheduled task that runs while you are logged in, which is when your sessions run too.
 - **`resize`** does nothing: Windows has no `SIGWINCH`, and a console passes a new size on by itself.
 

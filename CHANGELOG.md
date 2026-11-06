@@ -18,9 +18,9 @@ the project uses [semantic versioning](https://semver.org/).
 - zellij on Windows cannot reach a session after a rename: its named pipe keeps the first name, and every command for
   the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing there, and `r` in the dashboard and
   `doctor` say why; a session renamed by hand is kept without asking zellij.
-- Where no terminal can be read, as on Windows, a running session is idle from the first pass that found it quiet,
-  kept in the state directory: zellij's session files do not change when a pane prints, so a job that just ended
-  would not count.
+- Where no terminal can be read, as on Windows, a running session is idle from the later of the first pass that found
+  it quiet, kept in the state directory, and the last time a client left it, which zellij's session files record:
+  the files alone do not change when a pane prints, so a job that just ended would not count.
 - The platforms workflow runs the unit tests and real sessions on macOS and Windows runners; installers.yml installs
   each release with `install.sh` and `install.ps1`.
 
@@ -31,6 +31,10 @@ the project uses [semantic versioning](https://semver.org/).
   directory, `plan-the-launch` used to become `plan-the-la`.
 - When the timer does not say when it runs next (launchd), the header shows its interval. `config edit` falls back on
   Notepad on Windows.
+- A server that started less than a second ago is not asked for its clients, which zellij issue 5632 could stop; its
+  session is kept for that pass.
+- `cmd` and `powershell` count as shells on Windows only: elsewhere a program called `cmd` is more likely a build of
+  someone's `./cmd`.
 
 ## [0.5.0] - 2026-11-07
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
@@ -15,11 +16,19 @@ import (
 )
 
 // KnownShells are the programs that count as a prompt waiting for input.
-var KnownShells = []string{
+var KnownShells = append([]string{
 	"sh", "bash", "zsh", "fish", "dash", "ash", "ksh", "mksh", "oksh", "pdksh", "yash",
 	"csh", "tcsh", "nu", "elvish", "xonsh", "pwsh", "ion", "osh", "oil", "hush", "rc", "es", "murex",
-	// Windows's own.
-	"powershell", "cmd",
+}, windowsShells()...)
+
+// windowsShells are Windows's own shells, on Windows only: elsewhere a program
+// called cmd is as likely a build of someone's ./cmd, which must not pass for
+// a prompt.
+func windowsShells() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"powershell", "cmd"}
+	}
+	return nil
 }
 
 // ClientLister asks a running session for its attached clients.
@@ -259,4 +268,12 @@ func (v snapshot) running(s *Session) {
 		s.Facts.LastActive, s.Facts.ActivitySource = s.Files.Newest, "session files"
 	}
 	s.Facts.ProtectedCommand = protectedCommand(v.table, s.Server, s.Files, v.rules.ProtectCommands)
+}
+
+// now reads the clock, the real one when none was set.
+func (s Sources) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }

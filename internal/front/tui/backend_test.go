@@ -455,13 +455,3 @@ func TestASwitchFindsTheSessionUnderTheNameItHasNow(t *testing.T) {
 		}
 	}
 }
-
-// zellijRulesOf makes zellij follow another system's rules for one test: a
-// rename by hand works the same everywhere but on Windows, where zellij
-// refuses it outright.
-func zellijRulesOf(t *testing.T, goos string) {
-	t.Helper()
-	old := zellij.GOOS
-	zellij.GOOS = goos
-	t.Cleanup(func() { zellij.GOOS = old })
-}

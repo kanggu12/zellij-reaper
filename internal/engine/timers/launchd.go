@@ -34,8 +34,9 @@ const (
 )
 
 // launchdPath lists the directories a pass looks for zellij in, after zellij's
-// own: Homebrew on Apple silicon and on Intel, then the system's.
-var launchdPath = []string{"/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"}
+// own: Homebrew on Apple silicon and on Intel, then the system's, with sbin for
+// lsof.
+var launchdPath = []string{"/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"}
 
 // Kind names launchd for messages.
 func (l Launchd) Kind() string { return "launchd" }

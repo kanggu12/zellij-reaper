@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -98,10 +100,23 @@ func (w Tasks) Install(o InstallOptions) (Result, error) {
 	script := TaskScript(TaskName, "Reap idle and exited zellij sessions", o.Exe, o.ConfigFile,
 		[]string{"run", "--quiet"}, FirstPassDelay, o.Config.Interval)
 	script += fmt.Sprintf("Unregister-ScheduledTask -TaskName %s -Confirm:$false -ErrorAction SilentlyContinue\n", psQuote(NamesTaskName))
-	if out, err := w.ps(script); err != nil {
+	// The task runs with the PATH Windows keeps for the user and the machine,
+	// not the one this shell may have added to. zellij found only by the
+	// latter would not be found by the passes.
+	if o.ZellijDir != "" {
+		script += fmt.Sprintf(`$dirs = ([Environment]::GetEnvironmentVariable('Path', 'User') + ';' + [Environment]::GetEnvironmentVariable('Path', 'Machine')) -split ';' | ForEach-Object { $_.TrimEnd('\') }
+if ($dirs -notcontains %s) { 'zellij-not-on-path' }
+`, psQuote(strings.TrimRight(o.ZellijDir, `\`)))
+	}
+	out, err := w.ps(script)
+	if err != nil {
 		return r, fmt.Errorf("register the tasks: %s", firstLine(out, err))
 	}
+	forgetStatus()
 	r.Wrote = append(r.Wrote, `Task Scheduler\`+TaskName)
+	if strings.Contains(out, "zellij-not-on-path") {
+		r.Warnings = append(r.Warnings, fmt.Sprintf("the task will not find zellij: %s is not in the PATH Windows keeps for you; add it there, or set zellij = '%s' in the settings", o.ZellijDir, filepath.Join(o.ZellijDir, "zellij.exe")))
+	}
 	return r, nil
 }
 
@@ -113,6 +128,7 @@ func (w Tasks) Uninstall(purge bool, logPath string) (Result, error) {
 			r.Removed = append(r.Removed, `Task Scheduler\`+name)
 		}
 	}
+	forgetStatus()
 	if purge {
 		purgeState(w.Env, logPath, &r)
 	}
@@ -134,6 +150,41 @@ type taskInfo struct {
 // 8601 and the interval as an ISO 8601 duration ("PT1H"), whatever the
 // system's language.
 func (w Tasks) statusOf(name string) TimerStatus {
+	statusMu.Lock()
+	defer statusMu.Unlock()
+	if c, ok := statusCache[name]; ok && time.Since(c.at) < statusFor {
+		return c.st
+	}
+	st := w.askStatus(name)
+	statusCache[name] = cachedStatus{st, time.Now()}
+	return st
+}
+
+// statusFor is how long a task's status is reused: each ask starts
+// PowerShell, about a third of a second, and the dashboard asks every few
+// seconds.
+const statusFor = 30 * time.Second
+
+// cachedStatus is a status and when it was asked.
+type cachedStatus struct {
+	st TimerStatus
+	at time.Time
+}
+
+var (
+	statusMu    sync.Mutex
+	statusCache = map[string]cachedStatus{}
+)
+
+// forgetStatus drops what was asked before an install or an uninstall.
+func forgetStatus() {
+	statusMu.Lock()
+	statusCache = map[string]cachedStatus{}
+	statusMu.Unlock()
+}
+
+// askStatus asks PowerShell about one task.
+func (w Tasks) askStatus(name string) TimerStatus {
 	var st TimerStatus
 	out, err := w.ps(fmt.Sprintf(`$t = Get-ScheduledTask -TaskName %s
 $i = $t | Get-ScheduledTaskInfo

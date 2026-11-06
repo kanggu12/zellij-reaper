@@ -438,6 +438,10 @@ func SessionDirs(infoDir string) []string {
 // the session can no longer be attached to, listed for clients or deleted.
 var ErrRenameUnreachable = errors.New("zellij on Windows cannot reach a session after a rename: its pipe keeps the first name")
 
+// RenamesReachable is whether zellij can still reach a session after a rename
+// on this system: everywhere but on Windows. Tests set it apart from GOOS.
+var RenamesReachable = GOOS != "windows"
+
 // RenameReachable reports whether zellij can still reach a session after a
 // rename on this system.
-func RenameReachable() bool { return GOOS != "windows" }
+func RenameReachable() bool { return RenamesReachable }

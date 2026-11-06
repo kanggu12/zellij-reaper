@@ -43,17 +43,22 @@ jobs:
           fi
 
   windows:
-    name: install.ps1 on windows-latest
+    # PowerShell 7 and Windows PowerShell 5.1, which every Windows has.
+    name: install.ps1 in ${{ matrix.shell }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [pwsh, powershell]
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - name: install
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         env:
           ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
         run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
       - name: check
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
           & $exe version

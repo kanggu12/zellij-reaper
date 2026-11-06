@@ -25,9 +25,16 @@ func Here(src Sources, pid int) (string, error) {
 	found := false
 	// A pane's process tree is shallow; the bound ends a walk through a
 	// table that changes as it is read.
+	var child *procfs.Proc
 	for range 64 {
 		p, ok := procfs.Process(src.ProcRoot, pid)
 		if !ok {
+			break
+		}
+		// Windows keeps a parent's ID after the parent exits, and may give
+		// it to a newer process: a "parent" that started after its child
+		// is not its parent.
+		if child != nil && !child.Started().IsZero() && p.Started().After(child.Started()) {
 			break
 		}
 		if s, ok := procfs.ServerOf(p); ok && (p.UID == src.UID) {
@@ -37,7 +44,7 @@ func Here(src Sources, pid int) (string, error) {
 		if p.PPID <= 0 || p.PPID == pid {
 			break
 		}
-		pid = p.PPID
+		child, pid = p, p.PPID
 	}
 	if !found {
 		return "", ErrNotInSession

@@ -396,15 +396,15 @@ func TestARenameCutShortIsUnconfirmed(t *testing.T) {
 func TestRename(t *testing.T) {
 	// The rules where a rename works; on Windows zellij cannot reach the
 	// session afterwards, and Rename refuses before asking zellij anything.
-	defer func(g string) { GOOS = g }(GOOS)
-	GOOS = "windows"
+	defer func(g bool) { RenamesReachable = g }(RenamesReachable)
+	RenamesReachable = false
 	if err := (&CLI{Bin: "zellij", Timeout: time.Second, Run: func(context.Context, ...string) (string, string, error) {
 		t.Error("asked zellij on Windows")
 		return "", "", nil
 	}}).Rename(context.Background(), "a", "b"); !errors.Is(err, ErrRenameUnreachable) {
 		t.Errorf("Windows: %v", err)
 	}
-	GOOS = "linux"
+	RenamesReachable = true
 	ctx := context.Background()
 	// A rename returns once zellij lists the new name.
 	s := &script{listed: "a [Created 1h ago]\n"}

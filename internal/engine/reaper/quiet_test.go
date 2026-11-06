@@ -22,6 +22,10 @@ func TestAnIdleSessionWithoutATerminalGoesAfterItsWait(t *testing.T) {
 	w.env.QuietPath = filepath.Join(t.TempDir(), "state", "quiet")
 	start := time.Now()
 	w.env.Now = func() time.Time { return start }
+	// The last client left an hour before the first pass.
+	if err := touchAll(filepath.Join(w.env.Sources.InfoDir, "idle-old"), start.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
 	if _, err := reaper.Run(ctx, w.env, reaper.Options{}); err != nil {
 		t.Fatal(err)
@@ -55,4 +59,47 @@ func TestAnIdleSessionWithoutATerminalGoesAfterItsWait(t *testing.T) {
 	if book, _ := os.ReadFile(w.env.QuietPath); strings.Contains(string(book), "idle-old") {
 		t.Errorf("book still has it: %q", book)
 	}
+}
+
+func TestAClientBetweenTwoPassesStartsTheWaitOver(t *testing.T) {
+	// As TestAnIdleSessionWithoutATerminalGoesAfterItsWait, but someone
+	// attached to idle-old and left between the passes: zellij rewrote its
+	// files when they left, which no pass saw.
+	w := newWorld(t)
+	if err := os.Remove(filepath.Join(w.env.Sources.ProcRoot, "101", "fd", "0")); err != nil {
+		t.Fatal(err)
+	}
+	w.env.QuietPath = filepath.Join(t.TempDir(), "quiet")
+	start := time.Now()
+	w.env.Now = func() time.Time { return start }
+	ctx := context.Background()
+	if _, err := reaper.Run(ctx, w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	later := start.Add(w.env.Config.IdleAfter + time.Hour)
+	left := later.Add(-10 * time.Minute)
+	if err := touchAll(filepath.Join(w.env.Sources.InfoDir, "idle-old"), left); err != nil {
+		t.Fatal(err)
+	}
+	w.env.Now = func() time.Time { return later }
+	if _, err := reaper.Run(ctx, w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(w.zj.deleted, ","), "idle-old") {
+		t.Errorf("reaped ten minutes after a client left:\n%s", w.log(t))
+	}
+}
+
+// touchAll sets the modification time of every file in dir.
+func touchAll(dir string, at time.Time) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := os.Chtimes(filepath.Join(dir, e.Name()), at, at); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -2,6 +2,10 @@ package procfs
 
 import "time"
 
+// bornBefore is how much earlier than its server a socket file may look born:
+// the two clocks are read at different grains (microseconds and nanoseconds).
+const bornBefore = 20 * time.Millisecond
+
 // ByStartTime picks the server that started when a socket file was born: the
 // nearest within a second, if every other server started clearly farther from
 // it (more than ten times as far, plus 20 ms). Otherwise it picks none.
@@ -15,7 +19,12 @@ func ByStartTime(born time.Time, servers []Server) (Server, bool) {
 		if s.Started.IsZero() {
 			continue
 		}
+		// A server makes its socket after it starts: one that started
+		// later than the file (beyond the clocks' grain) did not make it.
 		d := born.Sub(s.Started)
+		if d < -bornBefore {
+			continue
+		}
 		if d < 0 {
 			d = -d
 		}

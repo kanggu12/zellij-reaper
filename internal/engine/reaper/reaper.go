@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
@@ -208,19 +209,29 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if src.Clients == nil {
 		src.Clients = e.Zellij
 	}
-	// /proc is read while zellij lists the sessions: listing starts a zellij
-	// process and waits on every server, about half of a pass on its own.
+	// On Linux /proc is read while zellij lists the sessions: listing starts a
+	// zellij process and waits on every server, about half of a pass on its
+	// own. On macOS and Windows a renamed session is matched to its server by
+	// the socket file and the servers in the table, so the table comes after
+	// the list: a session started while the list was being made then has its
+	// server in it, and is not matched to another one.
 	type procRead struct {
 		table *procfs.Table
 		err   error
 	}
 	procs := make(chan procRead, 1)
-	go func() {
+	read := func() {
 		t, err := inspect.ReadProcesses(src)
 		procs <- procRead{t, err}
-	}()
+	}
+	if runtime.GOOS == "linux" {
+		go read()
+	}
 	listed, err := e.Zellij.ListSessions(ctx)
-	read := <-procs
+	if runtime.GOOS != "linux" {
+		read()
+	}
+	table := <-procs
 	if errors.Is(err, zellij.ErrNoSessions) {
 		r.NoSessions = true
 		return r, nil
@@ -228,10 +239,10 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if err != nil {
 		return r, err
 	}
-	if read.err != nil {
-		return r, gatherError{read.err}
+	if table.err != nil {
+		return r, gatherError{table.err}
 	}
-	sessions, err := inspect.GatherFrom(ctx, src, e.rules(), listed, read.table)
+	sessions, err := inspect.GatherFrom(ctx, src, e.rules(), listed, table.table)
 	if err != nil {
 		return r, gatherError{err}
 	}

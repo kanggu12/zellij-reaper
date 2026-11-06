@@ -16,16 +16,16 @@ import (
 
 // Idle time comes from a session's terminals. Where none can be read, which is
 // every session on Windows (a console has no terminal file), zellij's session
-// files cannot stand in for them: they change with what zellij keeps track of
-// (clients, tabs, titles), not with what a pane prints. A detached session
-// whose job ran for hours and just ended would look idle since it was
-// detached, and go at once, where on Linux its terminal says the job just
-// printed. Such a session is idle from the first pass that found it quiet
-// instead: no client attached and every pane at a prompt, so a job that a pass
-// saw running starts the wait over. Passes run once an interval, so this
-// counts from up to one interval after the session really went quiet: a
-// session goes late, never early. A pass writes these times down; plan and the
-// dashboard only read them.
+// files alone cannot stand in for them: they change with what zellij keeps
+// track of (clients attaching and leaving, tabs, titles), not with what a pane
+// prints. A detached session whose job ran for hours and just ended would look
+// idle since it was detached, and go at once, where on Linux its terminal says
+// the job just printed. Such a session is idle from the later of the first
+// pass that found it quiet (no client attached, every pane at a prompt), so a
+// job a pass saw running starts the wait over, and the last change of
+// zellij's files, so a client that came and left between two passes does too.
+// Passes run once an interval, so a session can go up to one interval late. A
+// pass writes these times down; plan and the dashboard only read them.
 
 // sourceQuiet is the activity source of a time taken from the book.
 const sourceQuiet = "quiet"
@@ -74,9 +74,12 @@ func quietKey(s inspect.Session) string {
 }
 
 // apply sets the last activity of every running session whose terminals could
-// not be read, from the book, and notes in the book what this survey saw: a
-// session found quiet for the first time from now, a session no longer quiet
-// or gone dropped.
+// not be read, and notes in the book what this survey saw: a session found
+// quiet for the first time from now, a session no longer quiet or gone
+// dropped. The last activity is the later of the first quiet pass and the last
+// change of zellij's files: zellij rewrites them when a client attaches and
+// when it leaves (measured on 0.44.3 and 0.45.1), so a session used between two
+// passes, which no pass saw attached, starts its wait over when it was left.
 func (q *quietBook) apply(sessions []inspect.Session, now time.Time) {
 	seen := map[string]bool{}
 	for i := range sessions {
@@ -101,7 +104,11 @@ func (q *quietBook) apply(sessions []inspect.Session, now time.Time) {
 			q.at[k] = since
 			q.changed = true
 		}
-		s.Facts.LastActive, s.Facts.ActivitySource = since, sourceQuiet
+		// The files' time stays when it is the later one: a client left
+		// after the first quiet pass.
+		if since.After(s.Facts.LastActive) {
+			s.Facts.LastActive, s.Facts.ActivitySource = since, sourceQuiet
+		}
 	}
 	for k := range q.at {
 		if !seen[k] {

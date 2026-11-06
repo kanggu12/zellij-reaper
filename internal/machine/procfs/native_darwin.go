@@ -176,7 +176,7 @@ func cwdsOf(pids []int) map[int]string {
 	for i, pid := range pids {
 		list[i] = strconv.Itoa(pid)
 	}
-	b, _ := exec.Command("lsof", "-nP", "-w", "-a", "-d", "cwd", "-p", strings.Join(list, ","), "-F", "pn").Output()
+	b, _ := exec.Command(lsofPath(), "-nP", "-w", "-a", "-d", "cwd", "-p", strings.Join(list, ","), "-F", "pn").Output()
 	return parseLsofCwd(b)
 }
 
@@ -256,17 +256,40 @@ func fileOwner(path string, servers []Server) (Server, bool) {
 		return Server{}, false
 	}
 	// A file still at the path its server was started on, made when that
-	// server started: a session that was never renamed.
-	var direct []Server
+	// server started: a session that was never renamed. A server whose first
+	// path still holds such a file owns that one, and is no candidate for any
+	// other.
+	var direct, others []Server
 	for _, s := range servers {
-		if d := born.Sub(s.Started); s.Socket == path && !s.Started.IsZero() && d > -time.Second && d < time.Second {
+		switch {
+		case s.Socket == path && ownsFirstPath(s, born):
 			direct = append(direct, s)
+		case s.Socket != path && ownsFirstPath(s, time.Time{}):
+		default:
+			others = append(others, s)
 		}
 	}
 	if len(direct) == 1 {
 		return direct[0], true
 	}
-	return ByStartTime(born, servers)
+	return ByStartTime(born, others)
+}
+
+// ownsFirstPath reports whether the file at the path a server was started on
+// was made when that server started. born, when known, is that file's
+// creation time.
+func ownsFirstPath(s Server, born time.Time) bool {
+	if s.Started.IsZero() {
+		return false
+	}
+	if born.IsZero() {
+		var ok bool
+		if born, ok = Born(s.Socket); !ok {
+			return false
+		}
+	}
+	d := born.Sub(s.Started)
+	return d > -bornBefore && d < time.Second
 }
 
 // nativeRoot is the directory a table reads from; this system has no /proc.
@@ -279,4 +302,13 @@ func cString(b []byte) string {
 		b = b[:i]
 	}
 	return string(b)
+}
+
+// lsofPath is macOS's own lsof, which lives in /usr/sbin: a pass started by
+// launchd may not have that in its PATH.
+func lsofPath() string {
+	if _, err := os.Stat("/usr/sbin/lsof"); err == nil {
+		return "/usr/sbin/lsof"
+	}
+	return "lsof"
 }
