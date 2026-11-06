@@ -387,6 +387,88 @@ check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run 
 check "an attached session is named after its pane" listed review-the-draft
 check "and its client is still attached" clients_are review-the-draft 1
 
+echo "-- the names pass, keep-name, here and the hook"
+pane_layout 'plan the launch' /tmp/launch.kdl
+start wise-panda /tmp/launch.kdl
+check "its title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title wise-panda 'plan the launch'"
+names_lines() { grep -c -- '=== names start' "$LOG"; }
+before=$(names_lines)
+check "a names pass without auto_rename succeeds" $R run --names-only --quiet
+check "and writes nothing" test "$(names_lines)" = "$before"
+check "keep-name keeps a running session's name" $R keep-name wise-panda
+check "keep-name lists it" sh -c "$R keep-name | grep -qxF wise-panda"
+check "a names pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --names-only --quiet
+check "and leaves a kept name alone" listed wise-panda
+check "forget-name lets it go" $R forget-name wise-panda
+check "a names pass after that succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --names-only --quiet
+check "the session is named after its pane" listed plan-the-launch
+check "the names pass says so in the log" sh -c "grep -q -- '-> renamed: wise-panda → plan-the-launch' '$LOG' && grep -q '=== names end (1 renamed) ===' '$LOG'"
+
+# A pane opened before a rename: here gives the new name, and with it a zellij
+# command returns, where the pane's own ZELLIJ_SESSION_NAME would wait.
+start adept-peach
+# shellcheck disable=SC2016 # expanded in the pane, not here
+$Z --session adept-peach run -- bash -c 'while [ ! -e /tmp/go-here ]; do sleep 0.1; done
+  zellij-reaper here >/tmp/here.out 2>&1; echo "rc=$?" >>/tmp/here.out
+  ZELLIJ_SESSION_NAME=$(zellij-reaper here) timeout 6 zellij action list-clients >/dev/null 2>&1; echo "cmd=$?" >>/tmp/here.out
+  eval "$(zellij-reaper shell-hook bash)"; ZELLIJ_SESSION_NAME=adept-peach; false; __zellij_reaper_here
+  echo "hook=$? $ZELLIJ_SESSION_NAME" >>/tmp/here.out' >/dev/null 2>&1
+sleep 1
+rename_to adept-peach peach-renamed
+touch /tmp/go-here
+for _ in $(seq 60); do grep -q '^hook=' /tmp/here.out 2>/dev/null && break; sleep 0.25; done
+check "here gives the name the session has now" grep -qx 'peach-renamed' /tmp/here.out
+check "a zellij command under that name returns" grep -qx 'cmd=0' /tmp/here.out
+check "the bash hook sets it and keeps the last status" grep -qx 'hook=1 peach-renamed' /tmp/here.out
+
+echo "-- Enter in the dashboard"
+# The dashboard runs in the only pane of a session someone is attached to;
+# that client presses the keys, so it is the client switch-session moves.
+printf 'layout {\n    pane command="zellij-reaper" {\n        args "tui"\n    }\n}\n' >/tmp/dash.kdl
+attach_typing() { # session fifo
+  mkfifo "$2"
+  { script -qfec "stty cols 120 rows 40; $Z attach $1" /dev/null <"$2" >/dev/null 2>&1 & }
+}
+clients_on() { $Z --session "$1" action list-clients 2>/dev/null | tail -n +2 | grep -c .; }
+# screen dumps what a session's focused pane shows to /tmp/screen.txt
+# (0.43 takes the path as an argument, later releases as --path).
+screen() { $Z --session "$1" action dump-screen --path /tmp/screen.txt >/dev/null 2>&1 || $Z --session "$1" action dump-screen /tmp/screen.txt >/dev/null 2>&1; }
+# shows waits until a session's pane shows a text.
+shows() {
+  for _ in $(seq 60); do
+    screen "$1" && grep -q "$2" /tmp/screen.txt && return 0
+    sleep 0.25
+  done
+  return 1
+}
+v=$($Z --version | awk '{print $2}')
+for round in plain renamed; do
+  from=dash-$round to=goal-$round
+  start "$from" /tmp/dash.kdl && start "$to"
+  attach_typing "$from" "/tmp/keys-$round"
+  exec 7>"/tmp/keys-$round"
+  sleep 3
+  # The dashboard's own session renamed after it started: its pane still
+  # has the old name in ZELLIJ_SESSION_NAME.
+  if [ $round = renamed ]; then rename_to "$from" "$from-x"; from=$from-x; sleep 1; fi
+  # A zellij with no settings asks which keys to use on an attach; that
+  # question would take the keys meant for the dashboard, so it is answered.
+  if screen "$from" && grep -q 'Which do you prefer' /tmp/screen.txt; then printf '\r' >&7; fi
+  check "the dashboard shows ($round)" shows "$from" 'NEXT PASS'
+  printf '/%s\r' "$to" >&7
+  check "the filter leaves the target selected ($round)" shows "$from" "● $to"
+  sleep 1
+  printf '\r' >&7
+  for _ in $(seq 40); do [ "$(clients_on "$to")" = 1 ] && break; sleep 0.25; done
+  case $v in
+    0.43.*)
+      check "zellij $v cannot switch, and the client stays ($round)" test "$(clients_on "$from")" = 1
+      check "the dashboard says what to do instead ($round)" shows "$from" 'cannot switch sessions' ;;
+    *) check "Enter moves the client to the session ($round)" test "$(clients_on "$to")" = 1 ;;
+  esac
+  exec 7>&-
+done
+
 echo "-- recover"
 start first2 && rename_to first2 second2
 # A session whose name is too long for a socket: its saved layout makes zellij
@@ -424,7 +506,7 @@ check "a healthy session is untouched" listed keepme
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"
 check "the dashboard renders a frame" sh -c "$R tui --snapshot 120x30 | grep -q zellij-reaper"
-check "logs prints the log" sh -c "$R logs -n 5 | grep -q 'reaper end'"
+check "logs prints the log" sh -c "$R logs -n 50 | grep -q 'reaper end'"
 check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after += \"1h\"'"
 
 echo "passed $pass, failed $fail"

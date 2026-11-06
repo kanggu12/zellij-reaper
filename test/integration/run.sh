@@ -3,6 +3,8 @@
 #
 #   test/integration/run.sh                  # the releases CI covers
 #   test/integration/run.sh 0.45.1 0.44.3    # chosen releases
+#   test/integration/run.sh main             # zellij's main branch, built first
+#                                            # to test/integration/.cache/zellij-main
 #
 # Every release runs in its own throwaway container, so the sessions the
 # scenarios create, reap and kill never touch the machine running the tests.
@@ -35,6 +37,17 @@ docker build -q -t zellij-reaper-it "$here" >/dev/null
 failed=0
 for v in "${versions[@]}"; do
   bin="$cache/zellij-$v"
+  # main is no release: the canary workflow builds it, and its word lists
+  # come from the branch.
+  ref="v$v"
+  if [ "$v" = main ]; then
+    ref=main
+    if [ ! -x "$bin" ]; then
+      echo "zellij main: build it to $bin first" >&2
+      failed=1
+      continue
+    fi
+  fi
   # Download each release once; later runs reuse it.
   if [ ! -x "$bin" ]; then
     echo "downloading zellij $v"
@@ -44,7 +57,7 @@ for v in "${versions[@]}"; do
   echo "== zellij $v"
   # The release's own word lists: a name zellij can make up has to read as made up.
   words="$cache/sessions-$v.rs"
-  [ -s "$words" ] || curl -fsSL "https://raw.githubusercontent.com/zellij-org/zellij/v$v/zellij-utils/src/sessions.rs" -o "$words"
+  [ -s "$words" ] || curl -fsSL "https://raw.githubusercontent.com/zellij-org/zellij/$ref/zellij-utils/src/sessions.rs" -o "$words"
   if ! (cd "$root" && ZELLIJ_SESSIONS_RS="$words" go test -count=1 -run '^TestKnowsTheWordsOfARelease$' ./internal/core/rename); then
     failed=1
   fi
