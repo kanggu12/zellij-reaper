@@ -165,27 +165,12 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 // KeepName runs under the pass lock: a pass that read the list a moment before
 // would rename the session anyway.
 func (r real) KeepName(ctx context.Context, name string) error {
-	return r.handAction(func() error {
-		// The dialog may have stayed open while a pass renamed the session: a
-		// name no session has is nothing to keep.
-		listed, err := r.a.Zellij.ListSessions(ctx)
-		if err != nil && !errors.Is(err, zellij.ErrNoSessions) {
-			return err
-		}
-		if !slices.ContainsFunc(listed, func(l zellij.Listed) bool { return l.Name == name }) {
-			return errors.New(i18n.T("keep.gone", name))
-		}
-		// On the kept list, a name stays whatever else says it may go.
-		if k := r.a.Reaper.Kept; k != nil {
-			if err := k.Set(name, true); err != nil {
-				return err
-			}
-		}
-		if g := r.a.Reaper.Given; g != nil {
-			_ = g.Set(name, false)
-		}
-		return nil
-	}, "%s :: name kept from the dashboard", name)
+	err := reaper.KeepName(ctx, r.a.Reaper, name, true, "the dashboard", 2*time.Second)
+	// The dialog may have stayed open while a pass renamed the session.
+	if errors.Is(err, reaper.ErrNoSession) {
+		return errors.New(i18n.T("keep.gone", name))
+	}
+	return err
 }
 
 // renameByHand does a rename asked for in the dashboard, and returns what the person

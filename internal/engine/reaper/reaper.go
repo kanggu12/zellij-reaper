@@ -59,6 +59,9 @@ type Options struct {
 	DryRun bool
 	// Force skips both waits; every other rule still applies.
 	Force bool
+	// NamesOnly renames and deletes nothing: the names timer's pass, which
+	// lets a name follow its session sooner than the hourly pass.
+	NamesOnly bool
 }
 
 // Outcome is what happened to one session.

@@ -14,6 +14,9 @@ import (
 
 // Run is one pass: take the lock, rotate the log, decide, act, log.
 func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
+	if opts.NamesOnly {
+		return namesPass(ctx, e, opts)
+	}
 	l, err := lock.Acquire(e.LockPath, LockWait)
 	if err != nil {
 		return Report{}, err
@@ -204,4 +207,58 @@ func titleSummary(titles []string) string {
 		parts[i] = t
 	}
 	return strings.Join(parts, "|")
+}
+
+// namesPass renames what a full pass would rename and nothing else. It runs
+// every few minutes, so it writes to the log only when it renames something,
+// between a names start and a names end line. It deletes nothing, so it needs
+// neither the waits nor a second look before a delete.
+func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
+	r := Report{Started: e.Now()}
+	if !e.Config.AutoRename {
+		return r, nil
+	}
+	l, err := lock.Acquire(e.LockPath, LockWait)
+	if err != nil {
+		return r, err
+	}
+	defer l.Release()
+	dry := e.Config.DryRun || opts.DryRun
+	// A name protected since the last pass is never renamed.
+	if e.Protected != nil {
+		if err := e.Protected.Reload(); err != nil {
+			return r, fmt.Errorf("read the protected list: %w", err)
+		}
+	}
+	r, err = e.survey(ctx, opts)
+	if err != nil || r.NoSessions || r.NoRenames != nil {
+		return r, err
+	}
+	taken := takenNames(r)
+	started := false
+	for i := range r.Outcomes {
+		o := &r.Outcomes[i]
+		// A session the next full pass deletes keeps its name until then.
+		if o.Verdict.Action == policy.Reap {
+			continue
+		}
+		if _, target := e.renameTarget(*o, taken); target == "" {
+			continue
+		}
+		if !started {
+			e.Log.Rotate()
+			e.Log.Printf("=== names start (dry_run=%t) ===", dry)
+			started = true
+		}
+		e.name(ctx, &r, o, dry, taken)
+	}
+	if !started {
+		return r, nil
+	}
+	if !dry {
+		e.forgetGone(taken)
+	}
+	_, _, renamed := r.Counts()
+	e.Log.Printf("=== names end (%d renamed) ===", renamed)
+	return r, nil
 }

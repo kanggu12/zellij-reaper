@@ -182,7 +182,7 @@ func (m model) recentLines(n int) []string {
 			switch {
 			case g[3] != "":
 				events = append(events, stamp+ui.Fg(t.Cat[ui.CatBusy]).Render(i18n.T("recent.renamed", g[1], g[3]))+by)
-			case g[2] == "name kept from the dashboard":
+			case strings.HasPrefix(g[2], "name kept from"):
 				events = append(events, stamp+ui.Fg(t.Cat[ui.CatSafe]).Render(i18n.T("recent.kept", g[1]))+by)
 			default:
 				events = append(events, stamp+ui.Fg(t.Cat[ui.CatReap]).Render(i18n.T("recent.reaped", g[1]))+by)

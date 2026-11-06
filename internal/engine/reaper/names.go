@@ -132,6 +132,11 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool) (desired, target
 	// to do. The tail stays even once the other session is gone, because a
 	// name changes only when what the session shows changes.
 	if rename.Same(s.Name(), desired) {
+		// auto_rename_drop_tail: the plain name is free again, so the tail
+		// can go. Only names a pass may replace get here.
+		if e.Config.AutoRenameDropTail && s.Name() != desired && !taken[desired] {
+			return desired, desired
+		}
 		return desired, ""
 	}
 	free, ok := rename.Free(desired, taken)
@@ -154,6 +159,11 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			delete(taken, name)
 			taken[attempt] = true
 			e.Log.Printf("  -> renamed: %s → %s", name, attempt)
+			return
+		}
+		// Dropping a tail zellij refuses, because the session had the plain
+		// name before: it keeps the name it has, and nothing is logged.
+		if errors.Is(err, zellij.ErrNameTaken) && rename.Same(name, desired) {
 			return
 		}
 		// Anything but a taken name is a real failure: stop and say so.

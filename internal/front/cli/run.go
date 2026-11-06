@@ -57,6 +57,26 @@ but keeps every other check.`,
 				return nil
 			}
 			t := theme()
+			// A names pass says only what it renamed.
+			if opts.NamesOnly {
+				n := 0
+				for _, o := range r.Outcomes {
+					switch {
+					case o.RenamedTo != "":
+						println(w, "  "+o.Session.Name()+" → "+o.RenamedTo)
+						n++
+					case o.WouldRename != "":
+						println(w, "  "+o.Session.Name()+" → "+o.WouldRename+ui.Fg(t.Muted).Render(" (dry run)"))
+						n++
+					case o.RenameErr != nil:
+						println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
+					}
+				}
+				if n == 0 {
+					println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")))
+				}
+				return nil
+			}
 			if r.NoSessions {
 				println(w, ui.Fg(t.Muted).Render(i18n.T("plan.none")))
 				return nil
@@ -93,6 +113,7 @@ but keeps every other check.`,
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "log what would happen, change nothing")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "skip the waits; every other check still applies")
+	cmd.Flags().BoolVar(&opts.NamesOnly, "names-only", false, "only rename, delete nothing (the names timer's mode)")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "print nothing (the timer's mode); the log still gets everything")
 	return cmd
 }

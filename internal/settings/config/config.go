@@ -59,6 +59,12 @@ type Config struct {
 	AutoRenameStamp string
 	// Interval is how often the systemd timer starts a pass.
 	Interval time.Duration
+	// RenameInterval is how often a second timer runs a pass that only
+	// renames, so a name follows its session sooner than a full pass. 0 is off.
+	RenameInterval time.Duration
+	// AutoRenameDropTail gives a session the name without its collision tail
+	// (-2, -3, ...) once that name is free again, if a pass gave the tail.
+	AutoRenameDropTail bool
 	// ZellijPath is the zellij binary to run; empty means look it up in PATH.
 	ZellijPath string
 	// LogPath is the decision log.
@@ -78,7 +84,8 @@ type Config struct {
 // Keys lists every setting in the order `config show` prints them.
 var Keys = []string{
 	"dry_run", "idle_after", "exited_after", "protect", "protect_commands", "shells",
-	"auto_rename", "auto_rename_attached", "auto_rename_stamp", "interval", "zellij",
+	"auto_rename", "auto_rename_attached", "auto_rename_stamp", "auto_rename_drop_tail", "interval",
+	"rename_interval", "zellij",
 	"log.path", "log.max_bytes",
 }
 
@@ -101,6 +108,8 @@ func Default(env Env) *Config {
 		AutoRenameAttached: true,
 		AutoRenameStamp:    "none",
 		Interval:           time.Hour,
+		RenameInterval:     5 * time.Minute,
+		AutoRenameDropTail: false,
 		ZellijPath:         "",
 		LogPath:            filepath.Join(StateDir(env), "reaper.log"),
 		LogMaxBytes:        1 << 20,
@@ -127,6 +136,8 @@ type fileShape struct {
 	AutoRenameAttached *bool     `toml:"auto_rename_attached"`
 	AutoRenameStamp    *string   `toml:"auto_rename_stamp"`
 	Interval           *string   `toml:"interval"`
+	RenameInterval     *string   `toml:"rename_interval"`
+	AutoRenameDropTail *bool     `toml:"auto_rename_drop_tail"`
 	Zellij             *string   `toml:"zellij"`
 	Log                struct {
 		Path     *string `toml:"path"`
@@ -235,6 +246,18 @@ func (c *Config) loadFile(path string, env Env) error {
 		c.Interval = d
 		set("interval")
 	}
+	if f.RenameInterval != nil {
+		d, err := duration.Parse(*f.RenameInterval)
+		if err != nil {
+			return fmt.Errorf("%s: rename_interval: %w", path, err)
+		}
+		c.RenameInterval = d
+		set("rename_interval")
+	}
+	if f.AutoRenameDropTail != nil {
+		c.AutoRenameDropTail = *f.AutoRenameDropTail
+		set("auto_rename_drop_tail")
+	}
 	if f.Zellij != nil {
 		c.ZellijPath = expandHome(*f.Zellij, env)
 		set("zellij")
@@ -252,16 +275,17 @@ func (c *Config) loadFile(path string, env Env) error {
 
 // EnvNames maps settings to the variables that override them.
 var EnvNames = map[string]string{
-	"dry_run":              "ZELLIJ_REAPER_DRY_RUN",
-	"idle_after":           "ZELLIJ_REAPER_IDLE_AFTER",
-	"exited_after":         "ZELLIJ_REAPER_EXITED_AFTER",
-	"protect":              "ZELLIJ_REAPER_PROTECT",
-	"auto_rename":          "ZELLIJ_REAPER_AUTO_RENAME",
-	"auto_rename_attached": "ZELLIJ_REAPER_AUTO_RENAME_ATTACHED",
-	"auto_rename_stamp":    "ZELLIJ_REAPER_AUTO_RENAME_STAMP",
-	"zellij":               "ZELLIJ_REAPER_ZELLIJ",
-	"log.path":             "ZELLIJ_REAPER_LOG",
-	"log.max_bytes":        "ZELLIJ_REAPER_LOG_MAX_BYTES",
+	"dry_run":               "ZELLIJ_REAPER_DRY_RUN",
+	"idle_after":            "ZELLIJ_REAPER_IDLE_AFTER",
+	"exited_after":          "ZELLIJ_REAPER_EXITED_AFTER",
+	"protect":               "ZELLIJ_REAPER_PROTECT",
+	"auto_rename":           "ZELLIJ_REAPER_AUTO_RENAME",
+	"auto_rename_drop_tail": "ZELLIJ_REAPER_AUTO_RENAME_DROP_TAIL",
+	"auto_rename_attached":  "ZELLIJ_REAPER_AUTO_RENAME_ATTACHED",
+	"auto_rename_stamp":     "ZELLIJ_REAPER_AUTO_RENAME_STAMP",
+	"zellij":                "ZELLIJ_REAPER_ZELLIJ",
+	"log.path":              "ZELLIJ_REAPER_LOG",
+	"log.max_bytes":         "ZELLIJ_REAPER_LOG_MAX_BYTES",
 }
 
 // loadEnv applies ZELLIJ_REAPER_* overrides. A malformed value is an error
@@ -313,6 +337,14 @@ func (c *Config) loadEnv(env Env) error {
 		c.AutoRenameAttached = b
 		c.Sources["auto_rename_attached"] = FromEnv
 	}
+	if v, ok := get("auto_rename_drop_tail"); ok {
+		b, err := parseBool(v)
+		if err != nil {
+			return fmt.Errorf("%s: %w", EnvNames["auto_rename_drop_tail"], err)
+		}
+		c.AutoRenameDropTail = b
+		c.Sources["auto_rename_drop_tail"] = FromEnv
+	}
 	if v, ok := get("auto_rename_stamp"); ok {
 		if err := checkStamp(v); err != nil {
 			return fmt.Errorf("%s: %w", EnvNames["auto_rename_stamp"], err)
@@ -349,6 +381,10 @@ func (c *Config) Validate() error {
 	// can take a few seconds on a busy machine.
 	if c.Interval < time.Minute {
 		return fmt.Errorf("interval %s is shorter than one minute", duration.Setting(c.Interval))
+	}
+	// 0 turns the names timer off; otherwise the same floor as interval.
+	if c.RenameInterval != 0 && c.RenameInterval < time.Minute {
+		return fmt.Errorf("rename_interval %s is shorter than one minute (0 turns it off)", duration.Setting(c.RenameInterval))
 	}
 	if c.LogMaxBytes < 0 {
 		return fmt.Errorf("log.max_bytes cannot be negative")
@@ -393,6 +429,10 @@ func (c *Config) Value(key string) string {
 		return strconv.Quote(c.AutoRenameStamp)
 	case "interval":
 		return strconv.Quote(duration.Setting(c.Interval))
+	case "rename_interval":
+		return strconv.Quote(duration.Setting(c.RenameInterval))
+	case "auto_rename_drop_tail":
+		return strconv.FormatBool(c.AutoRenameDropTail)
 	case "zellij":
 		return strconv.Quote(c.ZellijPath)
 	case "log.path":

@@ -177,7 +177,7 @@ var (
 	deletedRe = regexp.MustCompile(`^  -> deleted: (.*?)(?: :: .*)?$`)
 	renamedRe = regexp.MustCompile(`^  -> renamed: (.*) → (.*)$`)
 	failedRe  = regexp.MustCompile(`^  -> FAILED: (.*?) :: `)
-	handRe    = regexp.MustCompile(`^(.*) :: (deleted from the dashboard|name kept from the dashboard|renamed from the dashboard to (.*))$`)
+	handRe    = regexp.MustCompile(`^(.*) :: (deleted from the dashboard|name kept from the (?:dashboard|command line)|renamed from the dashboard to (.*))$`)
 	endRe     = regexp.MustCompile(`^=== reaper end \((\d+) reaped, (\d+) kept`)
 )
 

@@ -296,3 +296,20 @@ func (t *Table) Servers(uid int) []Server {
 // IsZombie reports whether the process has exited and waits to be reaped by
 // its parent.
 func (p *Proc) IsZombie() bool { return p.State == "Z" }
+
+// Process reads one process in full, as Read would. ok is false when it is gone.
+func Process(root string, pid int) (*Proc, bool) { return readProc(root, pid) }
+
+// ServerOf reports whether p is a zellij server, and the socket it was started on.
+func ServerOf(p *Proc) (Server, bool) {
+	// The same test Servers makes: zellij in the program's name, then --server.
+	if len(p.Argv) < 3 || !strings.Contains(filepath.Base(p.Argv[0]), "zellij") {
+		return Server{}, false
+	}
+	for i := 1; i+1 < len(p.Argv); i++ {
+		if p.Argv[i] == "--server" {
+			return Server{PID: p.PID, Socket: p.Argv[i+1]}, true
+		}
+	}
+	return Server{}, false
+}

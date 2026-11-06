@@ -68,7 +68,8 @@ Run it without a command in a terminal to open the dashboard.`,
 	root.SetVersionTemplate("zellij-reaper {{.Version}}\n")
 	root.AddCommand(
 		cmdTUI(), cmdPlan(), cmdRun(), cmdLogs(), cmdInstall(), cmdUninstall(), cmdConfig(),
-		cmdProtect(true), cmdProtect(false), cmdDoctor(), cmdRecover(), cmdResize(), cmdVersion(),
+		cmdProtect(true), cmdProtect(false), cmdKeepName(true), cmdKeepName(false), cmdHere(), cmdShellHook(),
+		cmdDoctor(), cmdRecover(), cmdResize(), cmdVersion(),
 	)
 	return root
 }
