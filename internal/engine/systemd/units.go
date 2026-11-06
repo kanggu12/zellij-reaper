@@ -30,16 +30,26 @@ func quotable(what, p string) error {
 // is passed with --config so the timer reads the same settings as install.
 // Install refuses paths ServiceUnit cannot quote (see quotable).
 func ServiceUnit(exe, zellijDir, configFile string) string {
+	return serviceUnit("Reap idle and exited zellij sessions", "run --quiet", exe, zellijDir, configFile)
+}
+
+// NamesServiceUnit renders the service of the names timer: a pass that only
+// renames.
+func NamesServiceUnit(exe, zellijDir, configFile string) string {
+	return serviceUnit("Name zellij sessions after what they show", "run --names-only --quiet", exe, zellijDir, configFile)
+}
+
+func serviceUnit(description, run, exe, zellijDir, configFile string) string {
 	dirs := PathDirs
 	if zellijDir != "" {
 		dirs = append([]string{escape(zellijDir)}, dirs...)
 	}
-	args := "run --quiet"
+	args := run
 	if configFile != "" {
-		args = fmt.Sprintf(`--config "%s" run --quiet`, escapeExec(configFile))
+		args = fmt.Sprintf(`--config "%s" %s`, escapeExec(configFile), run)
 	}
 	return fmt.Sprintf(`[Unit]
-Description=Reap idle and exited zellij sessions
+Description=`+description+`
 Documentation=https://github.com/kanggu12/zellij-reaper
 
 [Service]
@@ -55,6 +65,16 @@ TimeoutStartSec=60
 
 // TimerUnit renders the timer for an interval.
 func TimerUnit(interval time.Duration) string {
+	return timerUnit("Run zellij-reaper every %s", interval, FirstPassDelay)
+}
+
+// NamesTimerUnit renders the names timer. Its first pass comes a minute after
+// it starts: renaming deletes nothing, so there is no reason to wait longer.
+func NamesTimerUnit(interval time.Duration) string {
+	return timerUnit("Rename zellij sessions every %s", interval, time.Minute)
+}
+
+func timerUnit(description string, interval, first time.Duration) string {
 	// Waking up to five minutes late is fine and lets systemd batch wakeups;
 	// short intervals get a proportionally short window.
 	accuracy := 5 * time.Minute
@@ -65,7 +85,7 @@ func TimerUnit(interval time.Duration) string {
 		accuracy = time.Second
 	}
 	return fmt.Sprintf(`[Unit]
-Description=Run zellij-reaper every %s
+Description=`+description+`
 Documentation=https://github.com/kanggu12/zellij-reaper
 
 [Timer]
@@ -77,5 +97,5 @@ AccuracySec=%s
 
 [Install]
 WantedBy=timers.target
-`, duration.Format(interval), spanSetting(FirstPassDelay), duration.Setting(interval), duration.Setting(accuracy))
+`, duration.Format(interval), spanSetting(first), duration.Setting(interval), duration.Setting(accuracy))
 }

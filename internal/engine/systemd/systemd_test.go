@@ -73,11 +73,12 @@ func TestInstallFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Wrote) != 2 || r.Created == "" || r.Migrated != "" || r.Linger != "enabled" {
+	// The pass timer and, with rename_interval on by default, the names timer.
+	if len(r.Wrote) != 4 || r.Created == "" || r.Migrated != "" || r.Linger != "enabled" {
 		t.Errorf("result %+v", r)
 	}
 	joined := strings.Join(f.calls, "\n")
-	for _, want := range []string{"systemctl --user daemon-reload", "systemctl --user enable --now zellij-reaper.timer", "loginctl enable-linger u"} {
+	for _, want := range []string{"systemctl --user daemon-reload", "systemctl --user enable --now zellij-reaper.timer", "systemctl --user enable --now zellij-reaper-names.timer", "loginctl enable-linger u"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("no %q in\n%s", want, joined)
 		}
@@ -315,7 +316,7 @@ func TestUninstallPurge(t *testing.T) {
 	os.MkdirAll(filepath.Dir(cfg.LogPath), 0o755)
 	os.WriteFile(cfg.LogPath, []byte("x\n"), 0o644)
 	r, _ := s.Uninstall(false, cfg.LogPath)
-	if len(r.Removed) != 2 {
+	if len(r.Removed) != 4 {
 		t.Errorf("uninstall removed %v", r.Removed)
 	}
 	if _, err := os.Stat(cfg.LogPath); err != nil {
@@ -381,5 +382,32 @@ func TestOnlyTheShellVersionsScriptsAreRemoved(t *testing.T) {
 	}
 	if _, err := os.Stat(other); err != nil {
 		t.Error("the link's target was removed")
+	}
+}
+
+func TestTheNamesTimerOnlyRenamesAndGoesWithItsSetting(t *testing.T) {
+	svc := NamesServiceUnit("/usr/bin/zellij-reaper", "", "")
+	if !strings.Contains(svc, `ExecStart="/usr/bin/zellij-reaper" run --names-only --quiet`) {
+		t.Errorf("names service:\n%s", svc)
+	}
+	timer := NamesTimerUnit(5 * time.Minute)
+	for _, want := range []string{"OnActiveSec=1min", "OnUnitActiveSec=5m", "AccuracySec=25s"} {
+		if !strings.Contains(timer, want) {
+			t.Errorf("names timer lacks %q:\n%s", want, timer)
+		}
+	}
+	// rename_interval 0: install takes the names timer away again.
+	s, f, env := newSystem(t)
+	cfg := config.Default(env)
+	if _, err := s.Install(InstallOptions{Exe: "/x", Config: cfg}); err != nil {
+		t.Fatal(err)
+	}
+	cfg.RenameInterval = 0
+	r, err := s.Install(InstallOptions{Exe: "/x", Config: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Wrote) != 2 || len(r.Removed) != 2 || !strings.Contains(strings.Join(f.calls, "\n"), "systemctl --user disable --now zellij-reaper-names.timer") {
+		t.Errorf("result %+v, calls %v", r, f.calls)
 	}
 }

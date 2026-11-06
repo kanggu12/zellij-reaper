@@ -28,8 +28,17 @@ type TimerStatus struct {
 // last run and the interval, because systemd leaves NextElapseUSecRealtime empty for
 // monotonic timers like this one.
 func (s System) Status() TimerStatus {
+	return s.statusOf(TimerName, s.timerPath(), s.servicePath())
+}
+
+// NamesStatus asks systemd about the names timer.
+func (s System) NamesStatus() TimerStatus {
+	return s.statusOf(NamesTimerName, s.namesTimerPath(), s.namesServicePath())
+}
+
+func (s System) statusOf(timer, timerPath, servicePath string) TimerStatus {
 	var st TimerStatus
-	out, err := s.systemctl("show", TimerName, "--property=LoadState,ActiveState,UnitFileState,LastTriggerUSec,NextElapseUSecRealtime,NextElapseUSecMonotonic")
+	out, err := s.systemctl("show", timer, "--property=LoadState,ActiveState,UnitFileState,LastTriggerUSec,NextElapseUSecRealtime,NextElapseUSecMonotonic")
 	if err != nil {
 		return st
 	}
@@ -43,7 +52,7 @@ func (s System) Status() TimerStatus {
 	st.Enabled = props["UnitFileState"] == "enabled"
 	st.Active = props["ActiveState"] == "active"
 	st.Last = parseTimestamp(props["LastTriggerUSec"])
-	st.Interval, st.ExecStart = s.unitFacts()
+	st.Interval, st.ExecStart = unitFacts(timerPath, servicePath)
 	// Only an active timer fires at all.
 	if !st.Active {
 		return st
@@ -125,17 +134,17 @@ func spanSetting(d time.Duration) string {
 }
 
 // unitFacts reads the interval and the command back from the unit files.
-func (s System) unitFacts() (time.Duration, string) {
+func unitFacts(timerPath, servicePath string) (time.Duration, string) {
 	var interval time.Duration
 	var execStart string
-	if b, err := os.ReadFile(s.timerPath()); err == nil {
+	if b, err := os.ReadFile(timerPath); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
 			if v, ok := strings.CutPrefix(line, "OnUnitActiveSec="); ok {
 				interval = parseSpan(v)
 			}
 		}
 	}
-	if b, err := os.ReadFile(s.servicePath()); err == nil {
+	if b, err := os.ReadFile(servicePath); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
 			if v, ok := strings.CutPrefix(line, "ExecStart="); ok {
 				execStart = v

@@ -114,9 +114,41 @@ func (s System) Install(o InstallOptions) (Result, error) {
 	if out, err := s.systemctl("enable", "--now", TimerName); err != nil {
 		return r, fmt.Errorf("systemctl --user enable --now %s: %s", TimerName, firstLine(out, err))
 	}
+	if err := s.installNames(o, &r); err != nil {
+		return r, err
+	}
 	// Without lingering, a user's timers stop when their last login ends.
 	r.Linger = s.enableLinger()
 	return r, nil
+}
+
+// installNames writes and starts the names timer, or, with rename_interval 0,
+// stops and removes it.
+func (s System) installNames(o InstallOptions, r *Result) error {
+	if o.Config.RenameInterval <= 0 {
+		s.systemctl("disable", "--now", NamesTimerName)
+		for _, p := range []string{s.namesTimerPath(), s.namesServicePath()} {
+			if err := os.Remove(p); err == nil {
+				r.Removed = append(r.Removed, p)
+			}
+		}
+		s.systemctl("daemon-reload")
+		return nil
+	}
+	if err := writeFile(s.namesServicePath(), NamesServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile)); err != nil {
+		return err
+	}
+	if err := writeFile(s.namesTimerPath(), NamesTimerUnit(o.Config.RenameInterval)); err != nil {
+		return err
+	}
+	r.Wrote = append(r.Wrote, s.namesServicePath(), s.namesTimerPath())
+	if out, err := s.systemctl("daemon-reload"); err != nil {
+		return fmt.Errorf("systemctl --user daemon-reload: %s", firstLine(out, err))
+	}
+	if out, err := s.systemctl("enable", "--now", NamesTimerName); err != nil {
+		return fmt.Errorf("systemctl --user enable --now %s: %s", NamesTimerName, firstLine(out, err))
+	}
+	return nil
 }
 
 // enableLinger turns on lingering for the user, if it is not on yet.
@@ -136,9 +168,9 @@ func (s System) Uninstall(purge bool, logPath string) (Result, error) {
 	var r Result
 	if s.Available() {
 		// "not loaded" is fine: there may be nothing to disable.
-		s.systemctl("disable", "--now", TimerName)
+		s.systemctl("disable", "--now", TimerName, NamesTimerName)
 	}
-	for _, p := range []string{s.timerPath(), s.servicePath()} {
+	for _, p := range []string{s.timerPath(), s.servicePath(), s.namesTimerPath(), s.namesServicePath()} {
 		if err := os.Remove(p); err == nil {
 			r.Removed = append(r.Removed, p)
 		}

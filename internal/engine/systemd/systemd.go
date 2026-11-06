@@ -17,6 +17,9 @@ import (
 const (
 	ServiceName = "zellij-reaper.service"
 	TimerName   = "zellij-reaper.timer"
+	// The names timer runs passes that only rename, every rename_interval.
+	NamesServiceName = "zellij-reaper-names.service"
+	NamesTimerName   = "zellij-reaper-names.timer"
 )
 
 // Runner runs a command and returns its combined output. Tests replace it.
@@ -59,6 +62,10 @@ func (s System) Available() bool {
 // servicePath and timerPath are the unit files.
 func (s System) servicePath() string { return filepath.Join(config.UnitDir(s.Env), ServiceName) }
 func (s System) timerPath() string   { return filepath.Join(config.UnitDir(s.Env), TimerName) }
+func (s System) namesServicePath() string {
+	return filepath.Join(config.UnitDir(s.Env), NamesServiceName)
+}
+func (s System) namesTimerPath() string { return filepath.Join(config.UnitDir(s.Env), NamesTimerName) }
 
 // PathDirs are put in the service's PATH so it finds zellij wherever the usual
 // installers put it (cargo, nix, Homebrew on Linux, distro packages). systemd

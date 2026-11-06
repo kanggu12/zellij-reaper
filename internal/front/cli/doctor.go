@@ -101,6 +101,18 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 		if st.Installed && st.Interval != 0 && st.Interval != a.Config.Interval {
 			note(i18n.T("doctor.interval", duration.Format(st.Interval), duration.Format(a.Config.Interval)))
 		}
+		// The names timer, which matters only when passes rename.
+		if a.Config.AutoRename && a.Config.RenameInterval > 0 {
+			ns := a.System.NamesStatus()
+			switch {
+			case !ns.Installed || !ns.Enabled || !ns.Active:
+				note(i18n.T("doctor.names.off"))
+			case ns.Interval != a.Config.RenameInterval:
+				note(i18n.T("doctor.names.interval", duration.Format(ns.Interval), duration.Format(a.Config.RenameInterval)))
+			default:
+				pass(i18n.T("doctor.names", duration.Format(ns.Interval)))
+			}
+		}
 		if out, err := a.System.Run("loginctl", "show-user", a.System.User, "--property=Linger"); err == nil && strings.Contains(out, "Linger=yes") {
 			pass(i18n.T("doctor.linger"))
 		} else {
