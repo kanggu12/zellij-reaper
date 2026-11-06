@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func TestDefaults(t *testing.T) {
 	if c.DryRun || c.AutoRename || c.IdleAfter != 12*time.Hour || c.ExitedAfter != 72*time.Hour || c.Interval != time.Hour {
 		t.Errorf("unexpected defaults: %+v", c)
 	}
-	if want := filepath.Join(env.Home(), ".local/state/zellij-reaper/reaper.log"); c.LogPath != want {
+	if want := filepath.Join(StateDir(env), "reaper.log"); c.LogPath != want {
 		t.Errorf("LogPath = %q, want %q", c.LogPath, want)
 	}
 	if c.File != "" {
@@ -166,6 +167,9 @@ func TestRenderRoundTrip(t *testing.T) {
 }
 
 func TestXDGPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Linux and macOS paths")
+	}
 	env := MapEnv{"HOME": "/home/u", "XDG_CONFIG_HOME": "/cfg", "XDG_STATE_HOME": "relative/ignored"}
 	if got := ConfigFile(env); got != "/cfg/zellij-reaper/config.toml" {
 		t.Errorf("ConfigFile = %q", got)
@@ -229,5 +233,23 @@ func TestAutoRenameStamp(t *testing.T) {
 	}
 	if _, err := Load(p, MapEnv{"HOME": dir}); err == nil {
 		t.Error("a bad value in the file was accepted")
+	}
+}
+
+func TestPathsOnEachSystem(t *testing.T) {
+	defer func(g string) { GOOS = g }(GOOS)
+	env := MapEnv{"HOME": "/home/u", "APPDATA": "/w/Roaming", "LOCALAPPDATA": "/w/Local"}
+	for _, c := range []struct{ goos, config, state, cache string }{
+		{"linux", "/home/u/.config/zellij-reaper", "/home/u/.local/state/zellij-reaper", "/home/u/.cache/zellij"},
+		{"darwin", "/home/u/.config/zellij-reaper", "/home/u/.local/state/zellij-reaper", "/home/u/Library/Caches/org.Zellij-Contributors.Zellij"},
+		{"windows", "/w/Roaming/zellij-reaper", "/w/Local/zellij-reaper", "/w/Local/Zellij/cache"},
+	} {
+		GOOS = c.goos
+		got := []string{ConfigDir(env), StateDir(env), ZellijCacheDir(env)}
+		for i, want := range []string{c.config, c.state, c.cache} {
+			if got[i] != filepath.FromSlash(want) {
+				t.Errorf("%s: %q, want %q", c.goos, got[i], want)
+			}
+		}
 	}
 }

@@ -1,0 +1,3 @@
+# zellij writes its files with LF, and the recorded ones in testdata must stay
+# that way on a Windows checkout too.
+* text=auto eol=lf

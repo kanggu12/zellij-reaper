@@ -3,6 +3,7 @@ package timers
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -348,6 +349,9 @@ func TestUninstallPurge(t *testing.T) {
 }
 
 func TestExpandUnitPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("systemd units are Linux paths")
+	}
 	env := config.MapEnv{"HOME": "/home/u"}
 	cases := map[string]string{
 		"%h/logs/reaper.log":   "/home/u/logs/reaper.log",

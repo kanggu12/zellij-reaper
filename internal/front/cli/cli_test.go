@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -79,6 +80,9 @@ func fakeApp(t *testing.T, env config.MapEnv) *app.App {
 }
 
 func TestSettingsFromTheEnvironmentAreNamedAsUnseenByTheTimer(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the timer here is systemd's, which Windows does not have")
+	}
 	home := isolate(t)
 	env := config.MapEnv{"HOME": home, "ZELLIJ_REAPER_DRY_RUN": "1", "ZELLIJ_REAPER_IDLE_AFTER": "2h"}
 	want := []string{

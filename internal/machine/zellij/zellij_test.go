@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +181,8 @@ func TestSessionInfoDir(t *testing.T) {
 }
 
 func TestSocketDir(t *testing.T) {
+	defer func(g string) { GOOS = g }(GOOS)
+	GOOS = "linux"
 	env := map[string]string{}
 	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
 	if got := SocketDir(lookup, 1000, "0.45.1"); !strings.HasSuffix(got, "zellij-1000/contract_version_1") {
@@ -193,8 +196,22 @@ func TestSocketDir(t *testing.T) {
 		t.Errorf("0.43: %q", got)
 	}
 	env["ZELLIJ_SOCKET_DIR"] = "/sock"
-	if got := SocketDir(lookup, 1000, "0.45.1"); got != "/sock/contract_version_1" {
+	if got := SocketDir(lookup, 1000, "0.45.1"); got != filepath.Join("/sock", "contract_version_1") {
 		t.Errorf("socket dir override: %q", got)
+	}
+	delete(env, "ZELLIJ_SOCKET_DIR")
+	// macOS has no runtime directory for zellij, whatever the variable says;
+	// Windows has no uid in the path.
+	GOOS = "darwin"
+	if got := SocketDir(lookup, 501, "0.45.1"); got != filepath.Join(os.TempDir(), "zellij-501", "contract_version_1") {
+		t.Errorf("macOS: %q", got)
+	}
+	GOOS = "windows"
+	if got := SocketDir(lookup, 0, "0.45.1"); got != filepath.Join(os.TempDir(), "zellij", "contract_version_1") {
+		t.Errorf("Windows: %q", got)
+	}
+	if socketPathLimit("darwin") != 103 || socketPathLimit("linux") != 107 || socketPathLimit("windows") != 255 {
+		t.Error("socket path limits")
 	}
 }
 
@@ -348,6 +365,9 @@ func TestDeleteLooksAtWhatIsLeft(t *testing.T) {
 }
 
 func TestARenameCutShortIsUnconfirmed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake zellij is a shell script")
+	}
 	// The command reached the server, which may have acted on it, and it never
 	// came back. exec, so the time limit stops the sleep and not just the shell.
 	bin := filepath.Join(t.TempDir(), "zellij")

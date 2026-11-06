@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -45,6 +46,7 @@ type FakeProc struct {
 // NewFakeProc creates an empty fake /proc.
 func NewFakeProc(t *testing.T) *FakeProc {
 	t.Helper()
+	SkipOnWindows(t)
 	root := filepath.Join(t.TempDir(), "proc")
 	// Like the real /proc, the directory exists even with no process in it.
 	must(t, os.MkdirAll(root, 0o755))
@@ -115,6 +117,7 @@ func TTY(t *testing.T, dir, name string, at time.Time) string {
 // limits a socket path to 107 bytes, which t.TempDir() can exceed.
 func SocketDir(t *testing.T) string {
 	t.Helper()
+	SkipOnWindows(t)
 	d, err := os.MkdirTemp("", "zr")
 	must(t, err)
 	t.Cleanup(func() { os.RemoveAll(d) })
@@ -169,5 +172,15 @@ func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// SkipOnWindows skips a test that sets up a Linux machine: a /proc and Unix
+// socket files. Windows has neither; the platforms workflow checks it on real
+// zellij sessions instead.
+func SkipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("a fake Linux machine: /proc and Unix sockets")
 	}
 }

@@ -1,4 +1,5 @@
-# Release build: static Linux binaries, archives, checksums and packages.
+# Release build: static binaries for Linux, macOS and Windows, archives,
+# checksums, and packages for Linux.
 version: 2
 
 project_name: zellij-reaper
@@ -7,8 +8,12 @@ builds:
   - main: ./cmd/zellij-reaper
     env:
       - CGO_ENABLED=0
-    goos: [linux]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
+    # zellij has no Windows build for arm64.
+    ignore:
+      - goos: windows
+        goarch: arm64
     flags: [-trimpath]
     ldflags:
       - -s -w
@@ -19,7 +24,11 @@ builds:
 
 archives:
   - formats: [tar.gz]
-    # scripts/install.sh downloads this exact name.
+    # Windows people open a zip; scripts/install.ps1 does too.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    # scripts/install.sh and install.ps1 download this exact name.
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
@@ -34,6 +43,7 @@ checksum:
 
 nfpms:
   - package_name: zellij-reaper
+    # Packages are for Linux; nfpm takes only the Linux builds.
     homepage: https://github.com/kanggu12/zellij-reaper
     maintainer: J.-G. Kang <kanggu12@gmail.com>
     description: Reap idle and exited zellij sessions, safely.
@@ -56,3 +66,4 @@ release:
   # where it lives in the repository.
   extra_files:
     - glob: scripts/install.sh
+    - glob: scripts/install.ps1

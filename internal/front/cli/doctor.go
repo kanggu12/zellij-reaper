@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -156,10 +157,19 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	} else if a.Zellij.Available() {
 		fail(i18n.T("error.list", err))
 	}
-	if _, err := procfs.UnixSockets(); err == nil {
-		pass(i18n.T("doctor.sockdiag"))
-	} else {
-		note(i18n.T("doctor.sockdiag.none"))
+	// How a renamed session is matched to its server: the kernel's socket
+	// table on Linux, the socket file itself elsewhere.
+	switch runtime.GOOS {
+	case "darwin":
+		pass(i18n.T("doctor.match.darwin"))
+	case "windows":
+		pass(i18n.T("doctor.match.windows"))
+	default:
+		if _, err := procfs.UnixSockets(); err == nil {
+			pass(i18n.T("doctor.sockdiag"))
+		} else {
+			note(i18n.T("doctor.sockdiag.none"))
+		}
 	}
 
 	// The log.

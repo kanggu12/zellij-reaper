@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	pathpkg "path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -58,15 +59,17 @@ func imports(t *testing.T) map[string][]string {
 			return err
 		}
 		// Listed even with no imports, so a new folder cannot go unseen.
-		if found[filepath.Dir(path)] == nil {
-			found[filepath.Dir(path)] = []string{}
+		// Windows walks with backslashes; the table names packages with "/".
+		path = filepath.ToSlash(path)
+		if found[pathpkg.Dir(path)] == nil {
+			found[pathpkg.Dir(path)] = []string{}
 		}
 		for _, spec := range file.Imports {
 			imp, err := strconv.Unquote(spec.Path.Value)
 			if err != nil {
 				return err
 			}
-			pkg := filepath.Dir(path)
+			pkg := pathpkg.Dir(path)
 			found[pkg] = append(found[pkg], imp)
 		}
 		return nil

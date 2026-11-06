@@ -20,8 +20,12 @@ fail() {
   exit 1
 }
 
-# zellij-reaper reads /proc and talks to systemd: Linux only.
-[ "$(uname -s)" = Linux ] || fail "zellij-reaper runs on Linux"
+# Linux and macOS take this script; Windows takes install.ps1.
+case "$(uname -s)" in
+  Linux) os=linux ;;
+  Darwin) os=darwin ;;
+  *) fail "no release for $(uname -s): on Windows, use install.ps1 from the same release" ;;
+esac
 case "$(uname -m)" in
   x86_64 | amd64) arch=amd64 ;;
   aarch64 | arm64) arch=arm64 ;;
@@ -47,7 +51,7 @@ case "$version" in
   *) version=v$version ;;
 esac
 
-archive="zellij-reaper_${version#v}_linux_${arch}.tar.gz"
+archive="zellij-reaper_${version#v}_${os}_${arch}.tar.gz"
 tmp=$(mktemp -d)
 # The download goes away however the script ends. A signal also stops the
 # install there, with the status a shell gives for it, instead of going on
@@ -56,7 +60,7 @@ trap 'rm -rf "$tmp"' EXIT
 trap 'rm -rf "$tmp"; exit 130' INT
 trap 'rm -rf "$tmp"; exit 143' TERM
 
-say "downloading zellij-reaper $version for linux/$arch"
+say "downloading zellij-reaper $version for $os/$arch"
 curl -fsSL "$base/$version/$archive" -o "$tmp/$archive" || fail "could not download $archive"
 curl -fsSL "$base/$version/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt"
 
@@ -76,7 +80,7 @@ install -m 0755 "$tmp/zellij-reaper" "$bin_dir/zellij-reaper"
 say "installed $bin_dir/zellij-reaper"
 
 if [ "${ZELLIJ_REAPER_NO_TIMER:-}" = 1 ]; then
-  say "run 'zellij-reaper install' to start the timer"
+  say "run 'zellij-reaper install' to start the timers"
 else
   "$bin_dir/zellij-reaper" install
 fi
