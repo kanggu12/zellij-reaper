@@ -177,6 +177,11 @@ A name has to stay put to be useful, so it changes only when what the session sh
 time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
 log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
 
+A pass renames sessions someone is attached to as well: on a machine whose sessions stay attached, renaming only the
+others left nothing to rename. The person in such a session sees its name change, and its panes keep the old name in
+`ZELLIJ_SESSION_NAME`, so a `zellij` command run there without `--session` waits for a session by that name.
+`auto_rename_attached = false` renames only the sessions nobody is attached to.
+
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
 becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags, the directories of
@@ -218,8 +223,8 @@ fails is written into the log instead of stopping the pass.
 The timer, `zellij-reaper run`, `recover` and the dashboard's actions take the same `flock`; a pass that cannot get it
 within five seconds (two for a dashboard action) leaves the work to the one that holds it. A pass gathers every fact
 first and then acts one session at a time, and each delete can take a moment, so it asks again just before each
-delete and each rename. The dashboard asks too before a delete by hand. Someone who attached in between keeps the
-session.
+delete and, with `auto_rename_attached = false`, each rename. The dashboard asks too before a delete by hand. Someone
+who attached in between keeps the session.
 
 ### The dashboard
 

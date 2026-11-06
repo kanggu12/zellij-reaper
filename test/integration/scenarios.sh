@@ -372,6 +372,21 @@ before=$(renames)
 check "one more pass succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "and leaves that name alone" test "$(renames)" = "$before"
 
+echo "-- auto_rename_attached"
+# A session someone works in: a pass renames it too, unless told to wait until
+# nobody is attached, and its client stays through the rename.
+pane_layout 'review the draft' /tmp/review.kdl
+start quiet-magpie /tmp/review.kdl
+{ script -qfec "$Z attach quiet-magpie" /dev/null >/dev/null 2>&1 & }
+sleep 2
+check "its title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-magpie 'review the draft'"
+check "a client is attached to it" clients_are quiet-magpie 1
+check "a pass that waits for nobody attached succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_ATTACHED=0 $R run --quiet
+check "and the attached session keeps its name" listed quiet-magpie
+check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
+check "an attached session is named after its pane" listed review-the-draft
+check "and its client is still attached" clients_are review-the-draft 1
+
 echo "-- recover"
 start first2 && rename_to first2 second2
 # A session whose name is too long for a socket: its saved layout makes zellij
@@ -410,7 +425,7 @@ echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"
 check "the dashboard renders a frame" sh -c "$R tui --snapshot 120x30 | grep -q zellij-reaper"
 check "logs prints the log" sh -c "$R logs -n 5 | grep -q 'reaper end'"
-check "config show lists the file" sh -c "$R config show | grep -q 'idle_after        = \"1h\"'"
+check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after += \"1h\"'"
 
 echo "passed $pass, failed $fail"
 [ "$fail" = 0 ]

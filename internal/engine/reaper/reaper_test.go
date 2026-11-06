@@ -99,6 +99,9 @@ type world struct {
 	sockDir string
 	// attach connects a client to a session, as the kernel would show it.
 	attach func(name string)
+	// attachUnseen connects a client whose end of the connection the table
+	// does not show, like one in another network namespace.
+	attachUnseen func(name string)
 }
 
 func newWorld(t *testing.T) *world {
@@ -179,7 +182,13 @@ func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 			procfs.UnixSocket{Inode: conn, State: 1, Name: filepath.Join(sockDir, name), Peer: peer},
 			procfs.UnixSocket{Inode: peer, State: 1, Peer: conn})
 	}
-	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach}
+	attachUnseen := func(name string) {
+		pid := servers[name]
+		conn, peer := uint32(pid+60), uint32(pid+61)
+		fp.AddSocket(pid, conn)
+		socks = append(socks, procfs.UnixSocket{Inode: conn, State: 1, Name: filepath.Join(sockDir, name), Peer: peer})
+	}
+	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach, attachUnseen: attachUnseen}
 }
 
 func (w *world) log(t *testing.T) string {
@@ -430,6 +439,7 @@ func TestAutoRenameAsksForClientsAgain(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.env.Config.AutoRename = true
+			w.env.Config.AutoRenameAttached = false
 			// Nobody is attached when the facts are gathered; by the time
 			// the deletes before it are done, the answer has changed.
 			c.set(w.zj)
@@ -454,9 +464,10 @@ func TestAutoRenameAsksForClientsAgain(t *testing.T) {
 	}
 }
 
-func TestAutoRenameLeavesAttachedSessionsAlone(t *testing.T) {
+func TestAutoRenameAttachedOffLeavesAttachedSessionsAlone(t *testing.T) {
 	w := newWorld(t)
 	w.env.Config.AutoRename = true
+	w.env.Config.AutoRenameAttached = false
 	// busy runs a protected program and a client is attached: its verdict is
 	// decided before its clients are looked at, and it keeps its name anyway.
 	w.env.Config.ProtectCommands = []string{"htop"}
@@ -525,6 +536,33 @@ func TestAutoRenameAttachedRenamesASessionInUse(t *testing.T) {
 				t.Errorf("log:\n%s", w.log(t))
 			}
 		})
+	}
+}
+
+func TestAutoRenameAttachedLeavesASessionWhoseClientsCannotBeTold(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	w.env.Config.AutoRenameAttached = true
+	// A connection nobody visible holds, and zellij does not answer: the
+	// server may be starting or stopping.
+	w.attachUnseen("busy")
+	w.zj.lateErr = map[string]error{"busy": errors.New("no answer within 10s")}
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && (o.Verdict.Code != policy.AttachUnknown || o.WouldRename != "") {
+			t.Fatalf("plan: %s, next name %q", o.Verdict.Code, o.WouldRename)
+		}
+	}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, rn := range w.zj.renamed {
+		if strings.HasPrefix(rn, "busy->") {
+			t.Fatalf("renamed a session whose clients nobody could tell: %s", rn)
+		}
 	}
 }
 

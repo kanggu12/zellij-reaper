@@ -98,7 +98,12 @@ func showConfig(cmd *cobra.Command) error {
 		file = i18n.T("config.notcreated", settingsPath())
 	}
 	println(w, ui.Fg(t.Muted).Render("# "+tilde(file)))
-	// The sources line up in one column after the longest value.
+	// The values line up after the longest key, and the sources in one
+	// column after the longest value.
+	keyWidth := 0
+	for _, k := range config.Keys {
+		keyWidth = max(keyWidth, len(k))
+	}
 	lines := make([]string, len(config.Keys))
 	width := 0
 	for i, k := range config.Keys {
@@ -107,7 +112,7 @@ func showConfig(cmd *cobra.Command) error {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			value = strings.Replace(value, `"`+home+"/", `"~/`, 1)
 		}
-		lines[i] = fmt.Sprintf("%-17s = %s", k, value)
+		lines[i] = fmt.Sprintf("%-*s = %s", keyWidth, k, value)
 		width = max(width, len(lines[i]))
 	}
 	for i, k := range config.Keys {

@@ -41,7 +41,8 @@ its wait over:
    protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
    it runs `zellij delete-session NAME --force`.
 8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
-   another name. It asks the session for its clients first.
+   another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
+   session for its clients once more first.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
@@ -143,7 +144,7 @@ Every line the log can hold:
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
 | `  -> kept: NAME :: REASON` | something changed just before the delete |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
-| `  -> kept name: NAME :: REASON` | a client attached before the rename, so the session keeps its name for now |
+| `  -> kept name: NAME :: REASON` | a client attached before the rename, so the session keeps its name for now (with `auto_rename_attached = false`) |
 | `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and the session keeps that name until someone changes it |
 | `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename, or took it without listing the new name in time |
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |

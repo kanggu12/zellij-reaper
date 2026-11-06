@@ -164,6 +164,7 @@ in `1d12h`; `"0"` means no wait.
 | `protect_commands` | `["claude", "codex", "gemini", "aider", "opencode"]` | programs that keep a running session |
 | `shells` | `[]` | extra programs that count as a prompt |
 | `auto_rename` | `false` | name the sessions nobody named after what they show |
+| `auto_rename_attached` | `true` | rename sessions with a client attached too; `false` waits until nobody is attached |
 | `auto_rename_stamp` | `"none"` | what those names end in: `"none"`, `"date"` or `"time"` |
 | `interval` | `"1h"` | how often the timer runs, up to five minutes late; at least `1m`; run `install` again after changing it |
 | `zellij` | `""` | the zellij binary; empty means the first one in `PATH` |
@@ -184,11 +185,11 @@ leave a session unprotected. A file with a `[log]` table, as earlier versions wr
 
 ```
 # ~/.config/zellij-reaper/config.toml
-dry_run           = false                                               # default
-idle_after        = "4h"                                                # file
-exited_after      = "1d"                                                # file
-protect           = ""                                                  # default
-protect_commands  = ["claude", "codex", "gemini", "aider", "opencode"]  # default
+dry_run              = false                                               # default
+idle_after           = "4h"                                                # file
+exited_after         = "1d"                                                # file
+protect              = ""                                                  # default
+protect_commands     = ["claude", "codex", "gemini", "aider", "opencode"]  # default
 ...
 ```
 
@@ -202,8 +203,8 @@ There are three ways to protect a session:
 - **A running program:** while a program from `protect_commands` runs anywhere in a running session, or its layout
   starts one, the session is kept, even when the pane running it looks idle.
 
-The first two also stop renaming. A session kept only for a running program can still be renamed while no client is
-attached, if nobody chose its name.
+The first two also stop renaming. A session kept only for a running program can still be renamed if nobody chose its
+name; with `auto_rename_attached = false`, only while no client is attached.
 
 ## Naming sessions after what they show
 
@@ -217,7 +218,8 @@ chose a name:
   given names. The shell version and 0.1 releases stamped theirs instead (`web-app_1104-0931`), and those go too, unless
   `auto_rename_stamp = "time"`. 0.2.0 did neither by default, so a name 0.2.0 gave stays until someone changes it.
 
-A session that is attached, exited, protected by name or uncertain keeps its name as well.
+A session that is exited, protected by name or uncertain keeps its name as well. One you are attached to is renamed
+too, as you work in it; `auto_rename_attached = false` waits until nobody is attached.
 
 **To keep a name as it is,** whoever gave it, select a running session in the dashboard and press `r`, then Tab, then
 Enter. The field starts with the suggested name, and Tab puts back the name the session has; the keys under the field
@@ -270,7 +272,8 @@ so a title that comes back gives a tail too.
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
 session by the old name while any other session is running. Panes opened after the rename have the new name, and
-`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one.
+`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one. That includes the panes you are working in, unless
+`auto_rename_attached = false`.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.

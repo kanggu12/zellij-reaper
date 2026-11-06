@@ -5,6 +5,15 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `auto_rename` renames sessions with a client attached too, as you work in them. It renamed only sessions nobody was
+  attached to, so on a machine whose sessions stay attached it never renamed one. `auto_rename_attached = false` brings
+  that back. Panes opened before a rename keep the old name in `ZELLIJ_SESSION_NAME`, and a `zellij` command run there
+  without `--session` waits for a session by that name while another one is running; the setup guide and the
+  troubleshooting guide say how to fix such a pane.
+- `config show` lines its values up after the longest key.
+
 ## [0.3.5] - 2026-11-06
 
 ### Added

@@ -98,7 +98,7 @@ func Default(env Env) *Config {
 		ProtectCommands:    append([]string(nil), DefaultProtectCommands...),
 		Shells:             nil,
 		AutoRename:         false,
-		AutoRenameAttached: false,
+		AutoRenameAttached: true,
 		AutoRenameStamp:    "none",
 		Interval:           time.Hour,
 		ZellijPath:         "",
