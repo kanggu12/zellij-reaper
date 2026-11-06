@@ -242,45 +242,20 @@ func readZellijNative() (*Table, error) {
 	return t, nil
 }
 
-// bornNear and aloneWithin bound the match of a socket file to a server by
-// time: zellij binds the socket right after the server starts, so the file is
-// born within bornNear of it, and no other server may have started within
-// aloneWithin, or the match could pick the wrong one.
-const (
-	bornNear    = 2 * time.Second
-	aloneWithin = 5 * time.Second
-)
-
 // fileOwner matches a socket file to the server that started when the file was
 // created. macOS keeps a file's creation time through a rename, which is all a
-// rename changes, so this still holds for a renamed session. Two servers
-// started within seconds of each other match neither.
+// rename changes, so this still holds for a renamed session. Measured on macOS
+// 26 with zellij 0.45.1, a server makes its socket 3 to 5 ms after it starts,
+// and two sessions started one after the other are about 250 ms apart. The
+// nearest server must be within a second, and every other one clearly
+// farther, or the file matches none: the session is then kept as one whose
+// server is not found, never judged by another session's panes.
 func fileOwner(path string, servers []Server) (Server, bool) {
 	born, ok := Born(path)
 	if !ok {
 		return Server{}, false
 	}
-	var match Server
-	n := 0
-	for _, s := range servers {
-		if s.Started.IsZero() {
-			continue
-		}
-		d := born.Sub(s.Started)
-		if d < 0 {
-			d = -d
-		}
-		if d <= aloneWithin {
-			n++
-			if d <= bornNear {
-				match = s
-			}
-		}
-	}
-	if n != 1 || match.PID == 0 {
-		return Server{}, false
-	}
-	return match, true
+	return ByStartTime(born, servers)
 }
 
 // nativeRoot is the directory a table reads from; this system has no /proc.

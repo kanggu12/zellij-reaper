@@ -29,6 +29,20 @@ for s in idle-one busy-one; do
   tmo 30 "$Z" attach --create-background "$s" >/dev/null 2>&1
   echo "started $s: $?"
 done
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    # The same with a shell named outright, and with a pane that runs a
+    # long command instead of a shell.
+    SHELL='C:\Windows\System32\cmd.exe' tmo 30 "$Z" attach --create-background win-cmd >/dev/null 2>&1
+    echo "started win-cmd: $?"
+    printf 'layout {\n    pane command="ping" {\n        args "-n" "600" "127.0.0.1"\n    }\n}\n' >"$TEMP/ping.kdl"
+    tmo 30 "$Z" --layout "$(cygpath -w "$TEMP/ping.kdl")" attach --create-background win-ping >/dev/null 2>&1
+    echo "started win-ping: $?"
+    sleep 3
+    show "$Z" list-sessions --no-formatting
+    for f in "$(cygpath "$TEMP")"/zellij/zellij-log/*.log; do echo "== head of $f"; grep -v "Loaded plugin\|Bye from plugin\|Overriding plugin" "$f" | head -60; done
+    ;;
+esac
 sleep 3
 tmo 20 "$Z" --session busy-one run -- sleep 600 >/dev/null 2>&1
 sleep 3
