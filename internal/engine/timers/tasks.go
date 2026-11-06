@@ -47,7 +47,10 @@ func (w Tasks) Persists() (on, known bool) { return false, false }
 func (w Tasks) ps(script string) (string, error) {
 	// Progress records would come out as CLIXML on stderr, which the runner
 	// mixes into the answer.
-	full := "$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n[Console]::OutputEncoding = [Text.Encoding]::UTF8\n" + script
+	// It ends in exit 0: PowerShell's own exit status is whether the last
+	// command succeeded, even one whose error was silenced on purpose. An
+	// error that is not silenced stops the script before that line.
+	full := "$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n[Console]::OutputEncoding = [Text.Encoding]::UTF8\n" + script + "\nexit 0\n"
 	u := utf16.Encode([]rune(full))
 	b := make([]byte, 2*len(u))
 	for i, c := range u {

@@ -5,6 +5,17 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-07
+
+### Fixed
+
+- `install` on Windows failed with `register the tasks: exit status 1` when zellij was not on the `PATH`: PowerShell
+  exits 1 when its last command failed, even one whose error was silenced on purpose, and the last command removes a
+  names task that is usually not there. Every script zellij-reaper hands PowerShell now ends in `exit 0`; an error
+  that matters still stops it before that.
+- The release workflow runs `installers.yml` once the release is out: a release made by a workflow starts no other
+  workflow, so it never ran for 0.6.0 on its own, which is how this went out.
+
 ## [0.6.0] - 2026-11-07
 
 ### Added
@@ -312,7 +323,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.1
 [0.6.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.4.0
