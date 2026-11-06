@@ -43,22 +43,41 @@ jobs:
           fi
 
   windows:
-    # PowerShell 7 and Windows PowerShell 5.1, which every Windows has.
-    name: install.ps1 in ${{ matrix.shell }}
-    strategy:
-      fail-fast: false
-      matrix:
-        shell: [pwsh, powershell]
+    # In PowerShell 7 and in Windows PowerShell 5.1, which every Windows has.
+    # A step's shell cannot come from a matrix, so each has its own job.
+    name: install.ps1 in PowerShell 7
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - name: install
-        shell: ${{ matrix.shell }}
+        shell: pwsh
         env:
           ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
         run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
       - name: check
-        shell: ${{ matrix.shell }}
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
+          & $exe version
+          $doctor = & $exe doctor | Out-String
+          $doctor
+          if ($doctor -notmatch 'Task Scheduler answers' -or $doctor -notmatch 'timer enabled') { exit 1 }
+          if (-not (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -contains (Split-Path $exe))) { 'not on PATH'; exit 1 }
+          & $exe uninstall --purge
+          exit 0
+
+  windows-5:
+    name: install.ps1 in Windows PowerShell 5.1
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: install
+        shell: powershell
+        env:
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+        run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
+      - name: check
+        shell: powershell
         run: |
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
           & $exe version
