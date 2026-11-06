@@ -35,25 +35,38 @@ that stays stable for scripts; `reason` is the log's wording:
 ```
 
 `wait_seconds`, `server_pid`, `last_active`, `panes`, `would_rename` (with `auto_rename` on) and a pane's `busy` appear
-only when they apply. `clients` is -1 when it is not known, as on every exited session.
+only when they apply. In the table, a session the next pass renames shows `→ NEW-NAME` after its verdict, as room
+allows. `clients` is -1 when it is not known, as on every exited session.
+
+**`here`** prints the name the zellij session this shell runs in has now, read from `/proc`, the kernel's socket
+table and the socket directory, with no zellij process; it exits 1, printing nothing, outside zellij. A pane keeps
+the name its session had when the pane opened, in `ZELLIJ_SESSION_NAME`, and after a rename a zellij command run there
+waits for a session by that name. **`shell-hook bash|zsh|fish`** prints a prompt hook that sets `ZELLIJ_SESSION_NAME`
+from `here` at every prompt and keeps the status of the command before; see
+[setup](setup.md#naming-sessions-after-what-they-show).
 
 **`logs`** prints the last 50 lines of the decision log (`-n` for another number), colored by kind. `-f` keeps
 printing new lines and follows the log across rotations.
 
 **`doctor`** checks zellij and its version, the systemd user instance, the timer (installed, enabled, running this
-binary, the interval it was installed with), lingering, the settings, settings that only your shell sees, zellij's
-session directory, the kernel's socket table and the log. It exits with status 1 when something is broken; a warning
-alone still exits 0.
+binary, the interval it was installed with), the names timer when `auto_rename` is on, lingering, the settings, settings
+that only your shell sees, zellij's session directory, the kernel's socket table and the log. It exits with status 1
+when something is broken; a warning alone still exits 0.
 
 ## Acting
 
 **`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
-logs; `--force` sets both waits to zero for this pass; `--quiet` prints nothing (the timer's mode). The exit status is 0
-when the pass ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such as zellij
-failing to list its sessions.
+logs; `--force` sets both waits to zero for this pass; `--names-only` renames what a pass would and deletes nothing,
+writing to the log only when it renames (the names timer's mode); `--quiet` prints nothing (the timers' mode). The exit
+status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such
+as zellij failing to list its sessions.
 
 **`protect NAME...`** adds sessions to the protected list; with no name it prints the list. **`unprotect NAME...`**
 takes them off. A name the `protect` pattern matches stays protected either way, and `unprotect` says so.
+
+**`keep-name NAME...`** keeps running sessions' names as they are, as `r`, Tab and Enter do in the dashboard: no pass
+renames them. With no name it prints the kept names. **`forget-name NAME...`** takes names off that list, so passes may
+rename those sessions again. Both wait for a pass that holds the lock, and log what they did.
 
 **`recover [--dry-run] [--aggressive]`** repairs sessions that no zellij command can reach. A session's name is part
 of its socket path, which Linux caps at 107 bytes; a session renamed past that keeps a server nobody can talk to, and
@@ -68,9 +81,9 @@ window changed. `--shallow` signals the clients only.
 
 ## Setting up
 
-**`install`** writes the systemd units and a settings file, enables the timer and lingering, and says when the first
-pass runs. **`uninstall`** removes the timer and the service; `--purge` also removes the settings, the log, the
-protected list and the lists of given and kept names. See [setup](setup.md#install).
+**`install`** writes the systemd units and a settings file, enables the timer, the names timer and lingering, and says
+when the first pass runs. **`uninstall`** removes both timers and their services; `--purge` also removes the settings,
+the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`
 prints the file's path, `init` writes the file with every key at its default, and `edit` opens it in `$VISUAL` or

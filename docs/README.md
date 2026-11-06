@@ -1,5 +1,7 @@
 # zellij-reaper documentation
 
+**Start with the [Quick start](../README.md#quick-start)**: install, look at `plan`, open the dashboard, turn on names.
+
 | Page | Read it for |
 |:---|:---|
 | [How it decides](how-it-decides.md) | what a pass does, every check in order, where each fact comes from, every line of the log |
@@ -10,5 +12,5 @@
 | [Contributing](../.github/CONTRIBUTING.md) | how the code fits together, what a change needs, how to add a rule, a setting or a language |
 | [Third-party notices](THIRD_PARTY_NOTICES.md) | the license of everything zellij-reaper is built from |
 
-New here? The [README](../README.md) shows what goes and what stays, and `docker run --rm -it --init
-ghcr.io/kanggu12/zellij-reaper-demo` opens the dashboard on demo sessions without installing anything.
+`docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo` opens the dashboard on demo sessions without
+installing anything.

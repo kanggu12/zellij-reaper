@@ -47,6 +47,9 @@ its wait over:
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
 
+The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, so a name follows
+its session sooner than the hourly pass. It deletes nothing, and writes to the log only when it renames something.
+
 ## The checks
 
 They run in this order, and the first check that matches decides. Its code is what `plan --json` reports and what the
@@ -154,6 +157,8 @@ Every line the log can hold:
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
+| `=== names start (dry_run=...) ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that renames nothing writes no line |
+| `NAME :: name kept from the command line`, `NAME :: name no longer kept, from the command line` | `keep-name` and `forget-name` |
 
 The words stay the same across releases, so months of the log can be grepped. New kinds of lines may be added.
 `zellij-reaper logs -f` follows it across rotations; with `tail`, use `tail -F`.

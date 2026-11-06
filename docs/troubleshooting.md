@@ -30,7 +30,8 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 ## A session's name keeps a `-2`
 
 Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
-stays, because a name changes only when what the session shows changes. With `r` you can give it the name without the
+stays, because a name changes only when what the session shows changes; with `auto_rename_drop_tail = true` it goes
+once no other session has the name. With `r` you can give it the name without the
 tail, unless this session had that name before. A name given by hand stays as it is from then on.
 
 ## A session is named after the wrong thing
@@ -44,9 +45,15 @@ or `zellij action rename-session`, and passes leave that name alone. To keep the
 ## A `zellij` command hangs in a renamed session
 
 A pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`, so after a rename a `zellij` command run
-there without `--session` waits for a session by the old name while any other session is running. Run
-`export ZELLIJ_SESSION_NAME=NEW-NAME` in that pane, or open a new pane, which has the new name. `zellij-reaper logs`
-shows what each session was renamed to.
+there without `--session` waits for a session by the old name while any other session is running. Press Ctrl+C, then
+`export ZELLIJ_SESSION_NAME=$(zellij-reaper here)`. The prompt hook does that at every prompt:
+`eval "$(zellij-reaper shell-hook bash)"` in `~/.bashrc` (also `zsh` and `fish`).
+
+## A name takes up to an hour to change
+
+The names timer renames every `rename_interval` (5 minutes); without it, only the hourly pass does. `doctor` says when
+it is not running: run `zellij-reaper install` again, which also picks up a changed `rename_interval`.
+`zellij-reaper run --names-only` renames now.
 
 ## `plan` and the timer disagree
 

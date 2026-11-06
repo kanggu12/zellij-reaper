@@ -57,6 +57,7 @@ mounts the working tree's binary. The published demo image is built from `test/d
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
 make integration                         # real zellij, every release in the matrix, in containers
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
+make fuzz                                # every fuzz target, 30s each; a failing input lands in testdata/fuzz
 ```
 
 <picture>
@@ -96,13 +97,14 @@ title that says nothing about the session goes in `agentTitles`. Try a change on
 
 ### A zellij release
 
-Run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that release's word lists from zellij's source and compares
-them with `internal/core/rename/generated.go`, so a new word fails the run: add it to that file. Once the run passes,
-add the release to the matrix in `.github/workflows/ci.yml` and to `default_versions` in `test/integration/run.sh`. For
-a new minor, also add it to `testedMinors` and `TestedZellij` in `internal/front/cli/doctor.go`, or `doctor` warns it is
-untested, update `README.md` and `docs/setup.md`, and run `make badges`. If a scenario fails, record what changed
-(`list-sessions -n`, `action list-clients`, a `session-metadata.kdl`) under `internal/machine/zellij/testdata/x.y.z/`,
-add a parser test, then fix.
+The weekly canary (`.github/workflows/canary.yml`) runs the scenarios on zellij's newest release and on its main branch,
+so a new release usually shows up there first. Run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that release's
+word lists from zellij's source and compares them with `internal/core/rename/generated.go`, so a new word fails the run:
+add it to that file. Once the run passes, add the release to the matrix in `.github/workflows/ci.yml` and to
+`default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in
+`internal/front/cli/doctor.go`, or `doctor` warns it is untested, update `README.md` and `docs/setup.md`, and run
+`make badges`. If a scenario fails, record what changed (`list-sessions -n`, `action list-clients`, a
+`session-metadata.kdl`) under `internal/machine/zellij/testdata/x.y.z/`, add a parser test, then fix.
 
 ### A dependency
 

@@ -13,9 +13,9 @@
 
 ## Install
 
-zellij-reaper is one static binary for Linux on x86_64 or arm64. It needs zellij and a systemd user instance for its
-timer. Without systemd, `ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and [cron can run the
-passes](#without-systemd).
+The [Quick start](../README.md#quick-start) is the short way through this page. zellij-reaper is one static binary for
+Linux on x86_64 or arm64. It needs zellij and a systemd user instance for its timer. Without systemd,
+`ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and [cron can run the passes](#without-systemd).
 
 ```sh
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
@@ -48,13 +48,16 @@ Other ways:
 
 - Writes `zellij-reaper.service` and `zellij-reaper.timer` to `~/.config/systemd/user/`. The service runs this binary
   (its absolute path at install time) with `run --quiet`, with zellij's directory first in its `PATH`.
+- Writes and starts `zellij-reaper-names.service` and `zellij-reaper-names.timer`, which run `run --names-only --quiet`
+  every `rename_interval` (5 minutes), the first time a minute after they start. With `rename_interval = "0"`, it
+  removes them. A names pass does nothing while `auto_rename` is off.
 - Writes `~/.config/zellij-reaper/config.toml` if there is none, every key commented out at its default.
 - Enables the timer and turns on lingering (`loginctl enable-linger`), so the timer runs without a login.
 - Says when the first pass runs and how many sessions it would delete. The first pass waits ten minutes after the timer
   starts; `zellij-reaper plan` shows what it will do, and `zellij-reaper protect NAME` keeps a session out of it.
 
-Run it again after moving the binary or changing `interval`. It never overwrites a settings file. With
-`--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read that file too.
+Run it again after moving the binary or changing `interval` or `rename_interval`. It never overwrites a settings file.
+With `--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read that file too.
 
 ### Without systemd
 
@@ -66,12 +69,14 @@ sets, so put what the job needs at the top of your crontab (`crontab -e`), with 
 PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin
 XDG_RUNTIME_DIR=/run/user/1000
 5 * * * * zellij-reaper run --quiet
+*/5 * * * * zellij-reaper run --names-only --quiet
 ```
 
-The last line runs a pass at five past every hour; `interval` sets the systemd timer only. `PATH` has to find both
-`zellij-reaper` and `zellij`: without `zellij` on it, a pass logs `zellij not installed, nothing to do` and exits 0.
-`XDG_RUNTIME_DIR` is where zellij keeps its sockets. Copy the value `echo "$XDG_RUNTIME_DIR"` prints in your shell, or
-leave the line out if it prints nothing. With any other value, a pass does not see your running sessions.
+The third line runs a pass at five past every hour, and the last one renames every five minutes; `interval` sets the
+systemd timer only. `PATH` has to find both `zellij-reaper` and `zellij`: without `zellij` on it, a pass logs
+`zellij not installed, nothing to do` and exits 0. `XDG_RUNTIME_DIR` is where zellij keeps its sockets. Copy the value
+`echo "$XDG_RUNTIME_DIR"` prints in your shell, or leave the line out if it prints nothing. With any other value, a pass
+does not see your running sessions.
 
 ## Coming from the shell scripts
 
@@ -140,14 +145,13 @@ A closed network also keeps you from checking for new releases: the steps above 
 
 ## Upgrade and uninstall
 
-**Upgrade** by running the install script again, or with your package manager. The settings stay; `zellij-reaper
-install` rewrites the units. After moving the binary by hand, run `zellij-reaper install` again: `doctor` notices a
-timer that still runs an old path.
-
-**Uninstall** with `zellij-reaper uninstall`, which stops and removes the timer and the service. `--purge` also removes
-the settings, the log, the protected list and the lists of given and kept names. Lingering stays on; `loginctl
-disable-linger` turns it off. Then remove the binary (`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall`
-before removing a package, or the timer stays and fails every hour.
+**Upgrade** by running the install script again, or with your package manager. The settings stay;
+`zellij-reaper install` rewrites the units. After moving the binary by hand, run `zellij-reaper install` again: `doctor`
+notices a timer that still runs an old path. **Uninstall** with `zellij-reaper uninstall`, which stops and removes both
+timers and their services. `--purge` also removes the settings, the log, the protected list and the lists of given and
+kept names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the binary
+(`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and
+fails every hour.
 
 ## Settings
 
@@ -166,14 +170,16 @@ in `1d12h`; `"0"` means no wait.
 | `auto_rename` | `false` | name the sessions nobody named after what they show |
 | `auto_rename_attached` | `true` | rename sessions with a client attached too; `false` waits until nobody is attached |
 | `auto_rename_stamp` | `"none"` | what those names end in: `"none"`, `"date"` or `"time"` |
+| `auto_rename_drop_tail` | `false` | give a session back the name without its `-2` once nobody else has it |
 | `interval` | `"1h"` | how often the timer runs, up to five minutes late; at least `1m`; run `install` again after changing it |
+| `rename_interval` | `"5m"` | how often the names timer renames; `"0"` turns it off; run `install` again after changing it |
 | `zellij` | `""` | the zellij binary; empty means the first one in `PATH` |
 | `log.path` | `~/.local/state/zellij-reaper/reaper.log` | the decision log |
 | `log.max_bytes` | `1048576` | the size at which the log moves to `.1`; `0` never |
 
 Most keys also take a variable: `ZELLIJ_REAPER_` and the key in capitals (`ZELLIJ_REAPER_IDLE_AFTER`), except
-`ZELLIJ_REAPER_LOG` for `log.path` and `ZELLIJ_REAPER_LOG_MAX_BYTES` for `log.max_bytes`. `protect_commands`, `shells` and
-`interval` are set in the file only.
+`ZELLIJ_REAPER_LOG` for `log.path` and `ZELLIJ_REAPER_LOG_MAX_BYTES` for `log.max_bytes`. `protect_commands`, `shells`,
+`interval` and `rename_interval` are set in the file only.
 
 A variable wins over the file, and `run --dry-run` and `run --force` win over both. Variables set in your shell apply
 to the commands you run there, not to the timer: `install` and `doctor` warn about each one, so put lasting settings
@@ -271,8 +277,24 @@ so a title that comes back gives a tail too.
 
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
-session by the old name while any other session is running. Panes opened after the rename have the new name, and
-`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one.
+session by the old name while any other session is running. Panes opened after the rename have the new name. The
+prompt hook keeps every pane current: at each prompt it sets `ZELLIJ_SESSION_NAME` to what `zellij-reaper here` prints,
+the name the pane's session has now, read from `/proc` and the kernel's socket table in about a millisecond, with no
+zellij process. Add it to the shell's startup file:
+
+```sh
+eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
+eval "$(zellij-reaper shell-hook zsh)"      # ~/.zshrc
+zellij-reaper shell-hook fish | source      # ~/.config/fish/config.fish
+```
+
+A shell started before the hook was added keeps going with `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)`.
+
+The hourly pass renames, and so does the names timer, every `rename_interval` (5 minutes): a pass that only renames,
+deletes nothing and writes to the log only when it renames. `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and
+Enter do; `forget-name NAME` lets passes rename it again, and `keep-name` alone lists the kept names. With
+`auto_rename_drop_tail = true`, a session a pass named `api-2` gets `api` once no other session has it; zellij refuses a
+name the session had before, and then the tail stays.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
@@ -283,11 +305,12 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 |:---|:---|
 | `~/.config/zellij-reaper/config.toml` | the settings |
 | `~/.config/systemd/user/zellij-reaper.{service,timer}` | the timer, written by `install` |
+| `~/.config/systemd/user/zellij-reaper-names.{service,timer}` | the names timer, written by `install` |
 | `~/.local/state/zellij-reaper/reaper.log` and `.1` | the decision log |
 | `~/.local/state/zellij-reaper/protected` | the protected list, one name per line |
 | `~/.local/state/zellij-reaper/protected.lock` | held while the protected list is changed |
 | `~/.local/state/zellij-reaper/named`, `named.lock` | the list of given names: names a pass gave, so it can tell them from a name someone chose |
-| `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept from the dashboard, which no pass renames |
+| `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept with the dashboard or `keep-name`, which no pass renames |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. zellij-reaper reads zellij's files under `$XDG_CACHE_HOME/zellij`

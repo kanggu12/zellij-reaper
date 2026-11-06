@@ -5,6 +5,38 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A names timer: `zellij-reaper-names.timer` runs `run --names-only` every `rename_interval` (5 minutes, `"0"` turns
+  it off), so a name follows its session within minutes instead of at the hourly pass. A names pass renames what a full
+  pass would, deletes nothing, and writes to the log only when it renames. `install` writes and removes it with the
+  setting, `uninstall` removes it, and `doctor` says when it is not running.
+- `zellij-reaper here` prints the name the session a shell runs in has now, from `/proc`, the kernel's socket table
+  and the socket directory, in about a millisecond past start-up and with no zellij process. `shell-hook bash|zsh|fish`
+  prints a prompt hook that keeps `ZELLIJ_SESSION_NAME` at that name, so zellij commands in a pane opened before a
+  rename keep working; it keeps the status of the command before.
+- `keep-name NAME` and `forget-name NAME` keep a session's name, or let passes rename it again, from a script, as `r`,
+  Tab and Enter do in the dashboard; `keep-name` alone lists the kept names.
+- `auto_rename_drop_tail = true` gives a session back the name without its `-2` once no other session has it.
+- The session list in the dashboard and in `plan` shows the name the next pass gives a session (`→ fix-the-login-bug`).
+- Fuzz tests for the names and for zellij's output (`make fuzz`, 10 seconds each in CI), integration scenarios for all
+  of the above and for Enter in the dashboard, zellij 0.45.1 on arm64 in CI, and a weekly canary on zellij's newest
+  release and its main branch.
+
+### Changed
+
+- A pass reads less of `/proc`, only what zellij's processes and the ones under them need, and reads it while zellij
+  lists the sessions: `plan` on a machine with 166 processes went from 40.2 ms to 31.0 ms.
+- On zellij 0.43, which has no `switch-session`, Enter inside zellij says to detach and attach instead of showing
+  zellij's usage error.
+- The demo has a thirteenth session, `brave-peach`, and `auto_rename` on, so it shows a rename coming. The README opens
+  with a Quick start and a recording of the dashboard.
+
+### Fixed
+
+- A line of `list-sessions` output with a blank name no longer becomes a session with no name, and the collision tail
+  after a name that is no tail of the desired one is refused (both found by fuzzing).
+
 ## [0.4.0] - 2026-11-06
 
 ### Changed

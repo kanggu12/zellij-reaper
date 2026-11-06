@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> |
+  <a href="#quick-start">Quick start</a> |
   <a href="#what-goes-and-what-stays">What goes, what stays</a> |
   <a href="#names-that-say-what-a-session-is">Names</a> |
   <a href="#the-dashboard">Dashboard</a> |
@@ -29,13 +29,51 @@
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
-  <img alt="The zellij-reaper dashboard: twelve sessions sorted by what the next pass does to them, the checks for the selected one, and the latest reaps" src="docs/assets/screenshot-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-dark.gif">
+  <img alt="The zellij-reaper dashboard on thirteen sessions, sorted by what the next pass does to them. The selection moves from scratch, which the next pass reaps, to api-server running npm run dev, notes with a client attached and agent-refactor running claude, each with its checks. brave-peach, a name zellij made up, shows the name the next pass gives it, fix-the-login-bug; r opens its rename dialog, and Tab puts back the name it has, to keep it." src="docs/assets/demo-light.gif">
 </picture>
 
 zellij keeps every session until you delete it: the ones you detached from last week, and the exited ones it keeps
 for resurrection. zellij-reaper runs from a systemd user timer and deletes the ones nobody uses. Every check has to pass
 before a session goes; when a fact is unclear, the session stays.
+
+## Quick start
+
+Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl --user` works).
+
+1. **Install.** The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin`
+   and starts the timer. The first pass comes ten minutes later.
+
+   ```sh
+   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+   ```
+
+2. **Look before it acts.** `plan` shows what the next pass would do, and changes nothing:
+
+   ```
+   $ zellij-reaper plan
+     SESSION         STATE    IDLE  CLIENTS  NEXT PASS
+   ● scratch         running  3h    0        reap
+   ● release-v2      running  50m   0        reap in 9m
+   ● notes           running  1s    1        attached
+   ● api-server      running  3h    0        running npm run dev
+   ● agent-refactor  running  3h    0        protected: claude
+   ```
+
+3. **Open the dashboard:** `zellij-reaper`. Keep a session out of every pass with `p` there, or
+   `zellij-reaper protect NAME`.
+
+4. **Name sessions after what they show** (optional). Turn it on, and add the prompt hook so the panes of a renamed
+   session keep reaching it:
+
+   ```sh
+   zellij-reaper config edit          # set auto_rename = true
+   echo 'eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
+   ```
+
+Not ready to install? `docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo` opens the dashboard on demo
+sessions in a throwaway container. [Setup](docs/setup.md) has packages, upgrading, uninstalling and
+[machines with no internet access](docs/setup.md#without-internet-access).
 
 ## Why zellij-reaper
 
@@ -68,46 +106,13 @@ counts from the last input or output in any of the session's panes, so coming ba
 To reap a session is to delete it (`zellij delete-session NAME --force`): it is gone with its scrollback and cannot be
 resurrected. [How it decides](docs/how-it-decides.md) lists every check in order.
 
-## Install
-
-Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl --user` works):
-
-```sh
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
-```
-
-The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin` and starts the
-timer, with lingering so it runs after you log out too. The first pass comes ten minutes later, so there is time to
-look first. This is `plan` on a machine set to `idle_after = "1h"`:
-
-```
-$ zellij-reaper plan
-zellij-reaper · zellij 0.45.1 · reaping on · reaps after 1h idle, 3d exited · next pass 23:06
-
-  SESSION         STATE    IDLE  CLIENTS  NEXT PASS
-● old-experiment  exited   5d    –        reap
-● scratch         running  3h    0        reap
-● release-v2      running  50m   0        reap in 9m
-● notes           running  1s    1        attached
-● api-server      running  3h    0        running npm run dev
-● agent-refactor  running  3h    0        protected: claude
-● dotfiles        running  3h    0        protected (list)
-
-  7 sessions · 2 to reap at the next pass · run `zellij-reaper` for the dashboard
-```
-
-`zellij-reaper protect NAME` keeps a session out of every pass. To start with passes that only log, run `zellij-reaper
-config edit` and set `dry_run = true`. Packages (`.deb`, `.rpm`, `.apk`, Arch), release archives and `go install` are
-in [setup](docs/setup.md), with upgrading, uninstalling, WSL 2 and [machines with no internet
-access](docs/setup.md#without-internet-access).
-
 ## Try it in a sandbox
 
 ```sh
 docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo
 ```
 
-The dashboard opens on twelve sessions like the ones above, in a throwaway container. Reap, protect, rename and run
+The dashboard opens on thirteen sessions like the ones above, in a throwaway container. Reap, protect, rename and run
 passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute, and
 `--init` lets ctrl+c out of it. Append `--shell` to the command for a shell in the same sandbox; put
 `-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
@@ -126,12 +131,18 @@ they show, so the list of sessions reads like a list of what you were doing:
 </picture>
 
 A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. The session you are in is renamed too; `auto_rename_attached = false` waits until nobody is
-attached.
+session shows changes. A second timer renames every five minutes, so a name follows its session soon, and the session
+list shows the name the next pass gives (`→ fix-the-login-bug`). The session you are in is renamed too;
+`auto_rename_attached = false` waits until nobody is attached.
+
+A pane keeps the name its session had when the pane opened, so after a rename a `zellij` command typed there would wait
+for the old name. The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane
+up to date.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
 `r`, Tab and Enter keep a running session's name as it is, such as a `quiet-mouse` you typed yourself, which looks made
-up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules.
+up; `zellij-reaper keep-name NAME` does the same from a script.
+[Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules.
 
 ## The dashboard
 
@@ -155,10 +166,13 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `zellij-reaper` | the dashboard; the plan as a table when input or output is not a terminal |
 | `tui` | the dashboard, always; it needs a terminal |
 | `plan [--json]` | what the next pass would do, changing nothing |
-| `run [--dry-run] [--force]` | one pass now, as the timer runs it |
+| `run [--dry-run] [--force] [--names-only]` | one pass now, as the timer runs it; `--names-only` only renames |
 | `logs [-n 50] [-f]` | the decision log |
 | `protect NAME` / `unprotect NAME` | keep a session out of every pass, or let it go again |
-| `install` / `uninstall [--purge]` | the systemd user timer |
+| `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
+| `here` | the name the session this shell runs in has now |
+| `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
+| `install` / `uninstall [--purge]` | the systemd user timers |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
 | `doctor` | check zellij, systemd, lingering, the settings and the log |
 | `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket |
@@ -223,7 +237,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect command and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their

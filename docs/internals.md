@@ -40,11 +40,20 @@ commands. `recover` alone goes around zellij, because it is for sessions zellij 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect command and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
+  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands and the dashboard change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
-socket table, read each session's files, tell who is attached, then decide. `policy.Decide`
+socket table, read each session's files, tell who is attached, then decide. `/proc` is read while `zellij list-sessions`
+runs, which is about half of a pass, and in part: every process's `stat`, which gives the tree, and the uid, command
+line and fd 0 only of zellij's processes and what runs under them. The socket table is read after the list, because
+listing connects to every server and those connections would count as clients. On a machine with 166 processes,
+`plan` went from 40.2 ms to 31.0 ms with both; `version` alone takes 4.4 ms.
+
+`zellij-reaper here` needs less: it walks up from its own process to the session's server, then matches the server's
+listening socket to a file in the socket directory through the socket table, which stays right after a rename while
+the server's command line keeps the first name. That is about a millisecond past start-up, and starts no zellij
+process, so a prompt hook can run it every time. `policy.Decide`
 returns the action, a code, the evidence, how long the session still has to wait, and the checks in the order they
 ran, ending with the one that decided. The log, `plan --json` and the dashboard each put that one verdict into their
 own words.
@@ -240,19 +249,20 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 |:---|:---|:---|
 | Layers | `internal/layers_test.go` | no import goes up a layer, no I/O in the core layer, no folder outside the layers |
 | Rules | `internal/core/policy` | every code, the order, the waits at their boundary, force, clock skew |
-| Names | `internal/core/rename` | every kind of title, what says nothing, words in other writing systems, cuts at a word and by bytes, stamps, collision tails |
-| Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), KDL strings, log lines, settings and their errors |
+| Names | `internal/core/rename` | every kind of title, what says nothing, words in other writing systems, cuts at a word and by bytes, stamps, collision tails; fuzzing of names and tails |
+| Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), fuzzed from those, KDL strings, log lines, settings and their errors |
 | The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
 | Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
 | Passes | `internal/engine/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
 | Setup | `internal/engine/systemd` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
 | Dashboard | `internal/front/tui` | every state at five sizes in English and Korean, each frame exactly the terminal's size; every action |
-| Real zellij | `test/integration` | every scenario on real sessions in every state, on each [tested release](setup.md#zellij-versions), in throwaway containers |
+| Real zellij | `test/integration` | every scenario on real sessions in every state, on each [tested release](setup.md#zellij-versions) and on arm64, in throwaway containers; weekly on zellij's newest release and its main branch (`.github/workflows/canary.yml`) |
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
 make integration                         # each tested zellij release in Docker; the sessions run with no network
 make integration ZELLIJ_VERSIONS=0.45.1  # one release
+make fuzz                                # every fuzz target, 30s each (FUZZTIME=10s for less)
 make demo                                # the dashboard on demo sessions in a container, to try by hand
 ```
 
