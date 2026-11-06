@@ -87,3 +87,10 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Try the zellij-reaper dashboard on demo sessions
             org.opencontainers.image.licenses=MIT
+
+  # The installers as people run them, from the release just published.
+  installers:
+    needs: release
+    uses: ./.github/workflows/installers.yml
+    with:
+      version: ${{ github.ref_name }}

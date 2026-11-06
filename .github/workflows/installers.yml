@@ -3,9 +3,14 @@ name: installers
 # The installers as people run them, from a published release: install.sh on
 # Linux and macOS, install.ps1 on Windows. Each installs, checks the binary and
 # its timers with doctor, and uninstalls.
+# A release made by the release workflow does not start other workflows, so
+# that workflow calls this one once the release is out.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       version:
@@ -27,7 +32,7 @@ jobs:
     steps:
       - name: install
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
           # A runner has no systemd user instance; the timers are checked
           # where there is one (macOS here).
           ZELLIJ_REAPER_NO_TIMER: ${{ runner.os == 'Linux' && '1' || '' }}
@@ -52,7 +57,7 @@ jobs:
       - name: install
         shell: pwsh
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
         run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
       - name: check
         shell: pwsh
@@ -74,7 +79,7 @@ jobs:
       - name: install
         shell: powershell
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
         run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
       - name: check
         shell: powershell
