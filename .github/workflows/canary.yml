@@ -1,0 +1,51 @@
+name: canary
+
+# An early warning, once a week: the integration scenarios against zellij's
+# newest release, whatever CI's matrix says, and against zellij's main branch,
+# which is what the next release will be. A failure here blocks nothing; it says
+# what to look at before users meet it.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    name: newest zellij release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: which release is newest
+        id: zellij
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=$(gh api repos/zellij-org/zellij/releases/latest --jq .tag_name | sed 's/^v//')" >>"$GITHUB_OUTPUT"
+      - name: real sessions on zellij ${{ steps.zellij.outputs.version }}
+        run: test/integration/run.sh "${{ steps.zellij.outputs.version }}"
+
+  main:
+    name: zellij main
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Built in the same Debian release the test image uses, so the binary
+      # finds the C library it was linked against.
+      - name: build zellij from its main branch
+        run: |
+          git clone --depth 1 https://github.com/zellij-org/zellij "$RUNNER_TEMP/zellij"
+          git -C "$RUNNER_TEMP/zellij" log -1 --format='zellij main at %h, %cs'
+          docker run --rm -v "$RUNNER_TEMP/zellij:/src" -w /src rust:1-bookworm cargo build --release --locked
+          mkdir -p test/integration/.cache
+          cp "$RUNNER_TEMP/zellij/target/release/zellij" test/integration/.cache/zellij-main
+      - name: real sessions on zellij main
+        run: test/integration/run.sh main

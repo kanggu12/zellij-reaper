@@ -41,13 +41,17 @@ jobs:
           fi
 
   integration:
-    name: zellij ${{ matrix.zellij }}
+    name: zellij ${{ matrix.zellij }}${{ matrix.runner && ' on arm64' || '' }}
     needs: check
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
         zellij: ["0.43.1", "0.44.3", "0.45.1"]
+        # Releases ship for arm64 too: the newest zellij runs there as well.
+        include:
+          - zellij: "0.45.1"
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
