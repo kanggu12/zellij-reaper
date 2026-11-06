@@ -10,14 +10,21 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
   `doctor` says when it is off.
 - On WSL 2, systemd has to be turned on, and the timer stops with the VM: see [setup](setup.md#wsl-2).
 - On macOS, `launchctl print gui/$(id -u)/io.github.kanggu12.zellij-reaper` shows the launch agent; the first pass
-  comes an hour after install.
+  comes one `interval` (an hour) after install.
 - On Windows, the Task Scheduler lists `zellij-reaper` (`Get-ScheduledTask zellij-reaper` in PowerShell). It runs while
   you are logged in.
 
 ## The log says `zellij not installed`, but zellij works in your shell
 
 The service has its own `PATH`. Run `zellij-reaper install` again from a shell where `zellij` resolves (its directory
-goes first in the service's `PATH`), or set `zellij = "/path/to/zellij"` in the settings.
+goes first in the service's `PATH`), or set `zellij = "/path/to/zellij"` in the settings. On Windows the task uses your
+user `PATH`: add zellij's folder there, or set `zellij = 'C:\path\zellij.exe'` (single quotes keep the backslashes).
+
+## A renamed session on Windows is kept for good
+
+zellij on Windows cannot reach a session once it is renamed, so zellij-reaper cannot ask it for its clients or delete
+it, and keeps it. zellij cannot attach to it either. To close it, end its server: the `zellij.exe` process whose
+command line ends in the session's first name, in Task Manager's Details tab.
 
 ## A session you left hours ago is kept
 

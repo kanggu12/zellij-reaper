@@ -5,7 +5,7 @@
 | Page | Read it for |
 |:---|:---|
 | [How it decides](how-it-decides.md) | what a pass does, every check in order, where each fact comes from, every line of the log |
-| [Setup](setup.md) | installing, every setting, protecting and naming sessions, zellij versions, WSL 2 |
+| [Setup](setup.md) | installing, every setting, protecting and naming sessions, zellij versions, macOS, Windows, WSL 2 |
 | [Commands](commands.md) | every command and flag, the `plan --json` shape, the dashboard's keys and colors |
 | [Troubleshooting](troubleshooting.md) | a timer that does not run, a session kept longer than you expect, a session nothing can delete |
 | [Internals](internals.md) | the layers, how the facts are read and why, the design decisions, the tests |

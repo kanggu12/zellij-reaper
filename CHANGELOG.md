@@ -7,23 +7,27 @@ the project uses [semantic versioning](https://semver.org/).
 
 ### Added
 
-- macOS and Windows. zellij-reaper reads the process table from sysctl and lsof on macOS and from Toolhelp on Windows,
-  and runs from launch agents on macOS and from a scheduled task on Windows, started through
-  `conhost.exe --headless` so no window flashes. A renamed session's socket file is matched to its server by the time
-  it was made on macOS, and by the process ID zellij writes into it on Windows. Releases include archives for both and
-  `install.ps1`; `doctor` checks each system's timers.
+- macOS. The process table comes from sysctl and lsof, and two launch agents run the passes. A renamed session's
+  socket file is matched to its server by when it was made, which a rename keeps.
+- Windows. The process table comes from Toolhelp, and one scheduled task runs the passes through
+  `conhost.exe --headless`, so no window flashes. A renamed session's socket file holds its server's process ID. The
+  settings live in `%APPDATA%\zellij-reaper`, the log and the lists in `%LOCALAPPDATA%\zellij-reaper`. Releases carry
+  a zip and `install.ps1`.
 - zellij on Windows cannot reach a session after a rename: its named pipe keeps the first name, and every command for
-  the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing there, `r` in the dashboard says why,
-  and a session renamed by hand is kept without asking zellij.
-- The platforms workflow runs the unit tests on macOS and Windows, and real sessions on both runners.
+  the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing there, and `r` in the dashboard and
+  `doctor` say why; a session renamed by hand is kept without asking zellij.
+- Where no terminal can be read, as on Windows, a running session is idle from the first pass that found it quiet,
+  kept in the state directory: zellij rewrites its session files every minute, so they cannot tell.
+- The platforms workflow runs the unit tests and real sessions on macOS and Windows runners; installers.yml installs
+  each release with `install.sh` and `install.ps1`.
 
 ### Changed
 
-- The `systemd` package is now `timers`. Settings live in `%APPDATA%\zellij-reaper` and the log and lists in
-  `%LOCALAPPDATA%\zellij-reaper` on Windows; elsewhere nothing moves.
+- The `systemd` package is now `timers`, behind one interface for the three systems.
 - A name keeps room only for the stamp in use, and a name cut short ends at a word: under macOS's long socket
   directory, `plan-the-launch` used to become `plan-the-la`.
-- When the timer does not say when it runs next (launchd), the header shows its interval.
+- When the timer does not say when it runs next (launchd), the header shows its interval. `config edit` falls back on
+  Notepad on Windows.
 
 ## [0.5.0] - 2026-11-07
 

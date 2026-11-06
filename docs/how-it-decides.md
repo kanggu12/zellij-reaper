@@ -34,7 +34,8 @@ its wait over:
 4. **Reads the machine once:** one snapshot of the process table (`/proc` on Linux), one of the kernel's Unix socket
    table (Linux), and each session's files in zellij's cache directory. Every session in the pass is judged against the same moment.
 5. **Tells who is attached** from that socket table. Only a session the table cannot answer for is asked, with
-   `zellij action list-clients`, one at a time; on macOS and Windows every running session is.
+   `zellij action list-clients`, one at a time. macOS and Windows have no such table, so every running session is
+   asked there, except one renamed by hand on Windows, which zellij cannot reach.
 6. **Decides every session** with the checks below, all from that one snapshot.
 7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it asks
    again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
@@ -107,8 +108,10 @@ dashboard's detail panel marks with ✗.
 
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
-  files in zellij's cache, which stopped changing when the server ended, and so do all sessions on Windows, whose
-  consoles have no terminal file.
+  files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every
+  session on Windows, a running session is idle from the first pass that found it quiet (no client, every pane at a
+  prompt): zellij rewrites its files every minute, so they cannot tell. That time is kept in the state directory
+  (`quiet`), and such a session goes up to one interval late, never early.
 - **Attached clients** come from the kernel's socket table on Linux: each connection a server accepted, with its other
   end still open, is one client. When the table cannot tell, and always on macOS and Windows, `zellij action list-clients` asks the server itself, and when the
   server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web
@@ -125,8 +128,8 @@ dashboard's detail panel marks with ✗.
 - **The server** is found from the socket file. On Linux its inode leads, through the kernel's socket table, to the
   process listening on it; on macOS its creation time matches the server that started then; on Windows the file holds
   the server's process ID. zellij keeps a server's command line when its session is renamed, so this is what finds
-  renamed sessions. Without such a match (a Linux kernel without `unix_diag`, or on macOS two servers started within a
-  few milliseconds) a renamed session is kept as `no-server`.
+  renamed sessions. Without such a match (a Linux kernel without `unix_diag`, or on macOS two servers started less than
+  about 0.1 s apart) a renamed session is kept as `no-server`.
 
 ## The log
 

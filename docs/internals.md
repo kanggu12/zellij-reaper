@@ -296,10 +296,10 @@ README's badges are files that `make badges` writes, since GitHub shows an image
 gives up after about four seconds, which shields.io often takes; CI checks that the release badge names the newest
 section. `.github/workflows/release.yml` runs all of CI on the tagged commit. Then
 GoReleaser builds the archives, `checksums.txt` and the packages from `.github/goreleaser.yaml` and attaches
-`scripts/install.sh`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
+`scripts/install.sh` and `scripts/install.ps1`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
 arm64.
 
 **Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
 install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the
-runners), distributions other than the Debian-based test image, WSL 2, Windows on arm64, how terminal emulators draw the
-dashboard, and zellij releases outside the matrix.
+runners), distributions other than the Debian-based test image, WSL 2, macOS on Intel (the runner is Apple silicon),
+Windows on arm64, how terminal emulators draw the dashboard, and zellij releases outside the matrix.

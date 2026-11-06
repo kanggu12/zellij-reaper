@@ -8,12 +8,15 @@ permissions:
   contents: read
 
 jobs:
-  # A release is built only from a commit that passes every check.
+  # A release is built only from a commit that passes every check, on Linux,
+  # macOS and Windows.
   ci:
     uses: ./.github/workflows/ci.yml
+  platforms:
+    uses: ./.github/workflows/platforms.yml
 
   release:
-    needs: ci
+    needs: [ci, platforms]
     runs-on: ubuntu-latest
     permissions:
       contents: write

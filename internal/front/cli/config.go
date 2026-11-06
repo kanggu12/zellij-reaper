@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -47,8 +48,12 @@ func cmdConfig() *cobra.Command {
 				if editor == "" {
 					editor = os.Getenv("EDITOR")
 				}
+				// vi is everywhere but on Windows, where Notepad is.
 				if strings.TrimSpace(editor) == "" {
 					editor = "vi"
+					if runtime.GOOS == "windows" {
+						editor = "notepad"
+					}
 				}
 				// $EDITOR may carry arguments ("code --wait"), as shells and
 				// git take it.

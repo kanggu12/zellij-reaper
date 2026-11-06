@@ -19,7 +19,7 @@
 | | Needs | Best with |
 |:---|:---|:---|
 | System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](#wsl-2); [macOS](#macos) on Apple silicon or Intel; [Windows](#windows) on x64 | on Linux, a kernel with `unix_diag` (all common distributions), so clients and renamed sessions are found without asking zellij |
-| zellij | 0.43 to 0.45 ([what differs](#zellij-versions)); on Windows 0.44 and later | 0.45.1 |
+| zellij | 0.43 to 0.45 ([what differs](#zellij-versions)), 0.44 to 0.45 on Windows | 0.45.1 |
 | Timers | Linux: a systemd user instance, or [cron](#without-systemd); macOS: launchd; Windows: the Task Scheduler | systemd with lingering, which `install` turns on |
 | Dashboard | a terminal of 30 by 8 cells, and a font with `●`, `✓`, `✗` and `→` | 100 columns and 256 colors; from 132 columns the details sit beside the list |
 | Prompt hook | bash, zsh or fish, on Linux and macOS | |
@@ -57,12 +57,15 @@ These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPE
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
 | `ZELLIJ_REAPER_BASE_URL` | GitHub releases | download from a mirror |
 
+`install.ps1` takes the same variables from PowerShell (`$env:ZELLIJ_REAPER_NO_TIMER = '1'` before `irm ... | iex`);
+its `ZELLIJ_REAPER_BIN_DIR` defaults to `%LOCALAPPDATA%\Programs\zellij-reaper`.
+
 Other ways:
 
 | From | Then |
 |:---|:---|
 | a package (`.deb`, `.rpm`, `.apk`, Arch) from the [releases page](https://github.com/kanggu12/zellij-reaper/releases) | the binary is in `/usr/bin`; each user who wants a timer runs `zellij-reaper install` |
-| a release archive, `zellij-reaper_<version>_<os>_<arch>.tar.gz` (`.zip` for Windows) | put the binary on your `PATH`, run `zellij-reaper install` |
+| a release archive, `zellij-reaper_<version>_<os>_<arch>.tar.gz` (`.zip` for Windows) | put the binary on your `PATH`, run `zellij-reaper install`; on macOS, `xattr -d com.apple.quarantine zellij-reaper` first if a browser downloaded it |
 | source: `go install github.com/kanggu12/zellij-reaper/cmd/zellij-reaper@latest` | `zellij-reaper install` |
 | a clone: `make install` | builds, copies to `~/.local/bin` and installs the timer |
 
@@ -80,11 +83,14 @@ On Linux it:
 - Says when the first pass runs and how many sessions it would delete.
 
 On macOS it writes two launch agents to `~/Library/LaunchAgents/`, `io.github.kanggu12.zellij-reaper.plist` and
-`io.github.kanggu12.zellij-reaper-names.plist`, and loads them with `launchctl bootstrap`. launchd runs a job that has
-an interval once the interval has passed, so the first pass comes an hour after install. On Windows it registers one
-task in the Task Scheduler, `zellij-reaper`, which starts the binary through `conhost.exe --headless` so no window
-opens; the first pass comes ten minutes later. There is no names task there, since nothing is renamed on Windows. Both write the settings file if
-there is none.
+`io.github.kanggu12.zellij-reaper-names.plist`, and loads them with `launchctl bootstrap`. launchd starts a job that
+has an interval once the interval has passed, so the first pass comes one `interval` (an hour) after install.
+
+On Windows it registers one task in the Task Scheduler, `zellij-reaper`, which starts the binary through
+`conhost.exe --headless` so no window opens. The first pass comes ten minutes later. There is no names task, since
+nothing is renamed on Windows.
+
+Both write the settings file if there is none.
 
 Run it again after moving the binary or changing `interval` or `rename_interval`. It never overwrites a settings file.
 With `--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read that file too.
@@ -178,10 +184,11 @@ A closed network also keeps you from checking for new releases: the steps above 
 **Upgrade** by running the install script again, or with your package manager. The settings stay;
 `zellij-reaper install` rewrites the timers. After moving the binary by hand, run `zellij-reaper install` again:
 `doctor` notices a timer that still runs an old path. **Uninstall** with `zellij-reaper uninstall`, which stops and
-removes both timers: the systemd units, the launch agents or the scheduled tasks. `--purge` also removes the settings, the log, the protected list and the lists of given and
-kept names. Lingering stays on; `loginctl disable-linger` turns it off. Then remove the binary
-(`rm ~/.local/bin/zellij-reaper`) or the package. Run `uninstall` before removing a package, or the timer stays and
-fails every hour.
+removes the timers: the systemd units, the launch agents or the scheduled task. `--purge` also removes the settings,
+the log, the protected list and the lists of given and kept names. Lingering stays on; `loginctl disable-linger` turns
+it off. Then remove the binary (`rm ~/.local/bin/zellij-reaper`) or the package; on Windows, the folder
+`%LOCALAPPDATA%\Programs\zellij-reaper` and its entry in your user `PATH`. Run `uninstall` before removing a package,
+or the timer stays and fails every hour.
 
 ## Settings
 
@@ -245,8 +252,8 @@ name; with `auto_rename_attached = false`, only while no client is attached.
 ## Naming sessions after what they show
 
 With `auto_rename = true`, every pass names the sessions it keeps after what they show, unless someone chose their
-name. Not on Windows, where zellij cannot reach a renamed session ([why](#windows)). zellij keeps the name a session started under on its server's command line, and that is how a pass tells who
-chose a name:
+name. On Windows nothing is renamed ([why](#windows)). zellij keeps the name a session started under on its server's
+command line, and that is how a pass tells who chose a name:
 
 - **A session that still has that name** was never renamed. A pass replaces its name only if it is two words from
   zellij's own lists (`brave-peach`).
@@ -309,8 +316,8 @@ Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. 
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
 session by the old name while any other session is running. Panes opened after the rename have the new name. The
 prompt hook keeps every pane current: at each prompt it sets `ZELLIJ_SESSION_NAME` to what `zellij-reaper here` prints,
-the name the pane's session has now, read from `/proc` and the kernel's socket table in about a millisecond, with no
-zellij process. Add it to the shell's startup file:
+the name the pane's session has now, read from the process table and zellij's socket files in about a millisecond,
+with no zellij process. Add it to the shell's startup file:
 
 ```sh
 command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
@@ -354,7 +361,8 @@ zellij-reaper reads zellij's files and never writes there, except `recover` clea
 
 ## zellij versions
 
-CI runs real sessions on zellij 0.43.1, 0.44.3 and 0.45.1. The differences it handles:
+CI runs real sessions on zellij 0.43.1, 0.44.3 and 0.45.1 on Linux, and on 0.45.1 on macOS and Windows. The
+differences it handles:
 
 | | 0.43 | 0.44, 0.45 |
 |:---|:---|:---|
@@ -382,9 +390,12 @@ zellij-reaper on macOS works as on Linux, with what macOS offers in place of `/p
 | A renamed session's server | the socket table | the socket file's creation time, which a rename keeps: zellij makes it within 5 ms of starting its server |
 | Timers | systemd user units | launch agents |
 
-A renamed session whose server started within a few milliseconds of another one's cannot be told apart from it, and
-is kept as `no-server` until one of them goes. Sockets live in `$TMPDIR/zellij-<uid>/`, which is long, so a name made
-from what a session shows has about 20 characters there instead of 32. `auto_rename_stamp` takes some of those.
+- A renamed session whose server started less than about 0.1 s from another one's, as a script starting sessions
+  back to back can, cannot be told apart from it, and is kept as `no-server` until one of them goes.
+- Sockets live in `$TMPDIR/zellij-<uid>/`, which is long, so a name made from what a session shows has about 20
+  characters there instead of 32. `auto_rename_stamp` takes some of those.
+- Launch agents run in your login session. Over SSH with nobody logged in at the Mac, `install` finds no launchd to
+  answer; log in once, or run `zellij-reaper run --quiet` from cron.
 
 ## Windows
 
@@ -392,18 +403,18 @@ zellij has run on Windows since 0.44. zellij-reaper finds its servers and their 
 session's socket file, which on Windows holds its server's process ID. The sessions it keeps and deletes are the same
 as anywhere, with these differences:
 
-- **No renames.** zellij on Windows talks to a session through a named pipe called after the session's first name,
-  and a rename moves only the file that lists it. Measured on 0.45.1, every command for the new name then waits
-  forever, and the old name is refused: the session can no longer be attached to or deleted. zellij-reaper renames
-  nothing there, whatever `auto_rename` says, `r` in the dashboard says why, and a session someone renamed is kept
-  without a question to zellij. The prompt hook is of no use there for the same reason.
-- **Idle time** comes from zellij's session files, which change when anything in the session changes, since a
-  Windows console has no terminal file to look at.
+- **No renames.** zellij there talks through a pipe named after the session's first name, so a renamed session
+  cannot be reached: every command for the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing,
+  and `r` and `doctor` say why. Do not rename sessions by hand there either: a session renamed that way can no longer
+  be attached to or deleted, and zellij-reaper keeps it. The prompt hook is of no use for the same reason.
+- **Idle time** counts from the first pass that found the session quiet: no client attached and every pane at a
+  prompt. A Windows console has no terminal file to read, and zellij rewrites its session files every minute. A
+  session therefore goes up to one `interval` after its wait, never before.
 - **The timer** is a scheduled task that runs while you are logged in, which is when your sessions run too.
 - **`resize`** does nothing: Windows has no `SIGWINCH`, and a console passes a new size on by itself.
 
-Started from a program without a console, such as a CI step or WSL, zellij gives a shell pane a console with no
-input, and the shell ends at once with its session. In a terminal it stays.
+Start zellij from a terminal. Started without a console (a CI step, WSL), a shell pane gets no input and its session
+ends at once.
 
 ## WSL 2
 

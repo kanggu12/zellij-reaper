@@ -38,8 +38,8 @@ that stays stable for scripts; `reason` is the log's wording:
 only when they apply. In the table, a session the next pass renames shows `→ NEW-NAME` after its verdict, as room
 allows. `clients` is -1 when it is not known, as on every exited session.
 
-**`here`** prints the current name of this shell's zellij session, read from `/proc`, the kernel's socket table and the
-socket directory, with no zellij process; outside zellij, or when the name cannot be told, it prints nothing and exits
+**`here`** prints the current name of this shell's zellij session, read from the process table and zellij's socket
+files, with no zellij process; outside zellij, or when the name cannot be told, it prints nothing and exits
 with status 1. A pane keeps the name its session had when the pane opened, in `ZELLIJ_SESSION_NAME`, and after a rename
 a zellij command run there waits for a session by that name. **`shell-hook bash|zsh|fish`** prints a prompt hook that sets
 `ZELLIJ_SESSION_NAME` from `here` at every prompt and keeps the status of the command before; see
@@ -83,12 +83,12 @@ window changed. `--shallow` signals the clients only.
 ## Setting up
 
 **`install`** writes a settings file and the timers, the systemd units with lingering on Linux, the launch agents on
-macOS and the scheduled tasks on Windows, and says when the first pass runs. **`uninstall`** removes both timers and their services; `--purge` also removes the settings,
-the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).
+macOS and the scheduled task on Windows, and says when the first pass runs. **`uninstall`** removes the timers;
+`--purge` also removes the settings, the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`
 prints the file's path, `init` writes the file with every key at its default, and `edit` opens it in `$VISUAL` or
-`$EDITOR` (or `vi`) and refuses a value it cannot read or a key it does not know.
+`$EDITOR` (or `vi`, Notepad on Windows) and refuses a value it cannot read or a key it does not know.
 
 **`version`** prints the version; **`completion bash|zsh|fish|powershell`** prints a completion script.
 

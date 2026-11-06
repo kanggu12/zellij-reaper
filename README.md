@@ -43,7 +43,7 @@ stays.
 | Needs | |
 |:---|:---|
 | System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2); macOS on Apple silicon or Intel; Windows on x64 |
-| zellij | 0.43 to 0.45; on Windows, 0.44 and later, the first with a Windows build |
+| zellij | 0.43 to 0.45 (0.44 to 0.45 on Windows, the first with a Windows build) |
 | Timers | Linux: a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd); macOS and Windows: nothing to set up |
 | Dashboard | a terminal of 30 by 8 cells; 100 columns or more reads best |
 | Prompt hook | bash, zsh or fish, on Linux and macOS |
@@ -51,14 +51,16 @@ stays.
 Binary size, memory and the rest are in [Requirements](docs/setup.md#requirements).
 
 1. **Install.** The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin`
-   and starts the timers. The first pass runs ten minutes later. If it says to add `~/.local/bin` to your `PATH`, run
-   `export PATH="$HOME/.local/bin:$PATH"` or open a new login shell.
+   and starts the timers. The first pass runs ten minutes later (one `interval`, an hour, on macOS). If it says to add
+   `~/.local/bin` to your `PATH`, run `export PATH="$HOME/.local/bin:$PATH"`, and add that line to `~/.zprofile` (macOS)
+   or `~/.profile`.
 
    ```sh
    curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
    ```
 
-   On Windows, in PowerShell, the same goes to `%LOCALAPPDATA%\Programs\zellij-reaper`:
+   On Windows, run this in PowerShell. It installs to `%LOCALAPPDATA%\Programs\zellij-reaper` and adds that to your
+   `PATH`; open a new terminal before step 2.
 
    ```powershell
    irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
@@ -188,7 +190,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
 | `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
-| `install` / `uninstall [--purge]` | the timers: systemd units, launch agents or scheduled tasks |
+| `install` / `uninstall [--purge]` | the timers: systemd units, launch agents or a scheduled task |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
 | `doctor` | check zellij, the timers, the settings and the log |
 | `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket |
@@ -263,7 +265,8 @@ dry-run setting. See [setup](docs/setup.md#coming-from-the-shell-scripts).
 ## Documentation
 
 - [How it decides](docs/how-it-decides.md): a pass step by step, every check, the log's words.
-- [Setup](docs/setup.md): installing, every setting, protecting and naming sessions, zellij versions.
+- [Setup](docs/setup.md): installing, every setting, protecting and naming sessions, zellij versions, macOS,
+  Windows.
 - [Commands](docs/commands.md): every command and flag, the dashboard's keys and colors.
 - [Troubleshooting](docs/troubleshooting.md): a timer that does not run, a session kept longer than you expect, a
   session nothing can delete.
