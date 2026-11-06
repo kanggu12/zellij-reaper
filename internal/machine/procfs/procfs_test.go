@@ -1,6 +1,7 @@
 package procfs_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -104,4 +105,30 @@ func TestUnixSocketsSeesARealListener(t *testing.T) {
 		}
 	}
 	t.Errorf("the listener at %s (inode %d) was not reported among %d sockets", path, ino, len(socks))
+}
+
+func TestReadSessionsListsChildrenOldestFirst(t *testing.T) {
+	fp := testutil.NewFakeProc(t)
+	fp.Add(testutil.Proc{PID: 100, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/run/x/s"}})
+	// Added newest first: the order must not come from the order of reading.
+	for _, pid := range []int{140, 120, 130, 110} {
+		fp.Add(testutil.Proc{PID: pid, PPID: 100, Comm: "bash", Argv: []string{"-bash"}})
+	}
+	for range 20 {
+		tbl, err := procfs.ReadSessions(fp.Root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []int
+		for _, p := range tbl.Children(100) {
+			got = append(got, p.PID)
+		}
+		if fmt.Sprint(got) != "[110 120 130 140]" {
+			t.Fatalf("children %v", got)
+		}
+		// Everything under zellij is read in full.
+		if p := tbl.ByPID[110]; p.UID < 0 || len(p.Argv) == 0 {
+			t.Fatalf("pane read as %+v", p)
+		}
+	}
 }

@@ -95,9 +95,6 @@ func Read(root string) (*Table, error) {
 		t.ByPID[pid] = p
 	}
 	t.index()
-	for _, kids := range t.children {
-		sort.Ints(kids)
-	}
 	return t, nil
 }
 
@@ -146,10 +143,15 @@ func ReadSessions(root string) (*Table, error) {
 	return t, nil
 }
 
-// index builds the child index once, in PID order for stable output.
+// index builds the child index once, in PID order: a session's first pane is
+// its oldest, whichever order the map gives (ReadSessions once left this out,
+// and a session's name changed from pass to pass with its first pane).
 func (t *Table) index() {
 	for pid, p := range t.ByPID {
 		t.children[p.PPID] = append(t.children[p.PPID], pid)
+	}
+	for _, kids := range t.children {
+		sort.Ints(kids)
 	}
 }
 
