@@ -4,7 +4,7 @@ BIN      := zellij-reaper
 PREFIX   ?= $(HOME)/.local
 STATICCHECK := honnef.co/go/tools/cmd/staticcheck@v0.8.2
 
-.PHONY: build install check fmt vet lint test integration demo notices badges snapshot clean
+.PHONY: build install check fmt vet lint test fuzz integration demo notices badges snapshot clean
 
 ## build: the binary, in dist/
 build:
@@ -30,6 +30,15 @@ lint:
 
 test:
 	go test -race -count=1 ./...
+
+## fuzz: every fuzz target for FUZZTIME each (default 30s); failures land in testdata/fuzz
+FUZZTIME ?= 30s
+fuzz:
+	@for pkg in ./internal/core/rename ./internal/machine/zellij; do \
+	  for f in $$(go test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
+	    go test -run '^$$' -fuzz "^$$f$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
+	  done; \
+	done
 
 ## integration: real zellij releases in throwaway containers (needs Docker);
 ## ZELLIJ_VERSIONS="0.45.1" picks releases. Not ZELLIJ: zellij sets that

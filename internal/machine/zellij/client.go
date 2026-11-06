@@ -147,6 +147,11 @@ func ParseSessions(out string) []Listed {
 			res = append(res, Listed{Name: strings.Fields(line)[0]})
 			continue
 		}
+		// A session always has a name; a line without one is not a session
+		// to judge, let alone to hand to delete-session (found by fuzzing).
+		if strings.TrimSpace(m[1]) == "" {
+			continue
+		}
 		rest := m[3]
 		res = append(res, Listed{
 			Name:    m[1],

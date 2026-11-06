@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -465,8 +466,13 @@ func Next(desired, name string) (string, bool) {
 	if name == desired {
 		return desired + "-2", true
 	}
-	var n int
-	if _, err := fmt.Sscanf(strings.TrimPrefix(name, desired+"-"), "%d", &n); err != nil || n >= 99 {
+	// Only a tail of desired (-2 to -99) has a next one. Fuzzing found
+	// Next("0", "-2") reading "-2" as the number -2 and answering "0--1".
+	if !Same(name, desired) {
+		return "", false
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(name, desired+"-"))
+	if err != nil || n >= 99 {
 		return "", false
 	}
 	return fmt.Sprintf("%s-%d", desired, n+1), true

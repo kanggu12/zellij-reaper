@@ -25,6 +25,9 @@ jobs:
         run: make check
       # The notices ship with every release: they must list what the binary
       # is built from now.
+      # A short run of every fuzz target on top of the seeds go test runs.
+      - name: fuzzing, 10s per target
+        run: make fuzz FUZZTIME=10s
       - name: third-party notices are current
         run: make notices && git diff --exit-code docs/THIRD_PARTY_NOTICES.md
       # The README's badges are files (make badges): GitHub's image proxy gives
