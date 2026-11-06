@@ -30,7 +30,12 @@ type Row struct {
 	Index int
 	// Server is the session's server process, 0 for none: a rename leaves it.
 	Server int
+	// Rename is the name the next pass gives the session, if any.
+	Rename string
 }
+
+// renameMark is what the verdict column adds for a session the next pass renames.
+func renameMark(name string) string { return "  → " + name }
 
 // rank orders the groups: what goes first, then what is waiting, then what is
 // kept, with the sessions nobody could judge before the ones kept for a reason.
@@ -76,6 +81,7 @@ func RowsFrom(r reaper.Report, now time.Time) []Row {
 		row.Next = NextPass(o.Verdict, r.DryRun)
 		row.Cat = Categorize(o.Verdict)
 		row.Wait = o.Verdict.Wait
+		row.Rename = o.WouldRename
 		rows = append(rows, row)
 	}
 	return rows
@@ -132,7 +138,11 @@ func layout(rows []Row, width int) columns {
 		c.idle = max(c.idle, lipgloss.Width(r.Idle))
 		c.clients = max(c.clients, lipgloss.Width(r.Clients))
 		nameW = max(nameW, lipgloss.Width(r.Name))
-		nextW = max(nextW, lipgloss.Width(r.Next))
+		next := r.Next
+		if r.Rename != "" {
+			next += renameMark(r.Rename)
+		}
+		nextW = max(nextW, lipgloss.Width(next))
 	}
 	// Two cells for the dot and its space, then the gaps between columns.
 	rest := width - 2 - c.state - c.idle - c.clients - 4*gap
@@ -145,6 +155,19 @@ func layout(rows []Row, width int) columns {
 		c.next = max(8, rest-c.name)
 	}
 	return c
+}
+
+// nextCell is the verdict in its category's color, then the name the next pass
+// gives the session, muted, cut to what the column leaves; the verdict comes
+// first when there is not room for both.
+func (t Theme) nextCell(bg lipgloss.Style, r Row, width int) string {
+	verdict := bg.Foreground(t.Cat[r.Cat])
+	room := width - lipgloss.Width(r.Next)
+	// "  → " and at least a few letters of the name, or no mark at all.
+	if r.Rename == "" || room < 8 {
+		return verdict.Render(Fit(r.Next, width))
+	}
+	return verdict.Render(r.Next) + bg.Foreground(t.Muted).Render(Fit(renameMark(r.Rename), room))
 }
 
 // Table renders the header and the rows to exactly width cells per line. The
@@ -186,7 +209,7 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 			muted.Render(Fit(state, c.state)) + bg.Render(pad) +
 			ink.Render(Fit(r.Idle, c.idle)) + bg.Render(pad) +
 			ink.Render(Fit(r.Clients, c.clients)) + bg.Render(pad) +
-			bg.Foreground(t.Cat[r.Cat]).Render(Fit(r.Next, c.next))
+			t.nextCell(bg, r, c.next)
 		// Fill to the full width so the selection reads as one bar.
 		if w := lipgloss.Width(line); w < width {
 			line += bg.Render(strings.Repeat(" ", width-w))
