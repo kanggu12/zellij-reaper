@@ -48,9 +48,9 @@ alone still exits 0.
 ## Acting
 
 **`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
-logs; `--force` sets both waits to zero for this pass; `--quiet` prints nothing (the timer's mode). The exit status is 0 when the pass
-ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such as zellij failing to list
-its sessions.
+logs; `--force` sets both waits to zero for this pass; `--quiet` prints nothing (the timer's mode). The exit status is 0
+when the pass ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such as zellij
+failing to list its sessions.
 
 **`protect NAME...`** adds sessions to the protected list; with no name it prints the list. **`unprotect NAME...`**
 takes them off. A name the `protect` pattern matches stays protected either way, and `unprotect` says so.
@@ -88,9 +88,9 @@ prints the file's path, `init` writes the file with every key at its default, an
 The top bar shows zellij's version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
 (`reaps after 1h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it
 has been idle, its clients, and what the next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear,
-attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected session: the verdict in a sentence, every check with
-its evidence and where it came from, its panes, and the settings that apply. Under a short table, the latest reaps and
-renames fill the column.
+attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected session:
+the verdict in a sentence, every check with its evidence and where it came from, its panes, and the settings that apply.
+Under a short table, the latest reaps, renames and kept names fill the column.
 
 The color of a row says what will happen to it:
 
@@ -110,7 +110,7 @@ The color of a row says what will happen to it:
 | `⏎` | attach to it; inside zellij, switch this client to it |
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
-| `r` | rename it; the field starts with [the name its panes point to](setup.md#naming-sessions-after-what-they-show). A name that is taken is refused, and an exited session cannot be renamed |
+| `r` | rename it; the field starts with [the name its panes point to](setup.md#naming-sessions-after-what-they-show), and `⇥` swaps it with the name the session has. A name that is taken is refused, and an exited session cannot be renamed |
 | `f` | run a pass now; it asks first when the pass would delete something |
 | `F` | run a pass without the idle and exited waits, after asking |
 | `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` returns |
@@ -120,9 +120,9 @@ The color of a row says what will happen to it:
 | `?` | every key and what each color means |
 | `q`, `ctrl+c` | quit |
 
-To keep a session's current name, put that name in the `r` field and press `⏎`: passes leave it alone from then on.
+To keep a running session's current name, press `r`, `⇥` and `⏎`: passes leave it alone from then on.
 
-The dashboard reads the sessions every five seconds. `d`, `r`, `f` and `F` take the pass lock and go to the decision log,
-like a pass's work; `p` changes the protected list under that list's own lock and is not logged. It speaks English, and Korean when `LC_ALL`, `LC_MESSAGES` or `LANG` starts with `ko`;
-`ZELLIJ_REAPER_LANG=en` or `ko` picks one. The colors follow the terminal's background, and `NO_COLOR` turns them
-off.
+The dashboard reads the sessions every five seconds. `d`, `r`, `f` and `F` take the pass lock and go to the decision
+log, like a pass's work; `p` changes the protected list under that list's own lock and is not logged. It speaks English,
+and Korean when `LC_ALL`, `LC_MESSAGES` or `LANG` starts with `ko`; `ZELLIJ_REAPER_LANG=en` or `ko` picks one. The
+colors follow the terminal's background, and `NO_COLOR` turns them off.

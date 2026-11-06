@@ -109,6 +109,7 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if suggest == "" {
 			suggest = o.Session.Name()
 		}
+		m.suggested = suggest
 		m.openInput("", max(10, min(64, m.width-4)-8), suggest)
 		return m, nil
 	case "enter":
@@ -178,6 +179,17 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeMain
 		return m, nil
+	case "tab":
+		// Tab swaps the rename field between the suggested name and the name the
+		// session has, so keeping a name takes no typing.
+		if m.mode == modeRename && m.suggested != m.target {
+			if m.fieldHoldsTarget() {
+				m.input.set(m.suggested)
+			} else {
+				m.input.set(m.target)
+			}
+		}
+		return m, nil
 	case "enter":
 		value := strings.TrimSpace(m.input.value())
 		if m.mode == modeFilter {
@@ -191,8 +203,8 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// Enter on the name it has: that is the name the person wants.
-		if value == m.target {
-			return m, m.keepName(value)
+		if m.fieldHoldsTarget() {
+			return m, m.keepName(m.target)
 		}
 		return m, m.rename(m.target, value)
 	}

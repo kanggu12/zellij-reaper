@@ -136,8 +136,9 @@ A name you chose stays: only the names zellij makes up and the ones a pass gave 
 session shows changes. An attached session is never renamed.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
-It also keeps a name as it is, such as one you typed in zellij's own words (`zellij -s quiet-mouse`), which looks made
-up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules and says how.
+On a running session, `r`, Tab and Enter keep the name it has, such as one you typed in zellij's own words
+(`zellij -s quiet-mouse`), which looks made up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the
+rules.
 
 ## The dashboard
 

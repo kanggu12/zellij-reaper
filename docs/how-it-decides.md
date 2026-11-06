@@ -100,8 +100,8 @@ dashboard's detail panel marks with ✗.
 ## Where each fact comes from
 
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
-  moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their files
-  in zellij's cache, which stopped changing when the server ended.
+  moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
+  files in zellij's cache, which stopped changing when the server ended.
 - **Attached clients** come from the kernel's socket table: each connection a server accepted, with its other end still
   open, is one client. When the table cannot tell, `zellij action list-clients` asks the server itself, and when the
   server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web

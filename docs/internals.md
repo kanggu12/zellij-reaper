@@ -170,7 +170,7 @@ out again once its session is gone; 0.3.2 read it, and replaced names people cho
 
 zellij keeps nothing that tells a name it made up from the same words typed by a person: a session started either way,
 in a terminal or in the background, has the same server command line, environment and files. So a person keeps such a
-name once for each session: Enter in the dashboard's `r` field, with the session's current name in it. The name goes on
+name once for each session: `r`, Tab and Enter in the dashboard. The name goes on
 the list of kept names, which every pass reads first. A pass that cannot read that list renames nothing.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
@@ -268,12 +268,12 @@ failure leaves its evidence in the test output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="assets/release-light.svg">
 </picture>
 
-**CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a
-snapshot release build on every push to `main` and every pull request. A new zellij release joins the matrix, and `default_versions`
-in `test/integration/run.sh`, once it passes.
+**CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a snapshot
+release build on every push to `main` and every pull request. A new zellij release joins the matrix, and
+`default_versions` in `test/integration/run.sh`, once it passes.
 
 **A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`. `.github/workflows/release.yml` runs
 all of CI on the tagged commit. Then GoReleaser builds the archives, `checksums.txt` and the packages from

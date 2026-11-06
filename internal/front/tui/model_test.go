@@ -155,6 +155,8 @@ func press(t *testing.T, m model, key string) model {
 	switch key {
 	case "enter":
 		k = tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "tab":
+		k = tea.KeyPressMsg{Code: tea.KeyTab}
 	case "esc":
 		k = tea.KeyPressMsg{Code: tea.KeyEscape}
 	case "down":
@@ -218,6 +220,12 @@ func TestEveryStateFitsEverySize(t *testing.T) {
 			measure(t, name("confirm"), press(t, m, "d").View().Content, w, h)
 			measure(t, name("force"), press(t, m, "F").View().Content, w, h)
 			measure(t, name("rename"), press(t, m, "r").View().Content, w, h)
+			// A rename dialog with a suggestion to swap with: three keys.
+			sb := sample()
+			for i := range sb.report.Outcomes {
+				sb.report.Outcomes[i].Suggested = "a-suggested-name-for-this-session"
+			}
+			measure(t, name("rename with a suggestion"), press(t, loaded(t, sb, w, h), "r").View().Content, w, h)
 			measure(t, name("filter"), press(t, m, "/").View().Content, w, h)
 			// The bottom of a long list.
 			end := m
@@ -523,6 +531,176 @@ func TestEnterOnTheNameASessionHasKeepsIt(t *testing.T) {
 	m = press(t, m, "enter")
 	if strings.Join(b.renamed, ",") != "notes->journal" || len(b.kept) != 1 {
 		t.Errorf("renamed %v, kept %v", b.renamed, b.kept)
+	}
+}
+
+func TestTabPutsBackTheNameASessionHas(t *testing.T) {
+	// The field starts with the suggested name; keeping the current one takes Tab
+	// and Enter, no typing.
+	i18n.Set(i18n.English)
+	b := sample()
+	for i := range b.report.Outcomes {
+		if b.report.Outcomes[i].Session.Name() == "notes" {
+			b.report.Outcomes[i].Suggested = "journal"
+		}
+	}
+	m := press(t, pick(t, loaded(t, b, 120, 40), "notes"), "r")
+	keys := func(m model) string { return ansi.Strip(m.inputBox()) }
+	if m.input.value() != "journal" || !strings.Contains(keys(m), "rename") || !strings.Contains(keys(m), "current name") {
+		t.Fatalf("field %q, dialog:\n%s", m.input.value(), keys(m))
+	}
+	m = press(t, m, "tab")
+	if m.input.value() != "notes" || !strings.Contains(keys(m), "keep name") || !strings.Contains(keys(m), "suggested name") {
+		t.Fatalf("after tab: field %q, dialog:\n%s", m.input.value(), keys(m))
+	}
+	m = press(t, m, "enter")
+	if strings.Join(b.kept, ",") != "notes" || len(b.renamed) != 0 {
+		t.Errorf("kept %v, renamed %v", b.kept, b.renamed)
+	}
+	// Tab twice goes back to the suggestion, and Enter takes it.
+	m = press(t, press(t, press(t, m, "r"), "tab"), "tab")
+	m = press(t, m, "enter")
+	if strings.Join(b.renamed, ",") != "notes->journal" {
+		t.Errorf("renamed %v", b.renamed)
+	}
+	// With nothing to suggest the field already holds the name, and Tab has
+	// nothing to swap.
+	m = press(t, pick(t, m, "scratch"), "r")
+	if m.input.value() != "scratch" || strings.Contains(keys(m), "⇥") {
+		t.Errorf("field %q, dialog:\n%s", m.input.value(), keys(m))
+	}
+	if m = press(t, m, "tab"); m.input.value() != "scratch" {
+		t.Errorf("tab changed %q", m.input.value())
+	}
+}
+
+func TestTheRenameDialogKeepsEachKeyWithItsWords(t *testing.T) {
+	// The dialog is drawn over the screen, so the frame of the whole screen cannot
+	// show a box that grew a line: measure the box itself, at every width.
+	for _, lang := range []i18n.Lang{i18n.English, i18n.Korean} {
+		i18n.Set(lang)
+		b := sample()
+		for i := range b.report.Outcomes {
+			if b.report.Outcomes[i].Session.Name() == "notes" {
+				b.report.Outcomes[i].Suggested = "a-suggested-name-for-notes"
+			}
+		}
+		// On a wide screen every key line is one line: that is the height to keep.
+		want := lipgloss.Height(press(t, pick(t, loaded(t, b, 200, 40), "scratch"), "r").inputBox())
+		for w := 30; w <= 200; w++ {
+			base := press(t, pick(t, loaded(t, b, w, 40), "scratch"), "r")
+			m := press(t, pick(t, loaded(t, b, w, 40), "notes"), "r")
+			states := map[string]model{"suggested": m, "after tab": press(t, m, "tab"), "no suggestion": base}
+			empty := m
+			empty.input.set("")
+			states["empty field"] = empty
+			for state, s := range states {
+				box := s.inputBox()
+				if h := lipgloss.Height(box); h != want || lipgloss.Width(box) > w {
+					t.Errorf("%s, %d columns, %s: the box is %dx%d, want %d rows within %d columns:\n%s",
+						lang, w, state, lipgloss.Width(box), h, want, w, ansi.Strip(box))
+					return
+				}
+			}
+		}
+	}
+	i18n.Set(i18n.English)
+}
+
+func TestHelpLinesFitAnEightyColumnScreen(t *testing.T) {
+	for _, lang := range []i18n.Lang{i18n.English, i18n.Korean} {
+		i18n.Set(lang)
+		screen := ansi.Strip(press(t, loaded(t, sample(), 80, 40), "?").View().Content)
+		for _, l := range strings.Split(screen, "\n") {
+			if strings.Contains(l, "…") {
+				t.Errorf("%s: a help line is cut: %q", lang, l)
+			}
+		}
+	}
+	i18n.Set(i18n.English)
+}
+
+func TestTabLeavesTheFilterAloneAndFollowsWhatWasTyped(t *testing.T) {
+	i18n.Set(i18n.English)
+	b := sample()
+	for i := range b.report.Outcomes {
+		if b.report.Outcomes[i].Session.Name() == "notes" {
+			b.report.Outcomes[i].Suggested = "journal"
+		}
+	}
+	m := press(t, pick(t, loaded(t, b, 120, 40), "notes"), "r")
+	// Something typed, then Tab: the name it has, as the keys say.
+	m.input.set("journal-2026")
+	if !strings.Contains(ansi.Strip(m.inputBox()), "current name") {
+		t.Errorf("keys for typed text:\n%s", ansi.Strip(m.inputBox()))
+	}
+	if m = press(t, m, "tab"); m.input.value() != "notes" {
+		t.Errorf("tab after typing: %q", m.input.value())
+	}
+	// Spaces around the name it has still read as that name.
+	m.input.set("  notes  ")
+	if !strings.Contains(ansi.Strip(m.inputBox()), "keep name") {
+		t.Errorf("keys for the padded name:\n%s", ansi.Strip(m.inputBox()))
+	}
+	if press(t, m, "tab").input.value() != "journal" {
+		t.Error("tab from the padded name did not give the suggestion")
+	}
+	m = press(t, m, "enter")
+	if strings.Join(b.kept, ",") != "notes" {
+		t.Errorf("kept %v", b.kept)
+	}
+	// An empty field gives Enter nothing to do, and the keys do not offer it.
+	m.input.set("")
+	if strings.Contains(ansi.Strip(m.inputBox()), "⏎") {
+		t.Errorf("keys for an empty field:\n%s", ansi.Strip(m.inputBox()))
+	}
+	m.input.set("  notes  ")
+	// In the filter, Tab does nothing.
+	f := press(t, m, "/")
+	f.input.set("no")
+	if f = press(t, f, "tab"); f.input.value() != "no" {
+		t.Errorf("tab in the filter: %q", f.input.value())
+	}
+	// The Korean words for the two names stay the right way round.
+	i18n.Set(i18n.Korean)
+	defer i18n.Set(i18n.English)
+	k := press(t, pick(t, loaded(t, b, 120, 40), "notes"), "r")
+	if !strings.Contains(ansi.Strip(k.inputBox()), "지금 이름") || !strings.Contains(ansi.Strip(press(t, k, "tab").inputBox()), "제안 이름") {
+		t.Errorf("korean keys:\n%s\n%s", ansi.Strip(k.inputBox()), ansi.Strip(press(t, k, "tab").inputBox()))
+	}
+}
+
+func TestANameWithSpacesAroundItIsKeptAsItIs(t *testing.T) {
+	// zellij takes a name that ends in a space; the field must not trim it away.
+	i18n.Set(i18n.English)
+	b := sample()
+	for i := range b.report.Outcomes {
+		if b.report.Outcomes[i].Session.Name() == "notes" {
+			b.report.Outcomes[i].Session.Listed.Name = "notes "
+			b.report.Outcomes[i].Suggested = "journal"
+		}
+	}
+	m := press(t, pick(t, loaded(t, b, 120, 40), "notes "), "tab")
+	m = press(t, press(t, m, "r"), "tab")
+	if m.input.value() != "notes " || !strings.Contains(ansi.Strip(m.inputBox()), "keep name") {
+		t.Fatalf("field %q, keys:\n%s", m.input.value(), ansi.Strip(m.inputBox()))
+	}
+	if press(t, m, "tab").input.value() != "journal" {
+		t.Error("tab did not go back to the suggestion")
+	}
+	m = press(t, m, "enter")
+	if strings.Join(b.kept, ",") != "notes " || len(b.renamed) != 0 {
+		t.Errorf("kept %q, renamed %v", b.kept, b.renamed)
+	}
+}
+
+func TestRecentDecisionsShowANameKeptByHand(t *testing.T) {
+	i18n.Set(i18n.English)
+	m := loaded(t, sample(), 120, 40)
+	m.logLines = []string{"[2026-11-06 09:00:00] notes :: name kept from the dashboard"}
+	got := ansi.Strip(strings.Join(m.recentLines(5), "\n"))
+	if !strings.Contains(got, "11-06 09:00  kept the name notes · by hand") {
+		t.Errorf("recent decisions:\n%s", got)
 	}
 }
 

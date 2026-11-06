@@ -5,6 +5,20 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-06
+
+### Added
+
+- In the dashboard's rename field, Tab swaps the suggested name with the name the session has, and the keys under the
+  field say what Enter will do: keeping a running session's name takes `r`, Tab and Enter, with no typing. Before, the
+  field held only the suggested name, and keeping the current one meant typing it over. On a narrow screen the keys
+  under the field drop to what fits on one line.
+- The recent decisions show a name kept from the dashboard.
+
+### Changed
+
+- The `uninstall --purge` help names the lists the way the documents do.
+
 ## [0.3.4] - 2026-11-06
 
 ### Fixed
@@ -206,7 +220,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.5
 [0.3.4]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.4
 [0.3.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.3
 [0.3.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.2

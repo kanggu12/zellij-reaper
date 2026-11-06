@@ -72,7 +72,40 @@ func (m model) confirmBox() string {
 // inputBox holds the rename field.
 func (m model) inputBox() string {
 	t := m.th
-	keys := t.KeyCap("⏎", i18n.T("footer.rename")) + "  " + t.KeyCap("esc", i18n.T("footer.cancel"))
+	// The keys say what Enter does with the field as it is now, and what Tab
+	// puts in it instead. An empty field gives Enter nothing to do.
+	var enter, swap string
+	switch {
+	case strings.TrimSpace(m.input.value()) == "":
+	case m.fieldHoldsTarget():
+		enter = t.KeyCap("⏎", i18n.T("footer.keep"))
+	default:
+		enter = t.KeyCap("⏎", i18n.T("footer.rename"))
+	}
+	if m.suggested != m.target {
+		if m.fieldHoldsTarget() {
+			swap = t.KeyCap("⇥", i18n.T("footer.suggested"))
+		} else {
+			swap = t.KeyCap("⇥", i18n.T("footer.current"))
+		}
+	}
+	esc := t.KeyCap("esc", i18n.T("footer.cancel"))
+	// One line, so no key is parted from its words: on a narrow screen the Tab
+	// key goes first, then esc, which the help screen still lists.
+	inner := min(64, m.width-4) - 6
+	var keys string
+	for _, set := range [][]string{{enter, swap, esc}, {enter, esc}, {enter}} {
+		var parts []string
+		for _, p := range set {
+			if p != "" {
+				parts = append(parts, p)
+			}
+		}
+		keys = strings.Join(parts, "  ")
+		if lipgloss.Width(keys) <= inner {
+			break
+		}
+	}
 	prompt := ui.Fg(t.Ink).Render(i18n.T("rename.prompt", m.target))
 	return m.box(lipgloss.NewStyle().BorderForeground(t.Cat[ui.CatBusy]), prompt, m.input.view(), "", keys)
 }

@@ -178,7 +178,7 @@ func cmdUninstall() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log and the lists of protected, given and kept names")
+	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list and the lists of given and kept names")
 	return cmd
 }
 

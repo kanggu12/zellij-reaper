@@ -34,8 +34,8 @@ The code sits in layers, and an import goes down the layers, never up. `internal
 </picture>
 
 One pass runs through them from the bottom up: `inspect` gathers the facts from `procfs` and `zellij`, `policy` decides
-from the facts alone, `reaper` acts on the verdicts and writes to `logfile`, and `tui` and `cli` put the same verdicts into
-their own words. [Internals](../docs/internals.md) has the reasons behind each part.
+from the facts alone, `reaper` acts on the verdicts and writes to `logfile`, and `tui` and `cli` put the same verdicts
+into their own words. [Internals](../docs/internals.md) has the reasons behind each part.
 
 ## Build and try it
 
@@ -61,7 +61,7 @@ make integration ZELLIJ_VERSIONS=0.45.1  # one release
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration runs real zellij releases in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
 </picture>
 
 Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen processes and terminals, real Unix sockets

@@ -111,7 +111,7 @@ curl -fsSLO "$base/checksums.txt"
 Then, on the closed machine, set `version` to the release you carried across and run:
 
 ```sh
-version=0.3.4
+version=0.3.5
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
@@ -219,9 +219,9 @@ chose a name:
 
 A session that is attached, exited, protected by name or uncertain keeps its name as well.
 
-**To keep a name as it is,** whoever gave it, press `r` in the dashboard, make the field read the session's current
-name and press Enter. The field starts with the suggested name, so type the current one over it when the two differ.
-Do it once for each session; passes leave that name alone from then on.
+**To keep a name as it is,** whoever gave it, select a running session in the dashboard and press `r`, then Tab, then
+Enter. The field starts with the suggested name, and Tab puts back the name the session has; the keys under the field
+say what Enter will do. Do it once for each session; passes leave that name alone from then on.
 
 This is also how to keep a name you typed in zellij's own words (`zellij -s quiet-mouse`): nothing zellij keeps tells it
 from a name zellij made up, since the command line, environment and files are the same. `r` renames a session by hand

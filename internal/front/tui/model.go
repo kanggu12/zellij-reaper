@@ -86,6 +86,9 @@ type model struct {
 	input   field
 	confirm confirmKind
 	target  string
+	// suggested is the name the rename field started with: the name the
+	// target's panes point to, or its own name when they point nowhere.
+	suggested string
 
 	toast      string
 	toastCat   ui.Category
@@ -195,6 +198,14 @@ func (m *model) inputChanged() {
 		m.sel = 0
 		m.reselect()
 	}
+}
+
+// fieldHoldsTarget reports whether the rename field holds the name the session
+// has. Spaces typed around it do not count, and a name that has spaces of its own
+// still matches itself.
+func (m model) fieldHoldsTarget() bool {
+	v := m.input.value()
+	return v == m.target || strings.TrimSpace(v) == m.target
 }
 
 // say shows a toast for a few seconds.
