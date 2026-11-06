@@ -127,7 +127,12 @@ func (m model) settingsLines() []string {
 	if c.Protect != "" {
 		lines = append(lines, "  "+ui.Fg(t.Ink).Render(i18n.T("settings.pattern", c.Protect)))
 	}
-	lines = append(lines, "  "+ui.Fg(t.Ink).Render(i18n.T("settings.rename", onOff(c.AutoRename))))
+	rename := i18n.T("settings.rename", onOff(c.AutoRename))
+	// Renaming sessions someone is attached to is worth seeing in the panel.
+	if c.AutoRename && c.AutoRenameAttached {
+		rename = i18n.T("settings.rename.attached")
+	}
+	lines = append(lines, "  "+ui.Fg(t.Ink).Render(rename))
 	if c.File != "" {
 		lines = append(lines, "  "+ui.Fg(t.Muted).Render(i18n.T("settings.file", tilde(c.File))))
 	} else {

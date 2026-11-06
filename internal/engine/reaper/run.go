@@ -136,11 +136,14 @@ func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry bool, taken m
 	}
 	// The facts predate every delete before this, each of which can take
 	// seconds: ask again, so a session someone attached to meanwhile keeps
-	// the name they know it by.
-	if ok, why := e.noClientNow(ctx, s.Name()); !ok {
-		o.KeptName = why
-		e.Log.Printf("  -> kept name: %s :: %s", s.Name(), why)
-		return
+	// the name they know it by. With auto_rename_attached a client is no
+	// reason to keep a name, so there is nothing to ask.
+	if !e.Config.AutoRenameAttached {
+		if ok, why := e.noClientNow(ctx, s.Name()); !ok {
+			o.KeptName = why
+			e.Log.Printf("  -> kept name: %s :: %s", s.Name(), why)
+			return
+		}
 	}
 	e.rename(ctx, o, desired, target, taken)
 }

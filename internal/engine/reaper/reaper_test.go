@@ -484,6 +484,50 @@ func TestAutoRenameLeavesAttachedSessionsAlone(t *testing.T) {
 	}
 }
 
+func TestAutoRenameAttachedRenamesASessionInUse(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		programs []string
+		code     policy.Code
+	}{
+		{"kept for its client", nil, policy.Attached},
+		{"kept for a protected program", []string{"htop"}, policy.ProtectedCommand},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.env.Config.AutoRename = true
+			w.env.Config.AutoRenameAttached = true
+			w.env.Config.ProtectCommands = c.programs
+			w.attach("busy")
+			plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, o := range plan.Outcomes {
+				if o.Session.Name() == "busy" && (o.Verdict.Code != c.code || o.WouldRename == "") {
+					t.Fatalf("plan: %s, next name %q", o.Verdict.Code, o.WouldRename)
+				}
+			}
+			// One more client attaches during the pass, which is no reason to
+			// keep the name either: nothing asks.
+			w.zj.late = map[string]int{"busy": 2}
+			if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+				t.Fatal(err)
+			}
+			renamed := false
+			for _, rn := range w.zj.renamed {
+				renamed = renamed || strings.HasPrefix(rn, "busy->")
+			}
+			if !renamed {
+				t.Fatalf("renamed %v", w.zj.renamed)
+			}
+			if strings.Contains(w.log(t), "kept name: busy") {
+				t.Errorf("log:\n%s", w.log(t))
+			}
+		})
+	}
+}
+
 func TestAProtectionAddedDuringThePassKeepsTheSession(t *testing.T) {
 	w := newWorld(t)
 	// While the pass reads the facts, `zellij-reaper protect idle-old` runs

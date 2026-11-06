@@ -52,6 +52,9 @@ type Config struct {
 	Shells []string
 	// AutoRename names surviving sessions after what they show.
 	AutoRename bool
+	// AutoRenameAttached lets auto_rename rename a session with a client
+	// attached too, while someone works in it.
+	AutoRenameAttached bool
 	// AutoRenameStamp is what those names end in: "none", "date" or "time".
 	AutoRenameStamp string
 	// Interval is how often the systemd timer starts a pass.
@@ -75,7 +78,8 @@ type Config struct {
 // Keys lists every setting in the order `config show` prints them.
 var Keys = []string{
 	"dry_run", "idle_after", "exited_after", "protect", "protect_commands", "shells",
-	"auto_rename", "auto_rename_stamp", "interval", "zellij", "log.path", "log.max_bytes",
+	"auto_rename", "auto_rename_attached", "auto_rename_stamp", "interval", "zellij",
+	"log.path", "log.max_bytes",
 }
 
 // DefaultProtectCommands are coding agents and other long-lived programs that
@@ -87,19 +91,20 @@ var DefaultProtectCommands = []string{"claude", "codex", "gemini", "aider", "ope
 // of the given environment.
 func Default(env Env) *Config {
 	c := &Config{
-		DryRun:          false,
-		IdleAfter:       12 * time.Hour,
-		ExitedAfter:     3 * 24 * time.Hour,
-		Protect:         "",
-		ProtectCommands: append([]string(nil), DefaultProtectCommands...),
-		Shells:          nil,
-		AutoRename:      false,
-		AutoRenameStamp: "none",
-		Interval:        time.Hour,
-		ZellijPath:      "",
-		LogPath:         filepath.Join(StateDir(env), "reaper.log"),
-		LogMaxBytes:     1 << 20,
-		Sources:         map[string]Source{},
+		DryRun:             false,
+		IdleAfter:          12 * time.Hour,
+		ExitedAfter:        3 * 24 * time.Hour,
+		Protect:            "",
+		ProtectCommands:    append([]string(nil), DefaultProtectCommands...),
+		Shells:             nil,
+		AutoRename:         false,
+		AutoRenameAttached: false,
+		AutoRenameStamp:    "none",
+		Interval:           time.Hour,
+		ZellijPath:         "",
+		LogPath:            filepath.Join(StateDir(env), "reaper.log"),
+		LogMaxBytes:        1 << 20,
+		Sources:            map[string]Source{},
 	}
 	// Every key starts out as a default; Load overwrites the ones it sets.
 	for _, k := range Keys {
@@ -112,17 +117,18 @@ func Default(env Env) *Config {
 // value, so an explicit `dry_run = false` in the file is still recorded as
 // coming from the file.
 type fileShape struct {
-	DryRun          *bool     `toml:"dry_run"`
-	IdleAfter       *string   `toml:"idle_after"`
-	ExitedAfter     *string   `toml:"exited_after"`
-	Protect         *string   `toml:"protect"`
-	ProtectCommands *[]string `toml:"protect_commands"`
-	Shells          *[]string `toml:"shells"`
-	AutoRename      *bool     `toml:"auto_rename"`
-	AutoRenameStamp *string   `toml:"auto_rename_stamp"`
-	Interval        *string   `toml:"interval"`
-	Zellij          *string   `toml:"zellij"`
-	Log             struct {
+	DryRun             *bool     `toml:"dry_run"`
+	IdleAfter          *string   `toml:"idle_after"`
+	ExitedAfter        *string   `toml:"exited_after"`
+	Protect            *string   `toml:"protect"`
+	ProtectCommands    *[]string `toml:"protect_commands"`
+	Shells             *[]string `toml:"shells"`
+	AutoRename         *bool     `toml:"auto_rename"`
+	AutoRenameAttached *bool     `toml:"auto_rename_attached"`
+	AutoRenameStamp    *string   `toml:"auto_rename_stamp"`
+	Interval           *string   `toml:"interval"`
+	Zellij             *string   `toml:"zellij"`
+	Log                struct {
 		Path     *string `toml:"path"`
 		MaxBytes *int64  `toml:"max_bytes"`
 	} `toml:"log"`
@@ -210,6 +216,10 @@ func (c *Config) loadFile(path string, env Env) error {
 		c.AutoRename = *f.AutoRename
 		set("auto_rename")
 	}
+	if f.AutoRenameAttached != nil {
+		c.AutoRenameAttached = *f.AutoRenameAttached
+		set("auto_rename_attached")
+	}
 	if f.AutoRenameStamp != nil {
 		if err := checkStamp(*f.AutoRenameStamp); err != nil {
 			return fmt.Errorf("%s: auto_rename_stamp: %w", path, err)
@@ -242,15 +252,16 @@ func (c *Config) loadFile(path string, env Env) error {
 
 // EnvNames maps settings to the variables that override them.
 var EnvNames = map[string]string{
-	"dry_run":           "ZELLIJ_REAPER_DRY_RUN",
-	"idle_after":        "ZELLIJ_REAPER_IDLE_AFTER",
-	"exited_after":      "ZELLIJ_REAPER_EXITED_AFTER",
-	"protect":           "ZELLIJ_REAPER_PROTECT",
-	"auto_rename":       "ZELLIJ_REAPER_AUTO_RENAME",
-	"auto_rename_stamp": "ZELLIJ_REAPER_AUTO_RENAME_STAMP",
-	"zellij":            "ZELLIJ_REAPER_ZELLIJ",
-	"log.path":          "ZELLIJ_REAPER_LOG",
-	"log.max_bytes":     "ZELLIJ_REAPER_LOG_MAX_BYTES",
+	"dry_run":              "ZELLIJ_REAPER_DRY_RUN",
+	"idle_after":           "ZELLIJ_REAPER_IDLE_AFTER",
+	"exited_after":         "ZELLIJ_REAPER_EXITED_AFTER",
+	"protect":              "ZELLIJ_REAPER_PROTECT",
+	"auto_rename":          "ZELLIJ_REAPER_AUTO_RENAME",
+	"auto_rename_attached": "ZELLIJ_REAPER_AUTO_RENAME_ATTACHED",
+	"auto_rename_stamp":    "ZELLIJ_REAPER_AUTO_RENAME_STAMP",
+	"zellij":               "ZELLIJ_REAPER_ZELLIJ",
+	"log.path":             "ZELLIJ_REAPER_LOG",
+	"log.max_bytes":        "ZELLIJ_REAPER_LOG_MAX_BYTES",
 }
 
 // loadEnv applies ZELLIJ_REAPER_* overrides. A malformed value is an error
@@ -293,6 +304,14 @@ func (c *Config) loadEnv(env Env) error {
 		}
 		c.AutoRename = b
 		c.Sources["auto_rename"] = FromEnv
+	}
+	if v, ok := get("auto_rename_attached"); ok {
+		b, err := parseBool(v)
+		if err != nil {
+			return fmt.Errorf("%s: %w", EnvNames["auto_rename_attached"], err)
+		}
+		c.AutoRenameAttached = b
+		c.Sources["auto_rename_attached"] = FromEnv
 	}
 	if v, ok := get("auto_rename_stamp"); ok {
 		if err := checkStamp(v); err != nil {
@@ -368,6 +387,8 @@ func (c *Config) Value(key string) string {
 		return quoteList(c.Shells)
 	case "auto_rename":
 		return strconv.FormatBool(c.AutoRename)
+	case "auto_rename_attached":
+		return strconv.FormatBool(c.AutoRenameAttached)
 	case "auto_rename_stamp":
 		return strconv.Quote(c.AutoRenameStamp)
 	case "interval":

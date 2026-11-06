@@ -13,13 +13,26 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
 
-// mayRename says whether auto_rename may rename a survivor: its verdict allows
-// it, and its server was found and said nobody was attached. A session kept
-// for a protected program is decided before its clients are looked at, so the
-// verdict alone does not say whether someone is using it.
-func mayRename(o Outcome) bool {
+// mayRename says whether auto_rename may rename a survivor: its server was
+// found, and either nobody is attached and its verdict allows a rename, or
+// attachedToo (auto_rename_attached) lets a session someone works in go too. A
+// session kept for a protected program is decided before its clients are looked
+// at, so the verdict alone does not say whether someone is using it.
+func mayRename(o Outcome, attachedToo bool) bool {
 	s := o.Session
-	return !s.Listed.Exited && o.Verdict.MayRename() && s.Server != nil && s.Facts.Attached == policy.No
+	if s.Listed.Exited || s.Server == nil {
+		return false
+	}
+	switch s.Facts.Attached {
+	case policy.No:
+		return o.Verdict.MayRename()
+	case policy.Yes:
+		// Kept for its client, or for a reason that allows a rename anyway.
+		return attachedToo && (o.Verdict.Code == policy.Attached || o.Verdict.MayRename())
+	}
+	// Nobody could tell whether a client is attached: the server may be
+	// starting or stopping, so the session keeps its name.
+	return false
 }
 
 // takenNames is the set of names a session has: the ones zellij lists, and the
@@ -46,7 +59,7 @@ func takenNames(r Report) map[string]bool {
 // renameTarget returns the name auto_rename wants for a survivor (desired)
 // and the first free variant of it (target); target is "" for no rename.
 func (e *Env) renameTarget(o Outcome, taken map[string]bool) (desired, target string) {
-	if !mayRename(o) || !e.replaceable(o.Session) {
+	if !mayRename(o, e.Config.AutoRenameAttached) || !e.replaceable(o.Session) {
 		return "", ""
 	}
 	return e.nameFor(o.Session, taken)

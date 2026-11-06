@@ -147,6 +147,7 @@ func TestRenderRoundTrip(t *testing.T) {
 	env := tempEnv(t)
 	c := Default(env)
 	c.DryRun, c.IdleAfter, c.ExitedAfter, c.AutoRename, c.Protect = true, time.Hour, time.Hour, true, "^keep-"
+	c.AutoRenameAttached = true
 	text := Render(c, "Written by a test.")
 	writeConfig(t, env, text)
 	back, err := Load("", env)
@@ -176,6 +177,29 @@ func TestXDGPaths(t *testing.T) {
 	env["ZELLIJ_REAPER_CONFIG"] = "~/other.toml"
 	if got := ConfigFile(env); got != "/home/u/other.toml" {
 		t.Errorf("ConfigFile with override = %q", got)
+	}
+}
+
+func TestAutoRenameAttached(t *testing.T) {
+	if c := Default(MapEnv{"HOME": "/h"}); c.AutoRenameAttached {
+		t.Error("on by default")
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(p, []byte("auto_rename_attached = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(p, MapEnv{"HOME": dir})
+	if err != nil || !c.AutoRenameAttached || c.Sources["auto_rename_attached"] != FromFile {
+		t.Errorf("from the file: %v, %+v", err, c)
+	}
+	// The environment beats the file.
+	c, err = Load(p, MapEnv{"HOME": dir, "ZELLIJ_REAPER_AUTO_RENAME_ATTACHED": "off"})
+	if err != nil || c.AutoRenameAttached || c.Sources["auto_rename_attached"] != FromEnv {
+		t.Errorf("from the environment: %v, %+v", err, c)
+	}
+	if _, err := Load(p, MapEnv{"HOME": dir, "ZELLIJ_REAPER_AUTO_RENAME_ATTACHED": "maybe"}); err == nil {
+		t.Error("a bad value in the environment was accepted")
 	}
 }
 
