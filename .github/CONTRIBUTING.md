@@ -30,7 +30,7 @@ The code sits in layers, and an import goes down the layers, never up. `internal
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/layers-dark.svg">
-  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and systemd. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="../docs/assets/layers-light.svg">
+  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and timers. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="../docs/assets/layers-light.svg">
 </picture>
 
 One pass runs through them from the bottom up: `inspect` gathers the facts from `procfs` and `zellij`, `policy` decides
@@ -60,9 +60,15 @@ make integration ZELLIJ_VERSIONS=0.45.1  # one release
 make fuzz                                # every fuzz target, 30s each; a failing input lands in testdata/fuzz
 ```
 
+macOS and Windows have no container to stand in for them: `.github/workflows/platforms.yml` runs the unit tests and
+`test/native/scenarios.sh` on the runners themselves. The tests that fake a Linux machine (a `/proc` and Unix socket
+files, `testutil.NewFakeProc`) skip on Windows. Code that reads the machine sits in `internal/machine` behind one
+function per system (`native_linux.go`, `native_darwin.go`, `native_windows.go`); run `GOOS=darwin go vet ./...` and
+`GOOS=windows go vet ./...` before pushing a change there.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../docs/assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both on every push to main and pull request, with a release build. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing and a release build on every push to main and pull request. A vX.Y.Z tag runs all of CI, then builds the archives, packages, installer and demo image." src="../docs/assets/release-light.svg">
 </picture>
 
 Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen processes and terminals, real Unix sockets

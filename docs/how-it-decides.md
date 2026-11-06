@@ -31,10 +31,10 @@ its wait over:
 2. **Rotates the log** to `reaper.log.1` if it has grown past `log.max_bytes`, so a pass never spans two files.
 3. **Lists the sessions** with `zellij list-sessions --no-formatting`. zellij answers "No active zellij sessions found."
    with the same exit status as an error; the pass tells the two apart and logs `no sessions`.
-4. **Reads the machine once:** one snapshot of `/proc`, one of the kernel's Unix socket table, and each session's files
-   in zellij's cache directory. Every session in the pass is judged against the same moment.
+4. **Reads the machine once:** one snapshot of the process table (`/proc` on Linux), one of the kernel's Unix socket
+   table (Linux), and each session's files in zellij's cache directory. Every session in the pass is judged against the same moment.
 5. **Tells who is attached** from that socket table. Only a session the table cannot answer for is asked, with
-   `zellij action list-clients`, one at a time.
+   `zellij action list-clients`, one at a time; on macOS and Windows every running session is.
 6. **Decides every session** with the checks below, all from that one snapshot.
 7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it asks
    again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
@@ -107,26 +107,30 @@ dashboard's detail panel marks with ✗.
 
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
-  files in zellij's cache, which stopped changing when the server ended.
-- **Attached clients** come from the kernel's socket table: each connection a server accepted, with its other end still
-  open, is one client. When the table cannot tell, `zellij action list-clients` asks the server itself, and when the
+  files in zellij's cache, which stopped changing when the server ended, and so do all sessions on Windows, whose
+  consoles have no terminal file.
+- **Attached clients** come from the kernel's socket table on Linux: each connection a server accepted, with its other
+  end still open, is one client. When the table cannot tell, and always on macOS and Windows, `zellij action list-clients` asks the server itself, and when the
   server does not answer, the count zellij writes to its metadata file can add a client. Browser clients (zellij's web
   client) always count.
 - **Busy panes.** Each pane is a child process of the session's server with a controlling terminal; a server's other
   children, like the `ps` zellij runs to save its layouts, are not panes. A pane is at a prompt when it is a known shell
-  (`bash`, `zsh`, `fish`, `nu` and others, plus `shells`), started without a script, with no child process. A command in
+  (`bash`, `zsh`, `fish`, `nu`, `pwsh`, `cmd` and others, plus `shells`), started without a script, with no child
+  process. On Windows the console host each pane runs behind is not a pane. A command in
   the foreground or the background, or a program the pane runs itself (`zellij run`, a command pane from a layout), makes
   it busy, and so does a job with its input redirected (`nohup`).
 - **Protected programs** are looked for in every process under the server and in the commands of the saved layout. A
   program matches by its process name, its executable's name or the script an interpreter runs, as a whole word:
   `node .../claude-code/cli.js` matches `claude`, `claudette` does not.
-- **The server** is found from the socket file: its inode leads, through the kernel's socket table, to the process
-  listening on it. zellij keeps a server's command line when its session is renamed, so this is what finds renamed
-  sessions. Without the socket table (a kernel without `unix_diag`) renamed sessions are kept as `no-server`.
+- **The server** is found from the socket file. On Linux its inode leads, through the kernel's socket table, to the
+  process listening on it; on macOS its creation time matches the server that started then; on Windows the file holds
+  the server's process ID. zellij keeps a server's command line when its session is renamed, so this is what finds
+  renamed sessions. Without such a match (a Linux kernel without `unix_diag`, or on macOS two servers started within a
+  few milliseconds) a renamed session is kept as `no-server`.
 
 ## The log
 
-`~/.local/state/zellij-reaper/reaper.log`: a start line with the settings of the pass, one line per session with its
+`~/.local/state/zellij-reaper/reaper.log` (`%LOCALAPPDATA%\zellij-reaper\reaper.log` on Windows): a start line with the settings of the pass, one line per session with its
 state and pane titles, an arrow line for each thing done, and an end line with the counts.
 
 ```

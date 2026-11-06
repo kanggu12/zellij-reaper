@@ -170,7 +170,6 @@ func TestDeleteByHandAsksZellijFirst(t *testing.T) {
 }
 
 func TestRenameByHandKeepsTheProtection(t *testing.T) {
-	zellijRulesOf(t, "linux")
 	i18n.Set(i18n.English)
 	ctx := context.Background()
 
@@ -213,7 +212,6 @@ func TestRenameByHandKeepsTheProtection(t *testing.T) {
 }
 
 func TestRenameByHandSaysWhenThePatternNoLongerProtects(t *testing.T) {
-	zellijRulesOf(t, "linux")
 	i18n.Set(i18n.English)
 	ctx := context.Background()
 	z := &fakeZellij{}
@@ -250,7 +248,6 @@ func TestThePlanReadsTheProtectedListAgain(t *testing.T) {
 }
 
 func TestRenameByHandMovesAProtectionAddedMeanwhile(t *testing.T) {
-	zellijRulesOf(t, "linux")
 	z := &fakeZellij{sessions: "work [Created 1h ago]\n"}
 	b, a := backendFor(t, z, "")
 	// While zellij renames it, another terminal protects the old name.
@@ -280,7 +277,6 @@ func TestRenameByHandRefusesANameTooLongForTheSocket(t *testing.T) {
 }
 
 func TestRenameByHandRefusesATakenName(t *testing.T) {
-	zellijRulesOf(t, "linux")
 	i18n.Set(i18n.English)
 	// zellij 0.44 and later would accept this and cut the other session off.
 	z := &fakeZellij{sessions: "work [Created 1h ago]\nnotes [Created 2h ago]\n"}
@@ -314,7 +310,6 @@ func TestARenameByHandOntoASocketFileIsRefused(t *testing.T) {
 }
 
 func TestAnUnconfirmedRenameKeepsBothNamesProtected(t *testing.T) {
-	zellijRulesOf(t, "linux")
 	i18n.Set(i18n.English)
 	// zellij takes the rename, and the new name does not show in time: a slow
 	// server. The session may have either name by the next pass.

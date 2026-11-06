@@ -11,7 +11,7 @@ that goes up, on I/O in the core layer, and on a folder that belongs to no layer
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/layers-dark.svg">
-  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and systemd. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="assets/layers-light.svg">
+  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and timers. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="assets/layers-light.svg">
 </picture>
 
 | Package | Holds |
@@ -19,14 +19,14 @@ that goes up, on I/O in the core layer, and on a folder that belongs to no layer
 | `internal/core/policy` | `Decide(facts, thresholds, now)`: the rules; every rule is a row in a table test |
 | `internal/core/rename` | names from what a session shows, within the socket path's byte budget |
 | `internal/core/duration` | the durations of the settings and the log, `1d12h` |
-| `internal/machine/procfs` | one read of `/proc`, and the kernel's Unix socket table over netlink (sock_diag) |
+| `internal/machine/procfs` | one read of the process table (`/proc` on Linux, sysctl and lsof on macOS, Toolhelp on Windows), the kernel's Unix socket table over netlink (sock_diag, Linux), and which server a socket file belongs to |
 | `internal/machine/zellij` | zellij's command line (`list-sessions`, `list-clients`, `delete-session`, rename) and its session files |
-| `internal/machine/lock`, `logfile` | the pass lock (`flock`), the decision log |
-| `internal/settings/config`, `protect` | settings and XDG paths, the protected list |
+| `internal/machine/lock`, `logfile` | the pass lock (`flock`, `LockFileEx` on Windows), the decision log |
+| `internal/settings/config`, `protect` | settings and their paths on each system, the protected list |
 | `internal/engine/inspect` | the facts for every listed session, from one snapshot |
 | `internal/engine/reaper` | `Plan`, the survey alone, and `Run`, the pass that acts on it |
 | `internal/engine/repair`, `resize` | `recover` and `resize` |
-| `internal/engine/systemd` | the user timer, and moving the shell scripts over |
+| `internal/engine/timers` | the timers behind one interface: systemd units, launch agents, scheduled tasks; and moving the shell scripts over |
 | `internal/app` | builds the pieces once from the settings |
 | `internal/front/cli`, `tui` | the commands, the dashboard |
 | `internal/front/ui`, `i18n` | colors, the session table and the words for verdicts, shared by both; English and Korean |
@@ -40,7 +40,7 @@ commands. `recover` alone goes around zellij, because it is for sessions zellij 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the timers. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
@@ -251,12 +251,13 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 | Rules | `internal/core/policy` | every code, the order, the waits at their boundary, force, clock skew |
 | Names | `internal/core/rename` | every kind of title, what says nothing, words in other writing systems, cuts at a word and by bytes, stamps, collision tails; fuzzing of names and tails |
 | Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), fuzzed from those, KDL strings, log lines, settings and their errors |
-| The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket |
+| The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket, matching a socket file to its server by start time |
 | Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
 | Passes | `internal/engine/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
-| Setup | `internal/engine/systemd` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
+| Setup | `internal/engine/timers` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |
 | Dashboard | `internal/front/tui` | every state at five sizes in English and Korean, each frame exactly the terminal's size; every action |
 | Real zellij | `test/integration` | every scenario on real sessions in every state, on each [tested release](setup.md#zellij-versions) and on arm64, in throwaway containers; weekly on zellij's newest release and its main branch (`.github/workflows/canary.yml`) |
+| macOS and Windows | `test/native`, `.github/workflows/platforms.yml` | the unit tests on both, and real sessions on the runner itself: idle and busy panes, `here`, a rename, the timers, a pass that reaps; on Windows in a console of its own |
 
 ```sh
 make check                               # gofmt, go vet, staticcheck, shellcheck, go test -race ./...
@@ -298,6 +299,7 @@ GoReleaser builds the archives, `checksums.txt` and the packages from `.github/g
 `scripts/install.sh`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
 arm64.
 
-**Not covered:** systemd itself (the containers run zellij-reaper directly, not from the timer; the unit files and
-the install steps are tested against a stand-in `systemctl`), distributions other than the Debian-based test image,
-WSL 2, how terminal emulators draw the dashboard, and zellij releases outside the matrix.
+**Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
+install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the
+runners), distributions other than the Debian-based test image, WSL 2, Windows on arm64, how terminal emulators draw the
+dashboard, and zellij releases outside the matrix.

@@ -85,7 +85,9 @@ check "doctor names how renamed sessions are found" sh -c "'$R' doctor | grep -q
 step "here, from inside a pane"
 rm -f "$tmp/here.out"
 if $windows; then
-  tmo 20 "$Z" --session busy-one run -- cmd /c "\"$(native "$R")\" here > \"$(native "$tmp/here.out")\" 2>&1" >/dev/null 2>&1
+  # Each word its own argument: zellij quotes an argument with spaces in it,
+  # which cmd cannot read back.
+  tmo 20 "$Z" --session busy-one run -- cmd /c "$(native "$R")" here '>' "$(native "$tmp/here.out")" >/dev/null 2>&1
 else
   tmo 20 "$Z" --session busy-one run -- sh -c "'$R' here >'$tmp/here.out' 2>&1" >/dev/null 2>&1
 fi

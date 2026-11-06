@@ -42,7 +42,7 @@ badge() {
 badge release "release-v$version-ea7233"
 badge license "license-MIT-2a78d6"
 badge demo "demo-ghcr.io-2a78d6"
-badge runs-on "runs%20on-Linux%20%7C%20WSL%202-555"
+badge runs-on "runs%20on-Linux%20%7C%20macOS%20%7C%20Windows-555"
 badge zellij "zellij-$first%20to%20$last-555"
 
 # The README's alt texts say the same, for a reader without images.

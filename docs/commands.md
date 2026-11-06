@@ -48,9 +48,10 @@ a zellij command run there waits for a session by that name. **`shell-hook bash|
 **`logs`** prints the last 50 lines of the decision log (`-n` for another number), colored by kind. `-f` keeps
 printing new lines and follows the log across rotations.
 
-**`doctor`** checks zellij and its version, the systemd user instance, the timer (installed, enabled, running this
-binary, the interval it was installed with), the names timer when `auto_rename` is on, lingering, the settings, settings
-that only your shell sees, zellij's session directory, the kernel's socket table and the log. It exits with status 1
+**`doctor`** checks zellij and its version, the timers' service (systemd, launchd or the Task Scheduler), the timer
+(installed, enabled, running this binary, the interval it was installed with), the names timer when `auto_rename` is
+on, lingering on Linux, the settings, settings that only your shell sees, zellij's session directory, how renamed
+sessions are matched to their servers and the log. It exits with status 1
 when something is broken; a warning alone still exits 0.
 
 ## Acting
@@ -69,7 +70,7 @@ renames them. With no name it prints the kept names. **`forget-name NAME...`** t
 rename those sessions again. Both wait for a pass that holds the lock, and log what they did.
 
 **`recover [--dry-run] [--aggressive]`** repairs sessions that no zellij command can reach. A session's name is part
-of its socket path, which Linux caps at 107 bytes; a session renamed past that keeps a server nobody can talk to, and
+of its socket path, which Linux caps at 107 bytes and macOS at 103; a session renamed past that keeps a server nobody can talk to, and
 its files come back after every delete. `recover` deletes such sessions and clears their files. `--aggressive` also
 stops servers that serve no socket file at all, unless a client is still connected to one, a pane in it is busy, a
 protected program runs in it, its name is protected, or any of that cannot be read; it looks once more just before
@@ -81,8 +82,8 @@ window changed. `--shallow` signals the clients only.
 
 ## Setting up
 
-**`install`** writes the systemd units and a settings file, enables the timer, the names timer and lingering, and says
-when the first pass runs. **`uninstall`** removes both timers and their services; `--purge` also removes the settings,
+**`install`** writes a settings file and the timers, the systemd units with lingering on Linux, the launch agents on
+macOS and the scheduled tasks on Windows, and says when the first pass runs. **`uninstall`** removes both timers and their services; `--purge` also removes the settings,
 the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`

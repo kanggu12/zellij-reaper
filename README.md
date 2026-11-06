@@ -15,7 +15,7 @@
   <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.5.0" src="docs/assets/badges/release.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="docs/assets/badges/demo.svg"></a>
-  <img alt="Runs on Linux and WSL 2" src="docs/assets/badges/runs-on.svg">
+  <img alt="Runs on Linux, macOS and Windows" src="docs/assets/badges/runs-on.svg">
   <img alt="zellij 0.43 to 0.45" src="docs/assets/badges/zellij.svg">
 </p>
 
@@ -34,18 +34,19 @@
 </picture>
 
 zellij keeps every session until you delete it: the ones you detached from last week, and the exited ones it keeps
-for resurrection. zellij-reaper runs from a systemd user timer and deletes the ones nobody uses. Every check has to pass
-before a session goes; when a fact is unclear, the session stays.
+for resurrection. zellij-reaper runs from a timer (systemd on Linux, launchd on macOS, the Task Scheduler on Windows)
+and deletes the ones nobody uses. Every check has to pass before a session goes; when a fact is unclear, the session
+stays.
 
 ## Quick start
 
 | Needs | |
 |:---|:---|
-| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2) |
-| zellij | 0.43 to 0.45 |
-| Timers | a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd) |
+| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2); macOS on Apple silicon or Intel; Windows on x64 |
+| zellij | 0.43 to 0.45; on Windows, 0.44 and later, the first with a Windows build |
+| Timers | Linux: a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd); macOS and Windows: nothing to set up |
 | Dashboard | a terminal of 30 by 8 cells; 100 columns or more reads best |
-| Prompt hook | bash, zsh or fish |
+| Prompt hook | bash, zsh or fish, on Linux and macOS |
 
 Binary size, memory and the rest are in [Requirements](docs/setup.md#requirements).
 
@@ -55,6 +56,12 @@ Binary size, memory and the rest are in [Requirements](docs/setup.md#requirement
 
    ```sh
    curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+   ```
+
+   On Windows, in PowerShell, the same goes to `%LOCALAPPDATA%\Programs\zellij-reaper`:
+
+   ```powershell
+   irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
    ```
 
 2. **Look before it acts.** `plan` shows what the next pass would do, and changes nothing:
@@ -72,9 +79,9 @@ Binary size, memory and the rest are in [Requirements](docs/setup.md#requirement
 3. **Open the dashboard.** Run `zellij-reaper`. Keep a session out of every pass with `p` there, or
    `zellij-reaper protect NAME`.
 
-4. **Name sessions after what they show** (optional). In the settings, uncomment `auto_rename` and set it to `true`;
-   names change within five minutes. Add the prompt hook so open panes follow a rename (zsh and fish lines are in
-   [setup](docs/setup.md#naming-sessions-after-what-they-show)):
+4. **Name sessions after what they show** (optional, Linux and macOS). In the settings, uncomment `auto_rename` and set
+   it to `true`; names change within five minutes. Add the prompt hook so open panes follow a rename (zsh and fish lines
+   are in [setup](docs/setup.md#naming-sessions-after-what-they-show)):
 
    ```sh
    zellij-reaper config edit
@@ -145,7 +152,8 @@ session shows changes. Names change within five minutes, and the session list sh
 `auto_rename_attached = false` waits until nobody is attached.
 
 A pane keeps the session name it opened under, so after a rename a `zellij` command typed there waits for the old name.
-The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane current.
+The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane current. zellij on
+Windows cannot reach a session at all once it is renamed, so zellij-reaper renames nothing there.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
 To keep a name that looks made up, such as a `quiet-mouse` you typed yourself, press `r`, Tab and Enter, or run
@@ -180,9 +188,9 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
 | `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
-| `install` / `uninstall [--purge]` | the systemd user timers |
+| `install` / `uninstall [--purge]` | the timers: systemd units, launch agents or scheduled tasks |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
-| `doctor` | check zellij, systemd, lingering, the settings and the log |
+| `doctor` | check zellij, the timers, the settings and the log |
 | `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket |
 | `resize [--dry-run] [--shallow]` | make zellij and the programs in its panes redraw at the right size |
 
@@ -190,8 +198,8 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 
 ## Settings
 
-`install` writes `~/.config/zellij-reaper/config.toml` with every key at its default, commented out. Uncomment what you
-change:
+`install` writes `~/.config/zellij-reaper/config.toml` (`%APPDATA%\zellij-reaper\config.toml` on Windows) with every key
+at its default, commented out. Uncomment what you change:
 
 ```toml
 idle_after = "4h"            # reap idle sessions after 4 hours (default 12h)
@@ -220,7 +228,8 @@ $ zellij-reaper logs
 11-05 11:49:05  === reaper end (1 reaped, 4 kept, 1 renamed) ===
 ```
 
-It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `log.max_bytes` (1 MiB).
+It lives in `~/.local/state/zellij-reaper/` (`%LOCALAPPDATA%\zellij-reaper` on Windows) and moves to `reaper.log.1`
+past `log.max_bytes` (1 MiB).
 
 ## How it compares
 
@@ -230,7 +239,7 @@ It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `lo
 | Running sessions | deleted when idle, after a wait you set | with `--force`, all of them | stopped, all of them |
 | A session with a client attached | kept | with `--force`, deleted | stopped |
 | A session running a program | kept | with `--force`, deleted | stopped |
-| Runs on its own | yes, from a user timer | no | no |
+| Runs on its own | yes, from a timer | no | no |
 | Shows what it would do first | `plan`, the dashboard | no | no |
 
 ## Questions
@@ -245,7 +254,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the kernel's process and socket tables, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the systemd units. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the timers. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their
