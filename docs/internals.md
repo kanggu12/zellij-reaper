@@ -48,15 +48,14 @@ socket table, read each session's files, tell who is attached, then decide. `/pr
 runs, which is about half of a pass, and in part: every process's `stat`, which gives the tree, and the uid, command
 line and fd 0 only of zellij's processes and what runs under them. The socket table is read after the list, because
 listing connects to every server and those connections would count as clients. On a machine with 166 processes,
-`plan` went from 40.2 ms to 31.0 ms with both; `version` alone takes 4.4 ms.
+`plan` went from 40.2 ms to 31.0 ms with both; `version` alone takes 4.4 ms. `policy.Decide` returns the action, a code,
+the evidence, how long the session still has to wait, and the checks in the order they ran, ending with the one that
+decided. The log, `plan --json` and the dashboard each put that one verdict into their own words.
 
 `zellij-reaper here` needs less: it walks up from its own process to the session's server, then matches the server's
 listening socket to a file in the socket directory through the socket table, which stays right after a rename while
 the server's command line keeps the first name. That is about a millisecond past start-up, and starts no zellij
-process, so a prompt hook can run it every time. `policy.Decide`
-returns the action, a code, the evidence, how long the session still has to wait, and the checks in the order they
-ran, ending with the one that decided. The log, `plan --json` and the dashboard each put that one verdict into their
-own words.
+process, so a prompt hook can run it every time.
 
 | Fact | Read from | Why there |
 |:---|:---|:---|
@@ -179,7 +178,7 @@ out again once its session is gone; 0.3.2 read it, and replaced names people cho
 
 zellij keeps nothing that tells a name it made up from the same words typed by a person: a session started either way,
 in a terminal or in the background, has the same server command line, environment and files. So a person keeps such a
-name once for each session: `r`, Tab and Enter in the dashboard. The name goes on
+name once for each session: `r`, Tab and Enter in the dashboard, or `zellij-reaper keep-name NAME`. The name goes on
 the list of kept names, which every pass reads first. A pass that cannot read that list renames nothing.
 
 A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
@@ -189,7 +188,8 @@ log moved nothing but the time. `auto_rename_stamp` brings the stamp back for th
 A pass renames sessions someone is attached to as well: on a machine whose sessions stay attached, renaming only the
 others left nothing to rename. The person in such a session sees its name change, and its panes keep the old name in
 `ZELLIJ_SESSION_NAME`, so a `zellij` command run there without `--session` waits for a session by that name while any
-other session runs. `auto_rename_attached = false` renames only the sessions nobody is attached to.
+other session runs. The prompt hook (`shell-hook`) keeps that variable current. `auto_rename_attached = false` renames
+only the sessions nobody is attached to.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say

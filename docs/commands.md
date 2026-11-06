@@ -38,11 +38,11 @@ that stays stable for scripts; `reason` is the log's wording:
 only when they apply. In the table, a session the next pass renames shows `→ NEW-NAME` after its verdict, as room
 allows. `clients` is -1 when it is not known, as on every exited session.
 
-**`here`** prints the name the zellij session this shell runs in has now, read from `/proc`, the kernel's socket
-table and the socket directory, with no zellij process; it exits 1, printing nothing, outside zellij. A pane keeps
-the name its session had when the pane opened, in `ZELLIJ_SESSION_NAME`, and after a rename a zellij command run there
-waits for a session by that name. **`shell-hook bash|zsh|fish`** prints a prompt hook that sets `ZELLIJ_SESSION_NAME`
-from `here` at every prompt and keeps the status of the command before; see
+**`here`** prints the current name of this shell's zellij session, read from `/proc`, the kernel's socket table and the
+socket directory, with no zellij process; outside zellij, or when the name cannot be told, it prints nothing and exits
+1. A pane keeps the name its session had when the pane opened, in `ZELLIJ_SESSION_NAME`, and after a rename a zellij
+command run there waits for a session by that name. **`shell-hook bash|zsh|fish`** prints a prompt hook that sets
+`ZELLIJ_SESSION_NAME` from `here` at every prompt and keeps the status of the command before; see
 [setup](setup.md#naming-sessions-after-what-they-show).
 
 **`logs`** prints the last 50 lines of the decision log (`-n` for another number), colored by kind. `-f` keeps

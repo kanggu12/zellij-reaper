@@ -9,9 +9,9 @@ the project uses [semantic versioning](https://semver.org/).
 
 - A names timer: `zellij-reaper-names.timer` runs `run --names-only` every `rename_interval` (5 minutes, `"0"` turns
   it off), so a name follows its session within minutes instead of at the hourly pass. A names pass renames what a full
-  pass would, deletes nothing, and writes to the log only when it renames. `install` writes and removes it with the
-  setting, `uninstall` removes it, and `doctor` says when it is not running.
-- `zellij-reaper here` prints the name the session a shell runs in has now, from `/proc`, the kernel's socket table
+  pass would, deletes nothing, and writes to the log only when it renames. `install` writes it, or removes it with
+  `rename_interval = "0"`, `uninstall` removes it, and `doctor` says when it is not running.
+- `zellij-reaper here` prints the current name of the shell's session, from `/proc`, the kernel's socket table
   and the socket directory, in about a millisecond past start-up and with no zellij process. `shell-hook bash|zsh|fish`
   prints a prompt hook that keeps `ZELLIJ_SESSION_NAME` at that name, so zellij commands in a pane opened before a
   rename keep working; it keeps the status of the command before.

@@ -47,8 +47,9 @@ its wait over:
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
 
-The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, so a name follows
-its session sooner than the hourly pass. It deletes nothing, and writes to the log only when it renames something.
+The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, and step 2 only when
+it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing, and writes to the
+log only when it renames something.
 
 ## The checks
 

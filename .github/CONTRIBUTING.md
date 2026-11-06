@@ -119,10 +119,11 @@ placeholder is there and that every frame still fits.
 
 ### The dashboard
 
-`go test ./internal/front/tui/` renders every state at five sizes in both languages. `zellij-reaper tui --snapshot 132x32`
-prints one frame (a hidden flag; also `--theme light`, `--select NAME`); the screenshots in `docs/assets` come from such
-frames, taken in the `make demo` sandbox. The SVG figures come from a script outside the repository: say in the pull
-request which one changes, and the maintainer redraws it.
+`go test ./internal/front/tui/` renders every state at five sizes in both languages.
+`zellij-reaper tui --snapshot 132x32` prints one frame (a hidden flag; also `--theme light`, `--select NAME`,
+`--keys "r tab"`); the screenshots in `docs/assets` come from such frames, taken in the `make demo` sandbox. The SVG
+figures come from a script outside the repository: say in the pull request which one changes, and the maintainer redraws
+it.
 
 ## Style
 

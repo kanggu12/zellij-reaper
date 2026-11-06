@@ -116,7 +116,7 @@ curl -fsSLO "$base/checksums.txt"
 Then, on the closed machine, set `version` to the release you carried across and run:
 
 ```sh
-version=0.3.5
+version=0.5.0
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
@@ -185,7 +185,7 @@ A variable wins over the file, and `run --dry-run` and `run --force` win over bo
 to the commands you run there, not to the timer: `install` and `doctor` warn about each one, so put lasting settings
 in the file. A value that cannot be read (a duration without a unit, a pattern that does not compile) stops the
 command with an error instead of falling back to a default, and so does a key nothing reads: a typo in `protect` must not
-leave a session unprotected. A file with a `[log]` table, as earlier versions wrote it, takes new lines above that table.
+leave a session unprotected. In a file with a `[log]` table, as earlier versions wrote it, add new keys above that table.
 
 `zellij-reaper config show` prints each setting and where its value comes from:
 
@@ -283,15 +283,16 @@ the name the pane's session has now, read from `/proc` and the kernel's socket t
 zellij process. Add it to the shell's startup file:
 
 ```sh
-eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
-eval "$(zellij-reaper shell-hook zsh)"      # ~/.zshrc
-zellij-reaper shell-hook fish | source      # ~/.config/fish/config.fish
+command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
+command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"      # ~/.zshrc
+zellij-reaper shell-hook fish | source                                           # ~/.config/fish/config.fish
 ```
 
-A shell started before the hook was added keeps going with `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)`.
+In a shell started before you added the hook, run `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)` once. The
+`command -v` test keeps a login shell quiet when `~/.local/bin` joins `PATH` only after `~/.bashrc` runs.
 
-The hourly pass renames, and so does the names timer, every `rename_interval` (5 minutes): a pass that only renames,
-deletes nothing and writes to the log only when it renames. `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and
+The names timer runs a pass that only renames every `rename_interval` (5 minutes). It deletes nothing and writes to
+the log only when it renames. The hourly pass renames too. `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and
 Enter do; `forget-name NAME` lets passes rename it again, and `keep-name` alone lists the kept names. With
 `auto_rename_drop_tail = true`, a session a pass named `api-2` gets `api` once no other session has it; zellij refuses a
 name the session had before, and then the tail stays.

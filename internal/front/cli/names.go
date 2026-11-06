@@ -30,9 +30,10 @@ Exits 1, printing nothing, outside zellij or when the name cannot be told.`,
 			// shell that asked, its pane, the server).
 			src := inspect.Sources{ProcRoot: "/proc", UID: os.Getuid(), Sockets: procfs.UnixSockets}
 			name, err := inspect.Here(src, os.Getpid())
+			// Outside zellij, or with no name to give: nothing printed, status 1,
+			// so a prompt hook leaves ZELLIJ_SESSION_NAME as it is.
 			if err != nil {
-				cmd.SilenceErrors, cmd.SilenceUsage = true, true
-				return err
+				os.Exit(1)
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), name)
 			return nil
@@ -86,9 +87,9 @@ func cmdShellHook() *cobra.Command {
 has now, so zellij commands run in a pane opened before a rename keep working.
 Add it to the shell's startup file:
 
-  eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
-  eval "$(zellij-reaper shell-hook zsh)"      # ~/.zshrc
-  zellij-reaper shell-hook fish | source      # ~/.config/fish/config.fish`,
+  command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"   # ~/.bashrc
+  command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"    # ~/.zshrc
+  zellij-reaper shell-hook fish | source                                         # fish config`,
 		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish"},
 		RunE: func(cmd *cobra.Command, args []string) error {

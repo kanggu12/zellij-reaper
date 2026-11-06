@@ -39,10 +39,12 @@ before a session goes; when a fact is unclear, the session stays.
 
 ## Quick start
 
-Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl --user` works).
+Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl --user` works). On WSL 2,
+[turn on systemd](docs/setup.md#wsl-2) first.
 
 1. **Install.** The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin`
-   and starts the timer. The first pass comes ten minutes later.
+   and starts the timers. The first pass comes ten minutes later. If it says to add `~/.local/bin` to your `PATH`, run
+   `export PATH="$HOME/.local/bin:$PATH"` or open a new login shell.
 
    ```sh
    curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
@@ -53,22 +55,23 @@ Linux or WSL 2, with zellij 0.43 to 0.45 and a systemd user instance (`systemctl
    ```
    $ zellij-reaper plan
      SESSION         STATE    IDLE  CLIENTS  NEXT PASS
-   ● scratch         running  3h    0        reap
-   ● release-v2      running  50m   0        reap in 9m
+   ● scratch         running  13h   0        reap
+   ● release-v2      running  50m   0        reap in 11h 10m
    ● notes           running  1s    1        attached
    ● api-server      running  3h    0        running npm run dev
    ● agent-refactor  running  3h    0        protected: claude
    ```
 
-3. **Open the dashboard:** `zellij-reaper`. Keep a session out of every pass with `p` there, or
+3. **Open the dashboard.** Run `zellij-reaper`. Keep a session out of every pass with `p` there, or
    `zellij-reaper protect NAME`.
 
-4. **Name sessions after what they show** (optional). Turn it on, and add the prompt hook so the panes of a renamed
-   session keep reaching it:
+4. **Name sessions after what they show** (optional). In the settings, uncomment `auto_rename` and set it to `true`;
+   names change within five minutes. The prompt hook keeps the panes of a renamed session reaching it, in shells started
+   after this (zsh and fish lines are in [setup](docs/setup.md#naming-sessions-after-what-they-show)):
 
    ```sh
-   zellij-reaper config edit          # set auto_rename = true
-   echo 'eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
+   zellij-reaper config edit
+   echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
    ```
 
 Not ready to install? `docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo` opens the dashboard on demo
@@ -131,17 +134,16 @@ they show, so the list of sessions reads like a list of what you were doing:
 </picture>
 
 A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. A second timer renames every five minutes, so a name follows its session soon, and the session
+session shows changes. A second timer renames every five minutes, so a name changes within minutes, and the session
 list shows the name the next pass gives (`→ fix-the-login-bug`). The session you are in is renamed too;
 `auto_rename_attached = false` waits until nobody is attached.
 
-A pane keeps the name its session had when the pane opened, so after a rename a `zellij` command typed there would wait
-for the old name. The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane
-up to date.
+A pane keeps the session name it opened under, so after a rename a `zellij` command typed there waits for the old name.
+The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane current.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
-`r`, Tab and Enter keep a running session's name as it is, such as a `quiet-mouse` you typed yourself, which looks made
-up; `zellij-reaper keep-name NAME` does the same from a script.
+To keep a name that looks made up, such as a `quiet-mouse` you typed yourself, press `r`, Tab and Enter, or run
+`zellij-reaper keep-name NAME`.
 [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules.
 
 ## The dashboard
@@ -170,7 +172,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `logs [-n 50] [-f]` | the decision log |
 | `protect NAME` / `unprotect NAME` | keep a session out of every pass, or let it go again |
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
-| `here` | the name the session this shell runs in has now |
+| `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
 | `install` / `uninstall [--purge]` | the systemd user timers |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
