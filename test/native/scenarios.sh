@@ -113,7 +113,9 @@ show "$R" install
 show "$R" doctor
 check "doctor finds nothing wrong" sh -c "'$R' doctor | grep -q 'everything looks fine'"
 if $windows; then
-  check "both tasks are registered" powershell.exe -NoProfile -Command "if ((Get-ScheduledTask -TaskName 'zellij-reaper*').Count -ne 2) { exit 1 }"
+  check "the task is registered" powershell.exe -NoProfile -Command "Get-ScheduledTask -TaskName 'zellij-reaper' | Out-Null"
+  check "and no names task, since nothing is renamed" powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName 'zellij-reaper-names' -ErrorAction SilentlyContinue) { exit 1 }"
+  check "doctor says why names stay" sh -c "ZELLIJ_REAPER_AUTO_RENAME=true '$R' doctor | grep -q 'cannot reach a session after a rename'"
 else
   check "the agent is loaded" launchctl print "gui/$(id -u)/io.github.kanggu12.zellij-reaper"
   check "the names agent is loaded" launchctl print "gui/$(id -u)/io.github.kanggu12.zellij-reaper-names"

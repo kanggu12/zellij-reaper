@@ -109,8 +109,11 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 		if st.Installed && st.Interval != 0 && st.Interval != a.Config.Interval {
 			note(i18n.T("doctor.interval", duration.Format(st.Interval), duration.Format(a.Config.Interval)))
 		}
-		// The names timer, which matters only when passes rename.
-		if a.Config.AutoRename && a.Config.RenameInterval > 0 {
+		// The names timer, which matters only when passes rename; zellij on
+		// Windows cannot reach a renamed session, so nothing is renamed there.
+		if a.Config.AutoRename && !zellij.RenameReachable() {
+			note(i18n.T("doctor.rename.windows"))
+		} else if a.Config.AutoRename && a.Config.RenameInterval > 0 {
 			ns := a.System.NamesStatus()
 			switch {
 			case !ns.Installed || !ns.Enabled || !ns.Active:

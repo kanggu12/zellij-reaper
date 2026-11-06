@@ -8,7 +8,7 @@ the project uses [semantic versioning](https://semver.org/).
 ### Added
 
 - macOS and Windows. zellij-reaper reads the process table from sysctl and lsof on macOS and from Toolhelp on Windows,
-  and runs from launch agents on macOS and from two scheduled tasks on Windows, started through
+  and runs from launch agents on macOS and from a scheduled task on Windows, started through
   `conhost.exe --headless` so no window flashes. A renamed session's socket file is matched to its server by the time
   it was made on macOS, and by the process ID zellij writes into it on Windows. Releases include archives for both and
   `install.ps1`; `doctor` checks each system's timers.

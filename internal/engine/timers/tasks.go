@@ -92,21 +92,16 @@ func (w Tasks) Install(o InstallOptions) (Result, error) {
 	if err := ensureSettings(w.Env, o.ConfigFile, &r); err != nil {
 		return r, err
 	}
+	// No names task: zellij on Windows cannot reach a session after a rename,
+	// so zellij-reaper renames nothing there. One left from an earlier install
+	// goes.
 	script := TaskScript(TaskName, "Reap idle and exited zellij sessions", o.Exe, o.ConfigFile,
 		[]string{"run", "--quiet"}, FirstPassDelay, o.Config.Interval)
-	if o.Config.RenameInterval > 0 {
-		script += TaskScript(NamesTaskName, "Name zellij sessions after what they show", o.Exe, o.ConfigFile,
-			[]string{"run", "--names-only", "--quiet"}, time.Minute, o.Config.RenameInterval)
-	} else {
-		script += fmt.Sprintf("Unregister-ScheduledTask -TaskName %s -Confirm:$false -ErrorAction SilentlyContinue\n", psQuote(NamesTaskName))
-	}
+	script += fmt.Sprintf("Unregister-ScheduledTask -TaskName %s -Confirm:$false -ErrorAction SilentlyContinue\n", psQuote(NamesTaskName))
 	if out, err := w.ps(script); err != nil {
 		return r, fmt.Errorf("register the tasks: %s", firstLine(out, err))
 	}
 	r.Wrote = append(r.Wrote, `Task Scheduler\`+TaskName)
-	if o.Config.RenameInterval > 0 {
-		r.Wrote = append(r.Wrote, `Task Scheduler\`+NamesTaskName)
-	}
 	return r, nil
 }
 

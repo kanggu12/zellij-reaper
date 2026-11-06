@@ -81,9 +81,9 @@ On Linux it:
 
 On macOS it writes two launch agents to `~/Library/LaunchAgents/`, `io.github.kanggu12.zellij-reaper.plist` and
 `io.github.kanggu12.zellij-reaper-names.plist`, and loads them with `launchctl bootstrap`. launchd runs a job that has
-an interval once the interval has passed, so the first pass comes an hour after install. On Windows it registers two
-tasks in the Task Scheduler, `zellij-reaper` and `zellij-reaper-names`, which start the binary through
-`conhost.exe --headless` so no window opens; the first pass comes ten minutes later. Both write the settings file if
+an interval once the interval has passed, so the first pass comes an hour after install. On Windows it registers one
+task in the Task Scheduler, `zellij-reaper`, which starts the binary through `conhost.exe --headless` so no window
+opens; the first pass comes ten minutes later. There is no names task there, since nothing is renamed on Windows. Both write the settings file if
 there is none.
 
 Run it again after moving the binary or changing `interval` or `rename_interval`. It never overwrites a settings file.
@@ -346,7 +346,7 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. On macOS the same paths apply, and the timers are the launch agents
 in `~/Library/LaunchAgents/`. On Windows the settings are in `%APPDATA%\zellij-reaper\` and the rest of these files in
-`%LOCALAPPDATA%\zellij-reaper\`, and the timers are two scheduled tasks.
+`%LOCALAPPDATA%\zellij-reaper\`, and the timer is a scheduled task.
 
 zellij-reaper reads zellij's files and never writes there, except `recover` clearing a broken session: under
 `$XDG_CACHE_HOME/zellij` (`~/.cache/zellij`) on Linux, `~/Library/Caches/org.Zellij-Contributors.Zellij` on macOS and
@@ -399,7 +399,7 @@ as anywhere, with these differences:
   without a question to zellij. The prompt hook is of no use there for the same reason.
 - **Idle time** comes from zellij's session files, which change when anything in the session changes, since a
   Windows console has no terminal file to look at.
-- **The timers** are two scheduled tasks that run while you are logged in, which is when your sessions run too.
+- **The timer** is a scheduled task that runs while you are logged in, which is when your sessions run too.
 - **`resize`** does nothing: Windows has no `SIGWINCH`, and a console passes a new size on by itself.
 
 Started from a program without a console, such as a CI step or WSL, zellij gives a shell pane a console with no

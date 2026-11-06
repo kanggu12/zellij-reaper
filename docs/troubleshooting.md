@@ -11,8 +11,8 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
 - On WSL 2, systemd has to be turned on, and the timer stops with the VM: see [setup](setup.md#wsl-2).
 - On macOS, `launchctl print gui/$(id -u)/io.github.kanggu12.zellij-reaper` shows the launch agent; the first pass
   comes an hour after install.
-- On Windows, the Task Scheduler lists `zellij-reaper` and `zellij-reaper-names` (`Get-ScheduledTask zellij-reaper*` in
-  PowerShell). They run while you are logged in.
+- On Windows, the Task Scheduler lists `zellij-reaper` (`Get-ScheduledTask zellij-reaper` in PowerShell). It runs while
+  you are logged in.
 
 ## The log says `zellij not installed`, but zellij works in your shell
 
