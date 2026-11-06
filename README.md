@@ -39,13 +39,13 @@ before a session goes; when a fact is unclear, the session stays.
 
 ## Quick start
 
-| | Needs | Best with |
-|:---|:---|:---|
-| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2) | |
-| zellij | 0.43 to 0.45 | 0.45.1 |
-| Timers | a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd) | systemd |
-| Dashboard | a terminal of 30 by 8 cells | 100 columns; 132 puts the details beside the list |
-| Prompt hook | bash, zsh or fish | |
+| Needs | |
+|:---|:---|
+| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2) |
+| zellij | 0.43 to 0.45 |
+| Timers | a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd) |
+| Dashboard | a terminal of 30 by 8 cells; 100 columns or more reads best |
+| Prompt hook | bash, zsh or fish |
 
 Binary size, memory and the rest are in [Requirements](docs/setup.md#requirements).
 
