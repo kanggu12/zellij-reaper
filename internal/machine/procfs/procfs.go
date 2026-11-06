@@ -39,7 +39,7 @@ func (p *Proc) Name() string {
 	if len(p.Argv) > 0 && p.Argv[0] != "" {
 		// A Windows program's name goes without its ".exe", as its kernel
 		// name does there.
-		return strings.TrimSuffix(strings.TrimPrefix(baseName(p.Argv[0]), "-"), ".exe")
+		return trimExe(strings.TrimPrefix(baseName(p.Argv[0]), "-"))
 	}
 	return p.Comm
 }
@@ -56,12 +56,26 @@ func (p *Proc) Names() []string {
 	return names
 }
 
-// CommandLine joins Argv for display, falling back to Comm.
+// CommandLine joins Argv for display, falling back to Comm. A Windows program
+// comes with its whole path ("C:\Windows\system32\ping.EXE"), which shows as
+// the name people type ("ping").
 func (p *Proc) CommandLine() string {
 	if len(p.Argv) == 0 {
 		return p.Comm
 	}
-	return strings.Join(p.Argv, " ")
+	argv := p.Argv
+	if strings.Contains(argv[0], `\`) {
+		argv = append([]string{p.Name()}, argv[1:]...)
+	}
+	return strings.Join(argv, " ")
+}
+
+// trimExe drops a Windows program's ".exe", in any case.
+func trimExe(name string) string {
+	if n := len(name); n > 4 && strings.EqualFold(name[n-4:], ".exe") {
+		return name[:n-4]
+	}
+	return name
 }
 
 // Table is a snapshot of processes.

@@ -62,6 +62,14 @@ func attachCheck(ctx context.Context, src Sources, s *Session, c connections) {
 		noClientOnTheSocket(s, md)
 		return
 	}
+	// zellij on Windows cannot reach a renamed session: asking would only wait
+	// out the time limit. The session is kept as one nobody can tell about.
+	if !zellij.RenameReachable() && s.Server != nil && s.Server.Session() != s.Name() {
+		s.ServerSilent = true
+		s.Facts.Attached = policy.Unknown
+		s.Facts.AttachDetail = "renamed, and zellij on Windows cannot reach a renamed session"
+		return
+	}
 	// The table cannot tell: no sock_diag on this kernel, a client in another
 	// network namespace, or a connection whose other end nobody can see.
 	rows, err := askServer(ctx, src, s.Name())

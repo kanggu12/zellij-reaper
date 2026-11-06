@@ -188,9 +188,13 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if e.Given != nil {
 		_ = e.Given.Reload()
 	}
+	// zellij on Windows cannot reach a renamed session.
+	if !zellij.RenameReachable() {
+		r.NoRenames = zellij.ErrRenameUnreachable
+	}
 	// Without the kept names nobody can tell which names must stay, so nothing
 	// is renamed; reaping does not depend on them.
-	if e.Kept != nil {
+	if e.Kept != nil && r.NoRenames == nil {
 		if err := e.Kept.Reload(); err != nil {
 			r.NoRenames = fmt.Errorf("could not read the list of kept names: %w", err)
 		}

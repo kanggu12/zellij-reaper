@@ -9,6 +9,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
 // key handles a key press for the current mode.
@@ -100,6 +101,10 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if o.Session.Listed.Exited {
 			m.say(i18n.T("rename.exited"), ui.CatWait)
+			return m, nil
+		}
+		if !zellij.RenameReachable() {
+			m.say(i18n.T("rename.windows"), ui.CatWait)
 			return m, nil
 		}
 		m.mode, m.target = modeRename, o.Session.Name()

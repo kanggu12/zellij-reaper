@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
 func TestANamesPassRenamesAndDeletesNothing(t *testing.T) {
@@ -107,3 +108,21 @@ func TestANamesPassLogsOnlyNamesThatChanged(t *testing.T) {
 
 // logBytes is the log as it is, nothing when nothing was written.
 func (w *world) logBytes() ([]byte, error) { return os.ReadFile(w.logp) }
+
+func TestNoPassRenamesOnWindows(t *testing.T) {
+	// zellij on Windows cannot reach a session after a rename: the same world
+	// that renames busy on Linux renames nothing there, and says why.
+	defer func(g string) { zellij.GOOS = g }(zellij.GOOS)
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	zellij.GOOS = "windows"
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 0 {
+		t.Errorf("renamed %v", w.zj.renamed)
+	}
+	if log := w.log(t); !strings.Contains(log, "cannot reach a session after a rename") {
+		t.Errorf("no reason in the log:\n%s", log)
+	}
+}

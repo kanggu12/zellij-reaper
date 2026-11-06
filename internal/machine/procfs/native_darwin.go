@@ -255,6 +255,17 @@ func fileOwner(path string, servers []Server) (Server, bool) {
 	if !ok {
 		return Server{}, false
 	}
+	// A file still at the path its server was started on, made when that
+	// server started: a session that was never renamed.
+	var direct []Server
+	for _, s := range servers {
+		if d := born.Sub(s.Started); s.Socket == path && !s.Started.IsZero() && d > -time.Second && d < time.Second {
+			direct = append(direct, s)
+		}
+	}
+	if len(direct) == 1 {
+		return direct[0], true
+	}
 	return ByStartTime(born, servers)
 }
 

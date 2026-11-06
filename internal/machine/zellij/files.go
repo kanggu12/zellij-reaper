@@ -430,3 +430,14 @@ func SessionDirs(infoDir string) []string {
 	sort.Strings(names)
 	return names
 }
+
+// ErrRenameUnreachable is a rename refused on Windows. zellij there talks
+// through a named pipe called after the session's first name, and a rename
+// moves only the file that lists the session: measured on 0.45.1, every
+// command for the new name then waits forever and the old name is refused, so
+// the session can no longer be attached to, listed for clients or deleted.
+var ErrRenameUnreachable = errors.New("zellij on Windows cannot reach a session after a rename: its pipe keeps the first name")
+
+// RenameReachable reports whether zellij can still reach a session after a
+// rename on this system.
+func RenameReachable() bool { return GOOS != "windows" }

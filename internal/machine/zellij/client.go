@@ -247,6 +247,9 @@ func (c *CLI) waitDeleted(ctx context.Context, name string) error {
 // reach it. 0.43 still says "already exists", which comes back as ErrNameTaken
 // too, and so does a name zellij remembers without listing it.
 func (c *CLI) Rename(ctx context.Context, name, to string) error {
+	if !RenameReachable() {
+		return ErrRenameUnreachable
+	}
 	taken, err := c.lists(ctx, to)
 	if err != nil {
 		return fmt.Errorf("zellij rename-session %s: %w", name, err)

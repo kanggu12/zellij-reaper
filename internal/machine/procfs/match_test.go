@@ -20,12 +20,15 @@ func TestByStartTimePicksOnlyAClearMatch(t *testing.T) {
 		// As measured on macOS: the socket 3 ms after its server, the next
 		// session a quarter of a second later.
 		{"measured", ms(3), two, 1},
+		// Sessions with a command pane, started by a script: 66 ms apart.
+		{"close neighbours", ms(1), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(66)}}, 1},
 		{"the second one", ms(255), two, 2},
 		{"alone", ms(400), two[:1], 1},
 		// Too far from any server.
 		{"too late", ms(1500), two[:1], 0},
 		// Two servers about as near: none.
 		{"between", ms(125), two, 0},
+		{"nearer, not clearly", ms(40), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(400)}}, 0},
 		{"started together", ms(5), []procfs.Server{{PID: 1, Started: ms(0)}, {PID: 2, Started: ms(20)}}, 0},
 		// A server whose start is unknown is no candidate.
 		{"unknown start", ms(3), []procfs.Server{{PID: 1}, {PID: 2, Started: ms(0)}}, 2},
