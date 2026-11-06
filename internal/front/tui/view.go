@@ -148,6 +148,10 @@ func (m model) header() string {
 	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
 		left = name
 	}
+	// Still too wide: the timer goes too, rather than be cut mid-word.
+	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
+		r = right[0]
+	}
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(r)
 	if gap < 1 {
 		return name + " " + r
@@ -237,8 +241,10 @@ func (m model) footer() string {
 }
 
 // dropOrder is which keys leave the footer first when it does not fit; the
-// help screen lists them all.
-var dropOrder = []string{"r", "p", "⏎", "f", "↑↓", "/", "l", "d"}
+// help screen lists them all. The arrows go first, since everyone tries them,
+// then running a pass by hand, which the timer does anyway; the keys that act
+// on the selected session stay longest.
+var dropOrder = []string{"↑↓", "f", "/", "l", "⏎", "r", "p", "d"}
 
 // keyBar joins keycaps to fit the width, dropping the least needed first.
 func (m model) keyBar(t ui.Theme, keys [][2]string) string {

@@ -146,6 +146,18 @@ func layout(rows []Row, width int) columns {
 	}
 	// Two cells for the dot and its space, then the gaps between columns.
 	rest := width - 2 - c.state - c.idle - c.clients - 4*gap
+	// On a narrow screen the verdict matters more than the client count and
+	// the state, which the detail and the verdict both repeat: those columns
+	// go first, so the verdict keeps room to be read.
+	need := min(nameW, 12) + min(nextW, 16)
+	if rest < need {
+		rest += c.clients + gap
+		c.clients = 0
+	}
+	if rest < need {
+		rest += c.state + gap
+		c.state = 0
+	}
 	switch {
 	case nameW+nextW <= rest:
 		c.name, c.next = nameW, rest-nameW
@@ -182,11 +194,20 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 	c := layout(rows, width)
 	pad := strings.Repeat(" ", gap)
 	head := Fg(t.Muted).Bold(true)
+	// cell is one column and the gap after it; a column layout dropped (width
+	// 0) leaves nothing, not even its gap.
+	cell := func(s lipgloss.Style, text string, w int, gapStyle lipgloss.Style) string {
+		if w == 0 {
+			return ""
+		}
+		return s.Render(Fit(text, w)) + gapStyle.Render(pad)
+	}
+	plain := lipgloss.NewStyle()
 	lines := []string{
-		"  " + head.Render(Fit(i18n.T("col.session"), c.name)) + pad +
-			head.Render(Fit(i18n.T("col.state"), c.state)) + pad +
-			head.Render(Fit(i18n.T("col.idle"), c.idle)) + pad +
-			head.Render(Fit(i18n.T("col.clients"), c.clients)) + pad +
+		"  " + cell(head, i18n.T("col.session"), c.name, plain) +
+			cell(head, i18n.T("col.state"), c.state, plain) +
+			cell(head, i18n.T("col.idle"), c.idle, plain) +
+			cell(head, i18n.T("col.clients"), c.clients, plain) +
 			head.Render(Fit(last, c.next)),
 	}
 	for i, r := range rows {
@@ -205,10 +226,10 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 			name = name.Bold(true)
 		}
 		line := bg.Foreground(t.Cat[r.Cat]).Render("●") + bg.Render(" ") +
-			name.Render(Fit(r.Name, c.name)) + bg.Render(pad) +
-			muted.Render(Fit(state, c.state)) + bg.Render(pad) +
-			ink.Render(Fit(r.Idle, c.idle)) + bg.Render(pad) +
-			ink.Render(Fit(r.Clients, c.clients)) + bg.Render(pad) +
+			cell(name, r.Name, c.name, bg) +
+			cell(muted, state, c.state, bg) +
+			cell(ink, r.Idle, c.idle, bg) +
+			cell(ink, r.Clients, c.clients, bg) +
 			t.nextCell(bg, r, c.next)
 		// Fill to the full width so the selection reads as one bar.
 		if w := lipgloss.Width(line); w < width {
