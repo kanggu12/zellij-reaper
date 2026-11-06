@@ -408,8 +408,9 @@ as anywhere, with these differences:
   and `r` and `doctor` say why. Do not rename sessions by hand there either: a session renamed that way can no longer
   be attached to or deleted, and zellij-reaper keeps it. The prompt hook is of no use for the same reason.
 - **Idle time** counts from the first pass that found the session quiet: no client attached and every pane at a
-  prompt. A Windows console has no terminal file to read, and zellij rewrites its session files every minute. A
-  session therefore goes up to one `interval` after its wait, never before.
+  prompt. A Windows console has no terminal file to read, and zellij's session files do not change when a pane
+  prints, so they cannot tell a job that just ended. A session therefore goes up to one `interval` after its wait,
+  never before.
 - **The timer** is a scheduled task that runs while you are logged in, which is when your sessions run too.
 - **`resize`** does nothing: Windows has no `SIGWINCH`, and a console passes a new size on by itself.
 

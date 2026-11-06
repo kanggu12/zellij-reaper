@@ -17,7 +17,8 @@ the project uses [semantic versioning](https://semver.org/).
   the new name waits forever (measured on 0.45.1). zellij-reaper renames nothing there, and `r` in the dashboard and
   `doctor` say why; a session renamed by hand is kept without asking zellij.
 - Where no terminal can be read, as on Windows, a running session is idle from the first pass that found it quiet,
-  kept in the state directory: zellij rewrites its session files every minute, so they cannot tell.
+  kept in the state directory: zellij's session files do not change when a pane prints, so a job that just ended
+  would not count.
 - The platforms workflow runs the unit tests and real sessions on macOS and Windows runners; installers.yml installs
   each release with `install.sh` and `install.ps1`.
 

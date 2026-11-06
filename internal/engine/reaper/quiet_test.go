@@ -13,8 +13,8 @@ import (
 
 func TestAnIdleSessionWithoutATerminalGoesAfterItsWait(t *testing.T) {
 	// idle-old's pane has no terminal to read, as every pane on Windows, and
-	// zellij rewrites its session files every minute: they cannot say how
-	// long it has been idle.
+	// its session files were written just now, as zellij does when a client
+	// leaves: they cannot say how long it has been idle.
 	w := newWorld(t)
 	if err := os.Remove(filepath.Join(w.env.Sources.ProcRoot, "101", "fd", "0")); err != nil {
 		t.Fatal(err)

@@ -247,8 +247,9 @@ func (v snapshot) running(s *Session) {
 		}
 	}
 	// Last activity: the newest read or write on any pane's terminal. The
-	// session files are rewritten every minute as a heartbeat, so they are
-	// only a fallback when no terminal can be read.
+	// session files change with what zellij keeps track of (clients, tabs,
+	// titles), not with what a pane prints, so they are only a fallback when
+	// no terminal can be read.
 	for _, p := range s.Panes {
 		if p.LastIO.After(s.Facts.LastActive) {
 			s.Facts.LastActive, s.Facts.ActivitySource = p.LastIO, "pane terminals"

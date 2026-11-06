@@ -16,12 +16,16 @@ import (
 
 // Idle time comes from a session's terminals. Where none can be read, which is
 // every session on Windows (a console has no terminal file), zellij's session
-// files cannot stand in for them: zellij rewrites them every minute, so a
-// running session would never look idle for longer. Such a session is idle
-// from the first pass that found it quiet instead: no client attached and every
-// pane at a prompt. Passes run once an interval, so this counts from up to one
-// interval after the session really went quiet: a session goes late, never
-// early. A pass writes these times down; plan and the dashboard only read them.
+// files cannot stand in for them: they change with what zellij keeps track of
+// (clients, tabs, titles), not with what a pane prints. A detached session
+// whose job ran for hours and just ended would look idle since it was
+// detached, and go at once, where on Linux its terminal says the job just
+// printed. Such a session is idle from the first pass that found it quiet
+// instead: no client attached and every pane at a prompt, so a job that a pass
+// saw running starts the wait over. Passes run once an interval, so this
+// counts from up to one interval after the session really went quiet: a
+// session goes late, never early. A pass writes these times down; plan and the
+// dashboard only read them.
 
 // sourceQuiet is the activity source of a time taken from the book.
 const sourceQuiet = "quiet"
