@@ -5,6 +5,8 @@ the project uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-07
+
 ### Added
 
 - A names timer: `zellij-reaper-names.timer` runs `run --names-only` every `rename_interval` (5 minutes, `"0"` turns
@@ -273,7 +275,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.4.0
 [0.3.5]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.5
 [0.3.4]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.3.4
