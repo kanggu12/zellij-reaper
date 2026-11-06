@@ -238,7 +238,12 @@ func TestAutoRenameStamp(t *testing.T) {
 
 func TestPathsOnEachSystem(t *testing.T) {
 	defer func(g string) { GOOS = g }(GOOS)
-	env := MapEnv{"HOME": "/home/u", "APPDATA": "/w/Roaming", "LOCALAPPDATA": "/w/Local"}
+	// Absolute on this system, which Windows paths need a drive for.
+	root := ""
+	if runtime.GOOS == "windows" {
+		root = "C:"
+	}
+	env := MapEnv{"HOME": root + "/home/u", "APPDATA": root + "/w/Roaming", "LOCALAPPDATA": root + "/w/Local"}
 	for _, c := range []struct{ goos, config, state, cache string }{
 		{"linux", "/home/u/.config/zellij-reaper", "/home/u/.local/state/zellij-reaper", "/home/u/.cache/zellij"},
 		{"darwin", "/home/u/.config/zellij-reaper", "/home/u/.local/state/zellij-reaper", "/home/u/Library/Caches/org.Zellij-Contributors.Zellij"},
@@ -247,7 +252,7 @@ func TestPathsOnEachSystem(t *testing.T) {
 		GOOS = c.goos
 		got := []string{ConfigDir(env), StateDir(env), ZellijCacheDir(env)}
 		for i, want := range []string{c.config, c.state, c.cache} {
-			if got[i] != filepath.FromSlash(want) {
+			if got[i] != filepath.FromSlash(root+want) {
 				t.Errorf("%s: %q, want %q", c.goos, got[i], want)
 			}
 		}

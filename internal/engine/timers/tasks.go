@@ -43,7 +43,9 @@ func (w Tasks) Persists() (on, known bool) { return false, false }
 // no quoting on the way can change it, and its output comes back as UTF-8,
 // so a path with non-ASCII letters survives.
 func (w Tasks) ps(script string) (string, error) {
-	full := "$ErrorActionPreference = 'Stop'\n[Console]::OutputEncoding = [Text.Encoding]::UTF8\n" + script
+	// Progress records would come out as CLIXML on stderr, which the runner
+	// mixes into the answer.
+	full := "$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n[Console]::OutputEncoding = [Text.Encoding]::UTF8\n" + script
 	u := utf16.Encode([]rune(full))
 	b := make([]byte, 2*len(u))
 	for i, c := range u {
@@ -148,12 +150,17 @@ $when = { param($d) if ($d -and $d.Year -gt 2000) { $d.ToUniversalTime().ToStrin
 	if err != nil {
 		return st
 	}
-	// Anything PowerShell printed before the object is not part of it.
-	if i := strings.LastIndex(out, "{"); i > 0 {
-		out = out[i:]
-	}
+	// The object is one line of its own; anything else PowerShell printed
+	// around it is not part of it.
 	var ti taskInfo
-	if json.Unmarshal([]byte(out), &ti) != nil {
+	found := false
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); strings.HasPrefix(line, "{") && json.Unmarshal([]byte(line), &ti) == nil {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return st
 	}
 	st.Installed = true

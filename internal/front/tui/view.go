@@ -169,6 +169,9 @@ func (m model) timerWords() string {
 		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.none"))
 	case !st.Enabled || !st.Active:
 		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.off"))
+	// launchd does not say when it runs a job next: its interval does.
+	case st.Next.IsZero() && st.Interval > 0:
+		return ui.Fg(t.Muted).Render(i18n.T("header.every", duration.Format(st.Interval)))
 	case st.Next.IsZero():
 		return ui.Fg(t.Muted).Render(i18n.T("header.next", "?"))
 	}

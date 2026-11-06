@@ -13,6 +13,12 @@ step() { printf '\n==== %s\n' "$*"; }
 tmo() { local s=$1; shift; perl -e 'alarm shift; exec @ARGV or die "$!"' "$s" "$@"; }
 show() { printf '$ %s\n' "$*"; "$@" 2>&1 | head -60; printf '(exit %s)\n' "${PIPESTATUS[0]}"; }
 
+# Git Bash hands zellij its own SHELL, a Unix path a Windows zellij cannot
+# start; without it zellij picks the system's shell.
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*) unset SHELL ;;
+esac
+
 step "versions"
 show "$Z" --version
 show "$R" version
@@ -54,12 +60,18 @@ show "$R" tui --snapshot 120x30
 step "list-clients"
 show tmo 20 "$Z" --session idle-one action list-clients
 
+if [ "$(uname -s)" = Darwin ]; then
+  step "socket files and servers by time"
+  show go run ./test/native/probe
+fi
+
 step "rename idle-one to renamed-one, then reach it"
 show tmo 20 "$Z" --session idle-one action rename-session renamed-one
 sleep 2
 show "$Z" list-sessions --no-formatting
 show tmo 20 "$Z" --session renamed-one action list-clients
 show "$R" plan --json
+if [ "$(uname -s)" = Darwin ]; then show go run ./test/native/probe; fi
 
 step "install the timers"
 show "$R" install

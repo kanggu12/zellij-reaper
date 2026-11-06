@@ -94,7 +94,7 @@ func fromKinfo(kp *unix.KinfoProc, ttys map[int32]string) *Proc {
 		PID:  int(kp.Proc.P_pid),
 		PPID: int(kp.Eproc.Ppid),
 		UID:  int(kp.Eproc.Pcred.P_ruid),
-		Comm: string(bytes.TrimRight(kp.Proc.P_comm[:], "\x00")),
+		Comm: cString(kp.Proc.P_comm[:]),
 		// The start time, kept for the starting-server check.
 		started: time.Unix(kp.Proc.P_starttime.Sec, int64(kp.Proc.P_starttime.Usec)*1000),
 	}
@@ -206,7 +206,7 @@ func youngestNative(uid int) (time.Duration, bool) {
 	found := false
 	for i := range kps {
 		kp := &kps[i]
-		if !strings.Contains(string(bytes.TrimRight(kp.Proc.P_comm[:], "\x00")), "zellij") {
+		if !strings.Contains(cString(kp.Proc.P_comm[:]), "zellij") {
 			continue
 		}
 		age := now.Sub(time.Unix(kp.Proc.P_starttime.Sec, int64(kp.Proc.P_starttime.Usec)*1000))
@@ -285,3 +285,12 @@ func fileOwner(path string, servers []Server) (Server, bool) {
 
 // nativeRoot is the directory a table reads from; this system has no /proc.
 func nativeRoot(root string) string { return root }
+
+// cString is a C string in a fixed buffer: up to its first NUL. The kernel
+// does not clear what comes after it.
+func cString(b []byte) string {
+	if i := bytes.IndexByte(b, 0); i >= 0 {
+		b = b[:i]
+	}
+	return string(b)
+}

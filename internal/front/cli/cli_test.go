@@ -184,6 +184,7 @@ func newRecoverMachine(t *testing.T) *recoverMachine {
 }
 
 func TestRecoverWaitsForThePassLock(t *testing.T) {
+	testutil.SkipOnWindows(t)
 	isolate(t)
 	lockPath := filepath.Join(t.TempDir(), "lock")
 	held, err := lock.Acquire(lockPath, 0)

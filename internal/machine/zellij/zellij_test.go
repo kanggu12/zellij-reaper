@@ -185,14 +185,14 @@ func TestSocketDir(t *testing.T) {
 	GOOS = "linux"
 	env := map[string]string{}
 	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
-	if got := SocketDir(lookup, 1000, "0.45.1"); !strings.HasSuffix(got, "zellij-1000/contract_version_1") {
+	if got := SocketDir(lookup, 1000, "0.45.1"); !strings.HasSuffix(got, filepath.Join("zellij-1000", "contract_version_1")) {
 		t.Errorf("no runtime dir: %q", got)
 	}
 	env["XDG_RUNTIME_DIR"] = "/run/user/1000"
-	if got := SocketDir(lookup, 1000, "0.45.1"); got != "/run/user/1000/zellij/contract_version_1" {
+	if got := SocketDir(lookup, 1000, "0.45.1"); got != filepath.Join("/run/user/1000", "zellij", "contract_version_1") {
 		t.Errorf("runtime dir: %q", got)
 	}
-	if got := SocketDir(lookup, 1000, "0.43.1"); got != "/run/user/1000/zellij/0.43.1" {
+	if got := SocketDir(lookup, 1000, "0.43.1"); got != filepath.Join("/run/user/1000", "zellij", "0.43.1") {
 		t.Errorf("0.43: %q", got)
 	}
 	env["ZELLIJ_SOCKET_DIR"] = "/sock"
