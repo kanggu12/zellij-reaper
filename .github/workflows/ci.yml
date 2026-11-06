@@ -27,6 +27,12 @@ jobs:
       # is built from now.
       - name: third-party notices are current
         run: make notices && git diff --exit-code docs/THIRD_PARTY_NOTICES.md
+      # GitHub's image proxy gives up on shields.io's live release badge, so
+      # the README names the release itself, which a release must keep up.
+      - name: the README's release badge names the newest release
+        run: |
+          v=$(awk '/^## \[[0-9]/ { gsub(/[][]/, "", $2); print $2; exit }' CHANGELOG.md)
+          grep -q "img.shields.io/badge/release-v$v-" README.md || { echo "README.md's release badge does not say v$v"; exit 1; }
 
   integration:
     name: zellij ${{ matrix.zellij }}

@@ -107,7 +107,7 @@ The color of a row says what will happen to it:
 |:---:|:---|
 | `↑` `↓`, `k` `j` | select a session |
 | `g` `G`, `PgUp` `PgDn` | first, last, a page up or down |
-| `⏎` | attach to it; inside zellij, switch this client to it |
+| `⏎` | attach to it; inside zellij, switch this client to it (zellij 0.44 and later: 0.43 has no command for that) |
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
 | `r` | rename it; the field starts with [the name its panes point to](setup.md#naming-sessions-after-what-they-show), and `⇥` swaps it with the name the session has. A name that is taken is refused, and an exited session cannot be renamed |

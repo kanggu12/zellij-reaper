@@ -12,9 +12,11 @@
 
 <p align="center">
   <a href="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release" src="https://img.shields.io/github/v/release/kanggu12/zellij-reaper?sort=semver"></a>
+  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.3.5" src="https://img.shields.io/badge/release-v0.3.5-ea7233.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2a78d6.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="https://img.shields.io/badge/demo-ghcr.io-2a78d6.svg"></a>
+  <img alt="Runs on Linux and WSL 2" src="https://img.shields.io/badge/runs%20on-Linux%20%7C%20WSL%202-555.svg">
+  <img alt="zellij 0.43 to 0.45" src="https://img.shields.io/badge/zellij-0.43%20to%200.45-555.svg">
 </p>
 
 <p align="center">
@@ -35,6 +37,19 @@ zellij keeps every session until you delete it: the ones you detached from last 
 for resurrection. zellij-reaper runs from a systemd user timer: once an hour it makes a pass over every session and
 deletes the ones nobody uses. Every check has to pass before a session goes; when a fact is unclear, the session stays.
 
+## Why zellij-reaper
+
+- **The session you are in stays.** A client in any terminal or a browser keeps its session, and zellij is asked again
+  right before each delete.
+- **Running jobs stay.** A build, `npm run dev`, `tail -f`, an editor or a job in the background keeps its session.
+  Only a shell waiting at its prompt counts as idle.
+- **Coding agents stay, even waiting at their prompt.** Claude Code, Codex, Gemini CLI, aider and opencode keep their
+  session while they run.
+- **Names that say what a session is.** With `auto_rename = true`, `brave-peach` becomes `fix-the-login-bug`.
+- **Its reasons in plain view.** The dashboard shows every check with its evidence, and the log keeps one line per
+  session, in words that stay the same across releases.
+- **Light.** It runs as you, with no root and no network, and a look at ten sessions took 26 ms in the test container.
+
 ## What goes and what stays
 
 <picture>
@@ -42,12 +57,8 @@ deletes the ones nobody uses. Every check has to pass before a session goes; whe
   <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows: protected: claude, attached, running npm run dev, reap in 9m. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="docs/assets/goes-light.svg">
 </picture>
 
-The waits are yours to set: 12 hours idle (`idle_after`) and 3 days exited (`exited_after`) by default.
-
-- **Attached** means any client, in any terminal or a browser.
-- **Running** means anything but a shell at its prompt: a build, `npm run dev`, `tail -f`, an editor, a background job.
-- **Protected** means a name you protect, or a coding agent at work, even one waiting at its prompt: Claude Code,
-  Codex, Gemini CLI, aider, opencode.
+The waits are yours to set: 12 hours idle (`idle_after`) and 3 days exited (`exited_after`) by default. Idle time
+counts from the last input or output in any of the session's panes, so coming back to a session starts its wait over:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/when-dark.svg">
@@ -56,19 +67,6 @@ The waits are yours to set: 12 hours idle (`idle_after`) and 3 days exited (`exi
 
 To reap a session is to delete it (`zellij delete-session NAME --force`): it is gone with its scrollback and cannot be
 resurrected. [How it decides](docs/how-it-decides.md) lists every check in order.
-
-## Why zellij-reaper
-
-- **Who is attached.** It reads the kernel's socket table, which agrees with `zellij action list-clients` on every
-  tested zellij, and asks zellij again right before each delete.
-- **What is running.** A pane counts as idle only when its process is a shell at its prompt with no child. A command
-  pane, `zellij run` and a job in the background all count as running.
-- **Renamed sessions.** zellij keeps a server's first name after a rename, so scripts that match servers by name lose
-  them. The socket file's inode leads to the right server.
-- **Why it decided.** The dashboard shows every check with its evidence, and each decision goes to a log whose words
-  stay the same across releases.
-- **A light touch.** A look at ten sessions took 26 ms in the test container and starts no process per session. No
-  root, no network.
 
 ## Install
 
@@ -79,8 +77,8 @@ curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/in
 ```
 
 The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin` and starts the
-timer, with lingering so it also runs after you log out. The first pass runs ten minutes later. Look before it does.
-The sample below comes from a machine set to `idle_after = "1h"`:
+timer, with lingering so it runs after you log out too. The first pass comes ten minutes later, so there is time to
+look first. Here on a machine set to `idle_after = "1h"`:
 
 ```
 $ zellij-reaper plan
@@ -90,17 +88,12 @@ zellij-reaper · zellij 0.45.1 · reaping on · reaps after 1h idle, 3d exited �
 ● old-experiment  exited   5d    –        reap
 ● scratch         running  3h    0        reap
 ● release-v2      running  50m   0        reap in 9m
-● docs-review     running  25m   0        reap in 34m
-● k8s-debug       exited   1d    –        reap in 1d 23h
 ● notes           running  1s    1        attached
 ● api-server      running  3h    0        running npm run dev
-● db-shell        running  3h    0        running psql app_dev
-● logs            running  3h    0        running tail -f app.log
-● monitoring      running  3h    0        running watch df -h
 ● agent-refactor  running  3h    0        protected: claude
 ● dotfiles        running  3h    0        protected (list)
 
-  12 sessions · 2 to reap at the next pass · run `zellij-reaper` for the dashboard
+  7 sessions · 2 to reap at the next pass · run `zellij-reaper` for the dashboard
 ```
 
 `zellij-reaper protect NAME` keeps a session out of every pass. To start with passes that only log, run `zellij-reaper
@@ -133,7 +126,8 @@ they show, so the list of sessions reads like a list of what you were doing:
 </picture>
 
 A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. An attached session is never renamed.
+session shows changes. That includes the session you are working in; `auto_rename_attached = false` waits until nobody
+is attached.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
 On a running session, `r`, Tab and Enter keep the name it has, such as one you typed in zellij's own words
@@ -197,20 +191,12 @@ $ zellij-reaper logs
 11-05 11:49:05  === reaper start (dry_run=false idle_after=1h exited_after=3d) ===
 11-05 11:49:05  old-experiment [EXITED] panes={Pane #1|sleep 5000} :: REAP EXITED, 5d since last activity
 11-05 11:49:05    -> deleted: old-experiment
-11-05 11:49:05  k8s-debug [EXITED] panes={Pane #1|sleep 5000} :: SKIP EXITED 1d ago, reaped after 3d
 11-05 11:49:05  api-server [RUNNING] panes={Pane #1|npm run dev} :: SKIP running in a pane: npm run dev
 11-05 11:49:05  notes [RUNNING] panes={Pane #1} :: SKIP client attached (1 client(s) attached)
-11-05 11:49:05  agent-refactor [RUNNING] panes={Pane #1|claude} :: SKIP protected command running (claude)
-11-05 11:49:05  db-shell [RUNNING] panes={Pane #1|psql app_dev} :: SKIP running in a pane: psql app_dev
-11-05 11:49:05  monitoring [RUNNING] panes={Pane #1|watch df -h} :: SKIP running in a pane: watch df -h
 11-05 11:49:05  quiet-mouse [RUNNING] panes={Pane #1|tail -f app.log} :: SKIP running in a pane: tail -f app.log
 11-05 11:49:05    -> renamed: quiet-mouse → tail-app.log
-11-05 11:49:05  scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 3h since last activity
-11-05 11:49:05    -> deleted: scratch
-11-05 11:49:05  docs-review [RUNNING] panes={Pane #1} :: SKIP IDLE for 25m, reaped after 1h
 11-05 11:49:05  release-v2 [RUNNING] panes={Pane #1} :: SKIP IDLE for 50m, reaped after 1h
-11-05 11:49:05  dotfiles [RUNNING] panes={Pane #1} :: SKIP protected by protected list
-11-05 11:49:05  === reaper end (2 reaped, 10 kept, 1 renamed) ===
+11-05 11:49:05  === reaper end (1 reaped, 4 kept, 1 renamed) ===
 ```
 
 It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `log.max_bytes` (1 MiB).

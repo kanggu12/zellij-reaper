@@ -14,6 +14,12 @@ the project uses [semantic versioning](https://semver.org/).
   troubleshooting guide say how to fix such a pane.
 - `config show` lines its values up after the longest key.
 
+### Fixed
+
+- Inside zellij, Enter in the dashboard moves the client to the selected session after the session the dashboard runs
+  in was renamed. `zellij action switch-session` went by the old name the pane still had and waited for a session by
+  that name.
+
 ## [0.3.5] - 2026-11-06
 
 ### Added

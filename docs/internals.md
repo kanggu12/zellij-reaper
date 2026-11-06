@@ -280,7 +280,9 @@ failure leaves its evidence in the test output.
 release build on every push to `main` and every pull request. A new zellij release joins the matrix, and
 `default_versions` in `test/integration/run.sh`, once it passes.
 
-**A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`. `.github/workflows/release.yml` runs
+**A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`, and the README's release badge naming
+it: GitHub's image proxy gives up on shields.io's live release badge after about four seconds, which that badge often
+takes, so CI checks that the badge names the newest section. `.github/workflows/release.yml` runs
 all of CI on the tagged commit. Then GoReleaser builds the archives, `checksums.txt` and the packages from
 `.github/goreleaser.yaml` and attaches `scripts/install.sh`, with the changelog section as the release notes, and the
 demo image goes to ghcr.io for amd64 and arm64.
