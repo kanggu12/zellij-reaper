@@ -281,8 +281,9 @@ release build on every push to `main` and every pull request. A new zellij relea
 `default_versions` in `test/integration/run.sh`, once it passes.
 
 **A release** is a `vX.Y.Z` tag, a `## [X.Y.Z]` section in `CHANGELOG.md` and a README release badge naming it. The
-badge is static because shields.io's live one often takes longer than the four seconds GitHub's image proxy waits; CI
-checks that it names the newest section. `.github/workflows/release.yml` runs all of CI on the tagged commit. Then
+README's badges are files that `make badges` writes, since GitHub shows an image from another site through a proxy that
+gives up after about four seconds, which shields.io often takes; CI checks that the release badge names the newest
+section. `.github/workflows/release.yml` runs all of CI on the tagged commit. Then
 GoReleaser builds the archives, `checksums.txt` and the packages from `.github/goreleaser.yaml` and attaches
 `scripts/install.sh`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
 arm64.

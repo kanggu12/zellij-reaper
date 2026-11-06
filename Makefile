@@ -4,7 +4,7 @@ BIN      := zellij-reaper
 PREFIX   ?= $(HOME)/.local
 STATICCHECK := honnef.co/go/tools/cmd/staticcheck@v0.8.2
 
-.PHONY: build install check fmt vet lint test integration demo notices snapshot clean
+.PHONY: build install check fmt vet lint test integration demo notices badges snapshot clean
 
 ## build: the binary, in dist/
 build:
@@ -44,6 +44,10 @@ demo:
 ## notices: docs/THIRD_PARTY_NOTICES.md from what the binary is built from
 notices:
 	scripts/third-party-notices.sh
+
+## badges: the README's badges in docs/assets/badges, for a release or a new zellij
+badges:
+	scripts/badges.sh
 
 ## snapshot: a local release build in dist/, as the release workflow makes it
 snapshot:
