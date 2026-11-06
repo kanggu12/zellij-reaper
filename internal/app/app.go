@@ -66,6 +66,7 @@ func Load(configPath string) (*App, error) {
 		Sources:   a.Sources(),
 		Log:       logfile.New(cfg.LogPath, cfg.LogMaxBytes),
 		LockPath:  config.LockFile(env),
+		QuietPath: config.QuietFile(env),
 		Now:       time.Now,
 		Home:      homeDir(),
 		Host:      hostName(),

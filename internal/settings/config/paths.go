@@ -90,6 +90,10 @@ func StateDir(env Env) string {
 	return filepath.Join(xdg(env, "XDG_STATE_HOME", ".local/state"), "zellij-reaper")
 }
 
+// QuietFile is when a pass first found each session quiet, for sessions whose
+// terminals cannot be read, such as every session on Windows.
+func QuietFile(env Env) string { return filepath.Join(StateDir(env), "quiet") }
+
 // LockFile serializes passes: the timer's, a manual `run` and the TUI's actions.
 func LockFile(env Env) string { return filepath.Join(StateDir(env), "lock") }
 

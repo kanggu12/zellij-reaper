@@ -43,7 +43,10 @@ type Env struct {
 	Sources  inspect.Sources
 	Log      *logfile.Log
 	LockPath string
-	Now      func() time.Time
+	// QuietPath is the book of when a pass first found a session quiet, for
+	// sessions whose terminals cannot be read (see quiet.go).
+	QuietPath string
+	Now       func() time.Time
 	// Home and Host are this user's home and this machine's name, which a
 	// session's name has no use for repeating.
 	Home, Host string
@@ -100,6 +103,8 @@ type Outcome struct {
 type Report struct {
 	// Started is when it began.
 	Started time.Time
+	// quiet is the book this survey read and updated; a pass saves it.
+	quiet *quietBook
 	// DryRun and Force are the effective mode.
 	DryRun, Force bool
 	// Thresholds are the waits that applied.
@@ -231,6 +236,8 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 		return r, gatherError{err}
 	}
 	now := e.Now()
+	r.quiet = loadQuiet(e.QuietPath)
+	r.quiet.apply(sessions, now)
 	for _, s := range sessions {
 		r.Outcomes = append(r.Outcomes, Outcome{Session: s, Verdict: policy.Decide(s.Facts, r.Thresholds, now)})
 	}

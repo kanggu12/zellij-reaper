@@ -106,6 +106,7 @@ var en = map[string]string{
 	"detail.none":           "No session selected.",
 	"source.pane terminals": "from pane terminals",
 	"source.session files":  "from session files",
+	"source.quiet":          "since a pass first found it quiet",
 	"match.socket file":     "found by its socket file",
 	"match.command line":    "found by its command line",
 
@@ -406,6 +407,7 @@ var ko = map[string]string{
 	"detail.none":           "선택한 세션 없음",
 	"source.pane terminals": "창 터미널 기준",
 	"source.session files":  "세션 파일 기준",
+	"source.quiet":          "점검이 처음 조용하다고 본 때부터",
 	"match.socket file":     "소켓 파일로 찾음",
 	"match.command line":    "명령줄로 찾음",
 

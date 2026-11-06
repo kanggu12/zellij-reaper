@@ -59,6 +59,17 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if !dry {
 		e.forgetGone(taken)
 	}
+	// The book of quiet sessions is bookkeeping, like the log: a dry run
+	// keeps it too, or a session would never come due in one. A session this
+	// pass deleted leaves it.
+	for _, o := range r.Outcomes {
+		if o.Deleted {
+			r.quiet.forget(o.Session)
+		}
+	}
+	if err := r.quiet.save(); err != nil {
+		e.Log.Printf("could not write %s: %v", e.QuietPath, err)
+	}
 	reaped, kept, renamed := r.Counts()
 	e.Log.Printf("=== reaper end (%d reaped, %d kept, %d renamed) ===", reaped, kept, renamed)
 	return r, nil

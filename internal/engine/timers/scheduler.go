@@ -51,7 +51,7 @@ func purgeState(env config.Env, logPath string, r *Result) {
 	for _, p := range []string{config.ConfigFile(env), logPath, logPath + ".1", config.ProtectedFile(env),
 		protect.LockPath(config.ProtectedFile(env)), config.GivenFile(env), protect.LockPath(config.GivenFile(env)),
 		config.KeptFile(env), protect.LockPath(config.KeptFile(env)),
-		config.LockFile(env)} {
+		config.LockFile(env), config.QuietFile(env)} {
 		if err := os.Remove(p); err == nil {
 			r.Removed = append(r.Removed, p)
 		}

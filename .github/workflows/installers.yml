@@ -1,0 +1,65 @@
+name: installers
+
+# The installers as people run them, from a published release: install.sh on
+# Linux and macOS, install.ps1 on Windows. Each installs, checks the binary and
+# its timers with doctor, and uninstalls.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: release to install, like v0.6.0 (default the latest)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    name: install.sh on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: install
+        env:
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+          # A runner has no systemd user instance; the timers are checked
+          # where there is one (macOS here).
+          ZELLIJ_REAPER_NO_TIMER: ${{ runner.os == 'Linux' && '1' || '' }}
+        run: curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/install.sh" | sh
+      - name: check
+        run: |
+          ~/.local/bin/zellij-reaper version
+          if [ "$RUNNER_OS" = macOS ]; then
+            ~/.local/bin/zellij-reaper doctor | tee doctor.txt || true
+            grep -q 'launchd answers' doctor.txt
+            grep -q 'timer enabled' doctor.txt
+            ~/.local/bin/zellij-reaper uninstall --purge
+          fi
+
+  windows:
+    name: install.ps1 on windows-latest
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: install
+        shell: pwsh
+        env:
+          ZELLIJ_REAPER_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+        run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
+      - name: check
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
+          & $exe version
+          $doctor = & $exe doctor | Out-String
+          $doctor
+          if ($doctor -notmatch 'Task Scheduler answers' -or $doctor -notmatch 'timer enabled') { exit 1 }
+          if (-not (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -contains (Split-Path $exe))) { 'not on PATH'; exit 1 }
+          & $exe uninstall --purge
+          exit 0

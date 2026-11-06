@@ -134,6 +134,26 @@ show "$R" run --force
 show "$Z" list-sessions --no-formatting
 check "a session running a command stays" listed busy-one
 check "the idle session is reaped" gone idle-one
+
+step "an idle session waits out idle_after"
+# Without --force: the first pass finds it too fresh, one past the wait reaps
+# it. On Windows, where no terminal can be read, idle time counts from that
+# first pass, since zellij rewrites its session files every minute.
+tmo 30 "$Z" attach --create-background idle-two >/dev/null 2>&1
+sleep 3
+show "$R" run
+check "a fresh idle session stays" listed idle-two
+if $windows; then
+  info="$(cygpath "$LOCALAPPDATA")/Zellij/cache/contract_version_1/session_info"
+else
+  info="$HOME/Library/Caches/org.Zellij-Contributors.Zellij/contract_version_1/session_info"
+fi
+sleep 65
+# How old zellij's files for an idle session are after a minute: a heartbeat
+# keeps them young.
+show perl -e 'printf "idle-two session files: %ds old\n", time - (stat shift)[9]' "$info/idle-two/session-metadata.kdl"
+show "$R" run
+check "past idle_after it is reaped" gone idle-two
 show "$R" logs -n 30
 show "$R" tui --snapshot 120x30 --theme light
 
