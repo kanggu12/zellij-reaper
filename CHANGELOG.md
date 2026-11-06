@@ -1,7 +1,8 @@
 # Changelog
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
-the project uses [semantic versioning](https://semver.org/).
+versions follow [semantic versioning](https://semver.org/). Until 1.0, every release raises the last number, whether it
+adds features or fixes them: 0.6.0 is followed by 0.6.1, 0.6.2 and so on.
 
 ## [Unreleased]
 

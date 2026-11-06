@@ -75,6 +75,10 @@ Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen p
 for the inode matching, session files with chosen times. [Internals](../docs/internals.md#tests) lists what each level
 covers. A failing integration check prints the plan and the last pass in the log.
 
+A release is a `## [X.Y.Z] - date` section in `CHANGELOG.md` with its link at the bottom, `make badges`, a commit, and
+an annotated `vX.Y.Z` tag on it once CI is green. Until 1.0 every release raises the last number, features or fixes
+alike (0.6.1, 0.6.2); the middle one stays.
+
 ## Make a change
 
 ### A rule
