@@ -104,7 +104,7 @@ func runTUI() error {
 }
 
 func cmdTUI() *cobra.Command {
-	var snap, look, pick string
+	var snap, look, pick, keys string
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Open the dashboard",
@@ -122,14 +122,16 @@ func cmdTUI() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(cmd.OutOrStdout(), tui.Snapshot(a, w, h, look != "light", pick))
+			fmt.Fprint(cmd.OutOrStdout(), tui.Snapshot(a, w, h, look != "light", pick, keys))
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&snap, "snapshot", "", "print one frame of WIDTHxHEIGHT and exit")
 	cmd.Flags().StringVar(&look, "theme", "dark", "colors for --snapshot: dark or light")
 	cmd.Flags().StringVar(&pick, "select", "", "session to select in --snapshot")
+	cmd.Flags().StringVar(&keys, "keys", "", "keys to press before --snapshot prints, like \"r tab\"")
 	cmd.Flags().MarkHidden("select")
+	cmd.Flags().MarkHidden("keys")
 	cmd.Flags().MarkHidden("snapshot")
 	cmd.Flags().MarkHidden("theme")
 	return cmd

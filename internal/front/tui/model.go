@@ -329,22 +329,59 @@ func (m *model) move(delta int) {
 
 // Snapshot renders one frame of the dashboard at w x h after a first load,
 // for the screenshots in the documentation. dark picks the color theme;
-// selected, when not empty, is the session to select.
-func Snapshot(a *app.App, w, h int, dark bool, selected string) string {
-	return snapshot(NewBackend(a), w, h, dark, selected)
+// selected, when not empty, is the session to select; keys, separated by
+// spaces ("down", "enter", "tab", "esc", or one character), are pressed after
+// that. A key only changes what the screen shows: what it would start (an
+// attach, a pass, a delete) is not run.
+func Snapshot(a *app.App, w, h int, dark bool, selected, keys string) string {
+	m := snapshotModel(NewBackend(a), w, h, dark, selected)
+	for _, k := range strings.Fields(keys) {
+		next, _ := m.Update(snapshotKey(k))
+		m = next.(model)
+	}
+	return m.View().Content
 }
 
-// snapshot is Snapshot for any backend.
+// snapshotKey is the key event for a key's name in Snapshot's keys.
+func snapshotKey(k string) tea.KeyPressMsg {
+	switch k {
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "up":
+		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "space":
+		return tea.KeyPressMsg{Code: ' ', Text: " "}
+	}
+	r := []rune(k)[0]
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+// snapshot is Snapshot for any backend, without keys.
 func snapshot(b Backend, w, h int, dark bool, selected ...string) string {
+	pick := ""
+	if len(selected) > 0 {
+		pick = selected[0]
+	}
+	return snapshotModel(b, w, h, dark, pick).View().Content
+}
+
+// snapshotModel is the dashboard after its first load, with a session selected.
+func snapshotModel(b Backend, w, h int, dark bool, selected string) model {
 	m := newModel(context.Background(), b)
 	m.width, m.height, m.th = w, h, ui.NewTheme(dark)
 	r, err := b.Plan(m.ctx)
 	m.report, m.err, m.loaded, m.now = r, err, true, time.Now()
 	m.timer, m.timerKnown, m.version = b.Timer(), true, b.ZellijVersion(m.ctx)
 	m.logLines, _ = b.LogLines(2000)
-	if len(selected) > 0 && selected[0] != "" {
-		m.selName = selected[0]
+	if selected != "" {
+		m.selName = selected
 	}
 	m.reselect()
-	return m.View().Content
+	return m
 }

@@ -10,9 +10,9 @@ INFO=~/.cache/zellij/contract_version_1/session_info
 mkdir -p ~/.config/zellij ~/.config/zellij-reaper ~/.config/systemd/user /srv
 : >/srv/app.log
 printf 'serialization_interval 1\nshow_startup_tips false\nshow_release_notes false\n' >~/.config/zellij/config.kdl
-printf 'idle_after = "1h"\nexited_after = "3d"\nauto_rename = false\n' >~/.config/zellij-reaper/config.toml
+printf 'idle_after = "1h"\nexited_after = "3d"\nauto_rename = true\n' >~/.config/zellij-reaper/config.toml
 # Stand-ins for programs people leave running.
-for p in npm claude psql; do cp /sleeper /usr/local/sbin/$p; done
+for p in npm claude psql pytest; do cp /sleeper /usr/local/sbin/$p; done
 # A stand-in for systemd, so the dashboard has a timer to show: it reports one
 # that last fired 18 minutes ago. Passes still run only when you start them.
 cat >/usr/local/sbin/systemctl <<'SH'
@@ -86,9 +86,14 @@ mk scratch
 mk docs-review
 mk release-v2
 mk dotfiles && zellij-reaper protect dotfiles >/dev/null
+# A session zellij named itself, showing what it is about: the list says the
+# name the next pass gives it.
+printf 'layout {\n    pane name="Fix the login bug" command="pytest" {\n        args "-x"\n    }\n}\n' >/tmp/login.kdl
+timeout 15 $Z --layout /tmp/login.kdl attach --create-background brave-peach >/dev/null 2>&1
+pane_wait brave-peach
 exited old-experiment '-5 days'
 exited k8s-debug '-1 day'
-for s in api-server agent-refactor db-shell monitoring logs scratch dotfiles; do age "$s" '-3 hours'; done
+for s in api-server agent-refactor db-shell monitoring logs scratch dotfiles brave-peach; do age "$s" '-3 hours'; done
 age docs-review '-25 min'
 age release-v2 '-50 min'
 # A client attached to notes, as a terminal left open on it would be. It
