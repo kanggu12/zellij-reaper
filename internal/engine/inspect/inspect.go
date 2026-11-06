@@ -126,10 +126,27 @@ func (s Session) WorkDir() string {
 // Gather inspects every listed session with one snapshot of /proc and of the
 // kernel's socket table, so every session is judged against the same moment.
 func Gather(ctx context.Context, src Sources, rules Rules, listed []zellij.Listed) ([]Session, error) {
-	table, err := procfs.Read(src.ProcRoot)
+	table, err := ReadProcesses(src)
+	if err != nil {
+		return nil, err
+	}
+	return GatherFrom(ctx, src, rules, listed, table)
+}
+
+// ReadProcesses takes the snapshot of /proc a survey judges by.
+func ReadProcesses(src Sources) (*procfs.Table, error) {
+	table, err := procfs.ReadSessions(src.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", src.ProcRoot, err)
 	}
+	return table, nil
+}
+
+// GatherFrom is Gather with the snapshot of /proc already taken. The kernel's
+// socket table is still read here, after zellij listed the sessions: listing
+// connects to every session's socket, and a table read meanwhile would count
+// those connections as clients.
+func GatherFrom(ctx context.Context, src Sources, rules Rules, listed []zellij.Listed, table *procfs.Table) ([]Session, error) {
 	servers := table.Servers(src.UID)
 	// sock_diag can fail on kernels without unix_diag: fall back to matching
 	// servers by command line, which works for sessions never renamed.

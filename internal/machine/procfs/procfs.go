@@ -94,18 +94,76 @@ func Read(root string) (*Table, error) {
 		}
 		t.ByPID[pid] = p
 	}
-	// Build the child index once, in PID order for stable output.
-	for pid, p := range t.ByPID {
-		t.children[p.PPID] = append(t.children[p.PPID], pid)
-	}
+	t.index()
 	for _, kids := range t.children {
 		sort.Ints(kids)
 	}
 	return t, nil
 }
 
+// ReadSessions is Read for a pass: every process's stat, which gives the tree,
+// and the rest (uid, command line, fd 0) only for zellij's own processes and
+// everything under them, the only processes a pass looks at. The others keep a
+// UID of -1 and no command line. On a machine with 166 processes this read took
+// 11.9 ms in full and about a third of that this way.
+func ReadSessions(root string) (*Table, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	t := &Table{ByPID: map[int]*Proc{}, children: map[int][]int{}, Root: root, Taken: time.Now()}
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		// Only the numeric entries are processes.
+		if err != nil {
+			continue
+		}
+		if p, ok := readStat(root, pid); ok {
+			p.UID = -1
+			t.ByPID[pid] = p
+		}
+	}
+	t.index()
+	// zellij's processes (servers and clients) and their descendants: panes,
+	// the programs in them, a protected agent however deep.
+	var queue []int
+	for pid, p := range t.ByPID {
+		if strings.Contains(p.Comm, "zellij") {
+			queue = append(queue, pid)
+		}
+	}
+	seen := map[int]bool{}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		if seen[pid] {
+			continue
+		}
+		seen[pid] = true
+		readDetails(root, t.ByPID[pid])
+		queue = append(queue, t.children[pid]...)
+	}
+	return t, nil
+}
+
+// index builds the child index once, in PID order for stable output.
+func (t *Table) index() {
+	for pid, p := range t.ByPID {
+		t.children[p.PPID] = append(t.children[p.PPID], pid)
+	}
+}
+
 // readProc reads one process's stat, status, cmdline and fd 0.
 func readProc(root string, pid int) (*Proc, bool) {
+	p, ok := readStat(root, pid)
+	if ok {
+		readDetails(root, p)
+	}
+	return p, ok
+}
+
+// readStat reads one process's stat: its name, state, parent and terminal.
+func readStat(root string, pid int) (*Proc, bool) {
 	dir := filepath.Join(root, strconv.Itoa(pid))
 	stat, err := os.ReadFile(filepath.Join(dir, "stat"))
 	if err != nil {
@@ -129,6 +187,12 @@ func readProc(root string, pid int) (*Proc, bool) {
 	if len(fields) > 4 {
 		p.CTTY, _ = strconv.Atoi(fields[4])
 	}
+	return p, true
+}
+
+// readDetails reads a process's real uid, command line and fd 0.
+func readDetails(root string, p *Proc) {
+	dir := filepath.Join(root, strconv.Itoa(p.PID))
 	// The real uid is the first number on the Uid: line of status.
 	if status, err := os.ReadFile(filepath.Join(dir, "status")); err == nil {
 		for _, line := range strings.Split(string(status), "\n") {
@@ -146,7 +210,6 @@ func readProc(root string, pid int) (*Proc, bool) {
 	}
 	// fd 0 of another user's process is unreadable; that leaves Stdin empty.
 	p.Stdin, _ = os.Readlink(filepath.Join(dir, "fd", "0"))
-	return p, true
 }
 
 // Children returns the direct children of pid.

@@ -12,6 +12,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
@@ -183,7 +184,23 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 			r.NoRenames = fmt.Errorf("could not read the list of kept names: %w", err)
 		}
 	}
+	src := e.Sources
+	if src.Clients == nil {
+		src.Clients = e.Zellij
+	}
+	// /proc is read while zellij lists the sessions: listing starts a zellij
+	// process and waits on every server, about half of a pass on its own.
+	type procRead struct {
+		table *procfs.Table
+		err   error
+	}
+	procs := make(chan procRead, 1)
+	go func() {
+		t, err := inspect.ReadProcesses(src)
+		procs <- procRead{t, err}
+	}()
 	listed, err := e.Zellij.ListSessions(ctx)
+	read := <-procs
 	if errors.Is(err, zellij.ErrNoSessions) {
 		r.NoSessions = true
 		return r, nil
@@ -191,11 +208,10 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if err != nil {
 		return r, err
 	}
-	src := e.Sources
-	if src.Clients == nil {
-		src.Clients = e.Zellij
+	if read.err != nil {
+		return r, gatherError{read.err}
 	}
-	sessions, err := inspect.Gather(ctx, src, e.rules(), listed)
+	sessions, err := inspect.GatherFrom(ctx, src, e.rules(), listed, read.table)
 	if err != nil {
 		return r, gatherError{err}
 	}
