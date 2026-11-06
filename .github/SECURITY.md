@@ -15,8 +15,8 @@ The latest release and `main` get security fixes.
 
 zellij-reaper runs on a timer, as you, and deletes zellij sessions. These are the problems to report:
 
-- a way to make it delete or rename a session that a check should have kept: one with a client attached, a busy
-  pane, a protected program or a protected name;
+- a way to make it delete a session that a check should have kept (one with a client attached, a busy pane, a
+  protected program or a protected name), or rename one with a protected or chosen name;
 - a way for another user, or a program you did not run, to make it act on your sessions, or on theirs;
 - a session name, pane title or file under zellij's directory that makes it run a command, write outside its own
   files, or follow a link to somewhere else;

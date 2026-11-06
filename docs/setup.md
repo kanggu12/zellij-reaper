@@ -218,8 +218,8 @@ chose a name:
   given names. The shell version and 0.1 releases stamped theirs instead (`web-app_1104-0931`), and those go too, unless
   `auto_rename_stamp = "time"`. 0.2.0 did neither by default, so a name 0.2.0 gave stays until someone changes it.
 
-A session that is exited, protected by name or uncertain keeps its name as well. One you are attached to is renamed
-too, as you work in it; `auto_rename_attached = false` waits until nobody is attached.
+A session that is exited, protected by name or uncertain keeps its name. With `auto_rename_attached = false`, so does
+one with a client attached.
 
 **To keep a name as it is,** whoever gave it, select a running session in the dashboard and press `r`, then Tab, then
 Enter. The field starts with the suggested name, and Tab puts back the name the session has; the keys under the field
@@ -272,8 +272,7 @@ so a title that comes back gives a tail too.
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
 session by the old name while any other session is running. Panes opened after the rename have the new name, and
-`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one. That includes the panes you are working in, unless
-`auto_rename_attached = false`.
+`export ZELLIJ_SESSION_NAME=NEW-NAME` gives it to an older one.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.

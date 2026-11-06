@@ -48,7 +48,7 @@ func Render(c *Config, intro string) string {
 	b.WriteString("# directory and the program, for example \"vim-notes.md\" or \"web-app\".\n")
 	b.WriteString("# A name someone chose stays.\n")
 	line("auto_rename", c.Value("auto_rename"), def.Value("auto_rename"))
-	b.WriteString("\n# Rename sessions with a client attached too; false waits until nobody is.\n")
+	b.WriteString("\n# Rename sessions with a client attached too; false waits until nobody is attached.\n")
 	b.WriteString("# Panes opened before a rename keep the old name in ZELLIJ_SESSION_NAME.\n")
 	line("auto_rename_attached", c.Value("auto_rename_attached"), def.Value("auto_rename_attached"))
 	b.WriteString("\n# What those names end in: \"none\", the day of last use (\"date\", web-app_1104)\n")

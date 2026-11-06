@@ -34,8 +34,8 @@
 </picture>
 
 zellij keeps every session until you delete it: the ones you detached from last week, and the exited ones it keeps
-for resurrection. zellij-reaper runs from a systemd user timer: once an hour it makes a pass over every session and
-deletes the ones nobody uses. Every check has to pass before a session goes; when a fact is unclear, the session stays.
+for resurrection. zellij-reaper runs from a systemd user timer and deletes the ones nobody uses. Every check has to pass
+before a session goes; when a fact is unclear, the session stays.
 
 ## Why zellij-reaper
 
@@ -43,12 +43,12 @@ deletes the ones nobody uses. Every check has to pass before a session goes; whe
   right before each delete.
 - **Running jobs stay.** A build, `npm run dev`, `tail -f`, an editor or a job in the background keeps its session.
   Only a shell waiting at its prompt counts as idle.
-- **Coding agents stay, even waiting at their prompt.** Claude Code, Codex, Gemini CLI, aider and opencode keep their
-  session while they run.
+- **Coding agents stay.** Claude Code, Codex, Gemini CLI, aider and opencode keep their session while they run, even at
+  their prompt.
 - **Names that say what a session is.** With `auto_rename = true`, `brave-peach` becomes `fix-the-login-bug`.
-- **Its reasons in plain view.** The dashboard shows every check with its evidence, and the log keeps one line per
+- **It shows why.** The dashboard shows every check with its evidence, and the log keeps one line per
   session, in words that stay the same across releases.
-- **Light.** It runs as you, with no root and no network, and a look at ten sessions took 26 ms in the test container.
+- **Light.** It runs as you, with no root and no network, and `plan` over ten sessions took 26 ms in the test container.
 
 ## What goes and what stays
 
@@ -78,7 +78,7 @@ curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/in
 
 The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin` and starts the
 timer, with lingering so it runs after you log out too. The first pass comes ten minutes later, so there is time to
-look first. Here on a machine set to `idle_after = "1h"`:
+look first. This is `plan` on a machine set to `idle_after = "1h"`:
 
 ```
 $ zellij-reaper plan
@@ -107,8 +107,8 @@ access](docs/setup.md#without-internet-access).
 docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo
 ```
 
-The dashboard opens on twelve sessions in a throwaway container, one of every kind above. Reap, protect, rename and
-run passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute, and
+The dashboard opens on twelve sessions like the ones above, in a throwaway container. Reap, protect, rename and run
+passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute, and
 `--init` lets ctrl+c out of it. Append `--shell` to the command for a shell in the same sandbox; put
 `-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
 
@@ -126,13 +126,12 @@ they show, so the list of sessions reads like a list of what you were doing:
 </picture>
 
 A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. That includes the session you are working in; `auto_rename_attached = false` waits until nobody
-is attached.
+session shows changes. The session you are in is renamed too; `auto_rename_attached = false` waits until nobody is
+attached.
 
 In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
-On a running session, `r`, Tab and Enter keep the name it has, such as one you typed in zellij's own words
-(`zellij -s quiet-mouse`), which looks made up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the
-rules.
+`r`, Tab and Enter keep a running session's name as it is, such as a `quiet-mouse` you typed yourself, which looks made
+up. [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules.
 
 ## The dashboard
 
@@ -142,7 +141,7 @@ selected one with their evidence, its panes and the settings that apply.
 | Key | Does | Key | Does |
 |:---:|:---|:---:|:---|
 | <kbd>↑</kbd> <kbd>↓</kbd> | select a session | <kbd>f</kbd> | run a pass now (asks first when it would reap) |
-| <kbd>⏎</kbd> | attach (inside zellij: switch to it) | <kbd>F</kbd> | run a pass without the idle and exited waits, after asking |
+| <kbd>⏎</kbd> | attach (inside zellij 0.44 and later: switch to it) | <kbd>F</kbd> | run a pass without the idle and exited waits, after asking |
 | <kbd>d</kbd> | reap it now, after asking | <kbd>l</kbd> | the decision log |
 | <kbd>p</kbd> | protect it, or lift the protection | <kbd>/</kbd> | filter by name |
 | <kbd>r</kbd> | rename it | <kbd>?</kbd> | every key and what each color means |
@@ -184,7 +183,7 @@ lists every key.
 
 ## The log
 
-Every pass writes one line per session, in words that stay the same across releases:
+Every pass writes one line per session:
 
 ```
 $ zellij-reaper logs
@@ -214,17 +213,13 @@ It lives in `~/.local/state/zellij-reaper/` and moves to `reaper.log.1` past `lo
 
 ## Questions
 
-**Will it delete the session I am in?** No. A session with a client attached is kept, and the pass asks zellij again
-just before each delete: a client that attached in between keeps the session.
+**Will it delete the session I am in?** No. A session with a client attached is kept.
 
 **My coding agent waits at its prompt for hours. Is its session safe?** Yes, while the agent runs; once it exits, the
 normal wait applies. The programs in `protect_commands` keep their session even when the pane looks idle, and they are
 found under any name they run as (`node .../claude-code/cli.js` counts as `claude`).
 
-**Can I get a deleted session back?** No: zellij removes its resurrection data too. To watch first, set
-`dry_run = true`; every pass then only writes what it would do to the log.
-
-**What does it touch?** It runs as you, without root, and makes no network connection. A pass:
+**What does it touch?** A pass:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">

@@ -22,7 +22,7 @@ its wait over:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/pass-dark.svg">
-  <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes or renames a session it looks again, and a session that changed is kept." src="assets/pass-light.svg">
+  <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes a session it looks again, and a session that changed is kept. A session it keeps gets a name from what its panes show when auto_rename is on, unless someone chose its name." src="assets/pass-light.svg">
 </picture>
 
 1. **Takes the pass lock.** The timer, `zellij-reaper run` and the dashboard's actions share one lock, so two of them

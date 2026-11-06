@@ -35,11 +35,11 @@ tail, unless this session had that name before. A name given by hand stays as it
 
 ## A session is named after the wrong thing
 
-A pass names a session after the focused pane of its first tab, since zellij marks no tab active once nobody is
-attached. When that title says nothing, the other running panes come next. Its row in `plan --json` lists
-`would_rename`, and `r` in the dashboard shows the name its panes point to. Give it a name with `r` or
-`zellij action rename-session`, and passes leave that name alone. To keep the name a running session has now, press `r`,
-then Tab and Enter. `auto_rename = false` turns renaming off.
+A pass names a session after the focused pane of the tab a client looks at, or of the first tab when nobody is attached,
+since zellij then marks no tab active. When that title says nothing, the other running panes come next. Its row in
+`plan --json` lists `would_rename`, and `r` in the dashboard shows the name its panes point to. Give it a name with `r`
+or `zellij action rename-session`, and passes leave that name alone. To keep the name a running session has now, press
+`r`, then Tab and Enter. `auto_rename = false` turns renaming off.
 
 ## A `zellij` command hangs in a renamed session
 

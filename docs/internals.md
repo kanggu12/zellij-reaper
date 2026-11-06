@@ -78,7 +78,7 @@ sessions, whose files stop changing when the server ends.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/clients-dark.svg">
-  <img alt="How a pass tells whether a client is attached. The kernel's socket table answers first: a connection with an open other end means attached, no connection means no client. When the table cannot tell, zellij's list-clients is asked, one session at a time. When that gives no answer, zellij's count in its metadata file can add a client. When nothing can tell, the session is kept as uncertain. A delete and a rename ask list-clients again first." src="assets/clients-light.svg">
+  <img alt="How a pass tells whether a client is attached. The kernel's socket table answers first: a connection with an open other end means attached, no connection means no client. When the table cannot tell, zellij's list-clients is asked, one session at a time. When that gives no answer, zellij's count in its metadata file can add a client. When nothing can tell, the session is kept as uncertain. A delete asks list-clients again first, and so does a rename with auto_rename_attached = false." src="assets/clients-light.svg">
 </picture>
 
 A client holds a connection to its server's socket, and the kernel's socket table shows it: the server's end carries the
@@ -99,11 +99,11 @@ nothing at all after a second, exit status 0, even when they go to different ser
 | 0.45.1 | 104 ms | 26 ms |
 
 `list-clients` stays for what the table cannot tell (no `unix_diag`, a client in another network namespace, whose
-connection only that namespace lists, so the server holds a socket this table does not show; a connection whose other end
-nobody can see), one session at a time, and for the second look before a delete or a rename: it asks the server
-about this very moment. An answer with nothing in it is asked again, and so is one naming a client, because zellij 0.43
-names the client that created a background session the first time it is asked, and a real client is still there the
-second time.
+connection only that namespace lists, so the server holds a socket this table does not show; a connection whose other
+end nobody can see), one session at a time, and for the second look before a delete, and before a rename with
+`auto_rename_attached = false`: it asks the server about this very moment. An answer with nothing in it is asked again,
+and so is one naming a client, because zellij 0.43 names the client that created a background session the first time it
+is asked, and a real client is still there the second time.
 
 Asking also changes something on 0.43.1: a background session asked early never saves its layout, so it would not show
 as exited after a crash. That is one more reason for a pass to ask only what the table cannot tell.
@@ -179,8 +179,8 @@ log moved nothing but the time. `auto_rename_stamp` brings the stamp back for th
 
 A pass renames sessions someone is attached to as well: on a machine whose sessions stay attached, renaming only the
 others left nothing to rename. The person in such a session sees its name change, and its panes keep the old name in
-`ZELLIJ_SESSION_NAME`, so a `zellij` command run there without `--session` waits for a session by that name.
-`auto_rename_attached = false` renames only the sessions nobody is attached to.
+`ZELLIJ_SESSION_NAME`, so a `zellij` command run there without `--session` waits for a session by that name while any
+other session runs. `auto_rename_attached = false` renames only the sessions nobody is attached to.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
@@ -280,12 +280,12 @@ failure leaves its evidence in the test output.
 release build on every push to `main` and every pull request. A new zellij release joins the matrix, and
 `default_versions` in `test/integration/run.sh`, once it passes.
 
-**A release** is a `vX.Y.Z` tag with a `## [X.Y.Z]` section in `CHANGELOG.md`, and the README's release badge naming
-it: GitHub's image proxy gives up on shields.io's live release badge after about four seconds, which that badge often
-takes, so CI checks that the badge names the newest section. `.github/workflows/release.yml` runs
-all of CI on the tagged commit. Then GoReleaser builds the archives, `checksums.txt` and the packages from
-`.github/goreleaser.yaml` and attaches `scripts/install.sh`, with the changelog section as the release notes, and the
-demo image goes to ghcr.io for amd64 and arm64.
+**A release** is a `vX.Y.Z` tag, a `## [X.Y.Z]` section in `CHANGELOG.md` and a README release badge naming it. The
+badge is static because shields.io's live one often takes longer than the four seconds GitHub's image proxy waits; CI
+checks that it names the newest section. `.github/workflows/release.yml` runs all of CI on the tagged commit. Then
+GoReleaser builds the archives, `checksums.txt` and the packages from `.github/goreleaser.yaml` and attaches
+`scripts/install.sh`, with the changelog section as the release notes, and the demo image goes to ghcr.io for amd64 and
+arm64.
 
 **Not covered:** systemd itself (the containers run zellij-reaper directly, not from the timer; the unit files and
 the install steps are tested against a stand-in `systemctl`), distributions other than the Debian-based test image,

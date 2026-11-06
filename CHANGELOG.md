@@ -10,14 +10,14 @@ the project uses [semantic versioning](https://semver.org/).
 - `auto_rename` renames sessions with a client attached too, as you work in them. It renamed only sessions nobody was
   attached to, so on a machine whose sessions stay attached it never renamed one. `auto_rename_attached = false` brings
   that back. Panes opened before a rename keep the old name in `ZELLIJ_SESSION_NAME`, and a `zellij` command run there
-  without `--session` waits for a session by that name while another one is running; the setup guide and the
-  troubleshooting guide say how to fix such a pane.
+  without `--session` waits for a session by that name while another one is running;
+  `export ZELLIJ_SESSION_NAME=NEW-NAME` in such a pane fixes it.
 - `config show` lines its values up after the longest key.
 
 ### Fixed
 
-- Inside zellij, Enter in the dashboard moves the client to the selected session after the session the dashboard runs
-  in was renamed. `zellij action switch-session` went by the old name the pane still had and waited for a session by
+- Inside zellij, Enter in the dashboard switches to the selected session even when the session the dashboard runs in
+  has been renamed. `zellij action switch-session` went by the old name the pane still had and waited for a session by
   that name.
 
 ## [0.3.5] - 2026-11-06
