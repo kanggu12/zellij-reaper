@@ -40,58 +40,37 @@ stays.
 
 ## Quick start
 
-| Needs | |
-|:---|:---|
-| System | Linux on x86_64 (amd64) or arm64, or WSL 2 with [systemd turned on](docs/setup.md#wsl-2); macOS on Apple silicon or Intel; Windows on x64 |
-| zellij | 0.43 to 0.45 (0.44 to 0.45 on Windows, the first with a Windows build) |
-| Timers | Linux: a systemd user instance (`systemctl --user` works), or [cron](docs/setup.md#without-systemd); macOS and Windows: nothing to set up |
-| Dashboard | a terminal of 30 by 8 cells; 100 columns or more reads best |
-| Prompt hook | bash, zsh or fish, on Linux and macOS |
+Linux, macOS or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43 to 0.45
+([requirements](docs/setup.md#requirements)):
 
-Binary size, memory and the rest are in [Requirements](docs/setup.md#requirements).
+```sh
+# 1. Install. The timers start; the first pass comes in ten minutes.
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 
-1. **Install.** The script checks the download against the release's checksums, puts `zellij-reaper` in `~/.local/bin`
-   and starts the timers. The first pass runs ten minutes later (one `interval`, an hour, on macOS). If it says to add
-   `~/.local/bin` to your `PATH`, run `export PATH="$HOME/.local/bin:$PATH"`, and add that line to `~/.zprofile` (macOS)
-   or `~/.profile`.
+# 2. See what the next pass would do. It changes nothing.
+zellij-reaper plan
 
-   ```sh
-   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
-   ```
+# 3. Open the dashboard.
+zellij-reaper
+```
 
-   On Windows, run this in PowerShell. It installs to `%LOCALAPPDATA%\Programs\zellij-reaper` and adds that to your
-   `PATH`; open a new terminal before step 2.
+Windows, in PowerShell, then a new terminal:
 
-   ```powershell
-   irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
-   ```
+```powershell
+irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
+```
 
-2. **Look before it acts.** `plan` shows what the next pass would do, and changes nothing:
+Optional, on Linux and macOS: name sessions after what they show, and keep open panes following the new names.
 
-   ```
-   $ zellij-reaper plan
-     SESSION         STATE    IDLE  CLIENTS  NEXT PASS
-   ● scratch         running  13h   0        reap
-   ● release-v2      running  50m   0        reap in 11h 10m
-   ● notes           running  1s    1        attached
-   ● api-server      running  3h    0        running npm run dev
-   ● agent-refactor  running  3h    0        protected: claude
-   ```
+```sh
+echo 'auto_rename = true' >>"$(zellij-reaper config path)"
+echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
+echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"' >>~/.zshrc
+```
 
-3. **Open the dashboard.** Run `zellij-reaper`. Keep a session out of every pass with `p` there, or
-   `zellij-reaper protect NAME`.
-
-4. **Name sessions after what they show** (optional, Linux and macOS). In the settings, uncomment `auto_rename` and set
-   it to `true`; names change within five minutes. Add the prompt hook so open panes follow a rename (zsh and fish lines
-   are in [setup](docs/setup.md#naming-sessions-after-what-they-show)):
-
-   ```sh
-   zellij-reaper config edit
-   echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
-   ```
-
-Not ready to install? [Try it in a sandbox](#try-it-in-a-sandbox). [Setup](docs/setup.md) has packages, upgrading,
-uninstalling and [machines with no internet access](docs/setup.md#without-internet-access).
+Keep a session out of every pass: `zellij-reaper protect NAME`, or `p` in the dashboard. No install yet?
+[Try it in a sandbox](#try-it-in-a-sandbox).
 
 ## Why zellij-reaper
 
@@ -121,8 +100,8 @@ counts from the last input or output in any of the session's panes, so coming ba
   <img alt="A timeline over 16 hours with a pass every hour. A session you detach from after 2 hours is deleted by the first pass once 12 hours have gone by with nothing happening in it. A session you come back to starts its wait over. A session running a program is kept for as long as it runs." src="docs/assets/when-light.svg">
 </picture>
 
-To reap a session is to delete it (`zellij delete-session NAME --force`): it is gone with its scrollback and cannot be
-resurrected. [How it decides](docs/how-it-decides.md) lists every check in order.
+A reaped session is deleted with its scrollback and cannot be resurrected. [How it decides](docs/how-it-decides.md)
+lists every check.
 
 ## Try it in a sandbox
 
@@ -130,37 +109,23 @@ resurrected. [How it decides](docs/how-it-decides.md) lists every check in order
 docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo
 ```
 
-The dashboard opens on thirteen sessions like the ones above, in a throwaway container. Reap, protect, rename and run
-passes there as you like; your own sessions are not touched. Staging the sessions takes about a minute, and
-`--init` lets ctrl+c out of it. Append `--shell` to the command for a shell in the same sandbox; put
-`-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
-
-From a clone, `make demo` stages the same sessions from the working tree (it needs Go and Docker), and
-`make demo DEMO_SHELL=1` opens its shell.
+Thirteen demo sessions in a throwaway container, ready in about a minute; your own sessions are not touched. Append
+`--shell` for a shell there, or put `-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
 
 ## Names that say what a session is
 
-zellij names a session `brave-peach` when you do not. With `auto_rename = true`, every pass names such sessions after what
-they show, so the list of sessions reads like a list of what you were doing:
+zellij names a session `brave-peach` when you do not. With `auto_rename = true`, passes name such sessions after what
+they show, so the session list reads like a list of what you were doing:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/names-dark.svg">
   <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A name you chose stays: only the names zellij makes up and the ones a pass gave earlier change, and only when what the
-session shows changes. Names change within five minutes, and the session list shows the name a session gets next
-(`→ fix-the-login-bug`). The session you are in is renamed too;
-`auto_rename_attached = false` waits until nobody is attached.
-
-A pane keeps the session name it opened under, so after a rename a `zellij` command typed there waits for the old name.
-The prompt hook (`eval "$(zellij-reaper shell-hook bash)"`, also for zsh and fish) keeps each pane current. zellij on
-Windows cannot reach a session at all once it is renamed, so zellij-reaper renames nothing there.
-
-In the dashboard, `r` renames any running session, starting from the same suggested name, with `auto_rename` on or off.
-To keep a name that looks made up, such as a `quiet-mouse` you typed yourself, press `r`, Tab and Enter, or run
-`zellij-reaper keep-name NAME`.
-[Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules.
+A name you chose stays: only names zellij made up, and ones a pass gave, change. Names change within five minutes, and
+the session list shows the next one (`→ fix-the-login-bug`). `r` in the dashboard renames by hand; `keep-name NAME`
+keeps a name as it is. Not on Windows, where zellij cannot reach a renamed session.
+[Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules and the zsh and fish hooks.
 
 ## The dashboard
 
@@ -200,8 +165,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 
 ## Settings
 
-`install` writes `~/.config/zellij-reaper/config.toml` (`%APPDATA%\zellij-reaper\config.toml` on Windows) with every key
-at its default, commented out. Uncomment what you change:
+`zellij-reaper config edit` opens the settings, every key at its default and commented out:
 
 ```toml
 idle_after = "4h"            # reap idle sessions after 4 hours (default 12h)
@@ -210,8 +174,7 @@ protect = "^(keep-|work-)"   # names that are never reaped or renamed
 auto_rename = true           # name the sessions zellij named after what they show
 ```
 
-`zellij-reaper config show` prints the values in effect and where each one comes from. [Setup](docs/setup.md#settings)
-lists every key.
+`zellij-reaper config show` prints what is in effect. [Setup](docs/setup.md#settings) lists every key.
 
 ## The log
 
