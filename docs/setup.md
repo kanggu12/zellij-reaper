@@ -152,7 +152,7 @@ curl -fsSLO "$base/checksums.txt"
 Then, on the closed machine, set `version` to the release you carried across and run:
 
 ```sh
-version=0.6.1
+version=0.6.2
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&

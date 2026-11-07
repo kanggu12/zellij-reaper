@@ -6,8 +6,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-07
+
 ### Changed
 
+- The README's Quick start is commands to paste: install, `plan`, the dashboard, and two lines for names and the
+  prompt hook.
 - `uninstall` says it removed the timers, which are launch agents or a scheduled task outside Linux; `here` says in
   its help that it prints the current name of the shell's session; two Korean messages no longer put a particle
   after a name it may not fit.
@@ -330,7 +334,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.2
 [0.6.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.1
 [0.6.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.0
 [0.5.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.5.0
