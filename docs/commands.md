@@ -82,6 +82,13 @@ window changed. `--shallow` signals the clients only.
 
 ## Setting up
 
+**`setup`** opens the setup screen: what the first pass would reap, with the idle and exited waits, the mode (reap, or
+only log what it would reap), names and the prompt hook to choose with the arrow keys, and the listed sessions to keep
+with <kbd>space</kbd>. <kbd>⏎</kbd> writes the choices into the settings file, leaving its other lines as they are,
+puts the kept sessions on the protected list, adds the hook to the shell's startup file and runs `install`;
+<kbd>esc</kbd> changes nothing. The installers open it in a terminal, and `zellij-reaper` opens it before the
+dashboard while there is no settings file. It needs a terminal.
+
 **`install`** writes a settings file and the timers, the systemd units with lingering on Linux, the launch agents on
 macOS and the scheduled task on Windows, and says when the first pass runs. **`uninstall`** removes the timers;
 `--purge` also removes the settings, the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).

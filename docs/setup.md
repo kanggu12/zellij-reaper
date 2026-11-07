@@ -27,7 +27,8 @@
 | Demo sandbox | Docker | |
 
 The binary is 7.5 MB and needs no other library. On a machine with 4 sessions and 150 processes a pass took 35 ms and
-at most 12 MB of memory, and nothing stays running between passes. The dashboard, while it is open, uses about 16 MB and
+at most 12 MB of memory, and nothing stays running between passes. With 100 sessions it takes about 113 ms and 13 MB
+([measured](../README.md#why-zellij-reaper)). The dashboard, while it is open, uses about 16 MB and
 reads the sessions every five seconds.
 
 ## Install
@@ -40,7 +41,8 @@ curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/in
 ```
 
 The script works on Linux and macOS. It downloads the latest release for your system and architecture,
-checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and runs `zellij-reaper install`. On
+checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and, in a terminal, opens
+[the setup screen](commands.md#setting-up); piped into something else, it runs `zellij-reaper install` with the defaults. On
 Windows, `install.ps1` does the same in PowerShell, puts the binary in `%LOCALAPPDATA%\Programs\zellij-reaper` and adds
 that folder to your `PATH`:
 
@@ -55,6 +57,7 @@ These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPE
 | `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.3.0` |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
+| `ZELLIJ_REAPER_NO_SETUP` | | `1` starts the timers with the defaults, without the setup screen |
 | `ZELLIJ_REAPER_BASE_URL` | GitHub releases | download from a mirror |
 
 `install.ps1` takes the same variables from PowerShell (`$env:ZELLIJ_REAPER_NO_TIMER = '1'` before `irm ... | iex`);
@@ -152,7 +155,7 @@ curl -fsSLO "$base/checksums.txt"
 Then, on the closed machine, set `version` to the release you carried across and run:
 
 ```sh
-version=0.6.2
+version=0.7.0
 grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
   tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
   install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&

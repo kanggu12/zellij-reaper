@@ -8,6 +8,8 @@
 #   ZELLIJ_REAPER_VERSION   release to install, like v0.3.0 (default: the latest)
 #   ZELLIJ_REAPER_BIN_DIR   where the binary goes (default: ~/.local/bin)
 #   ZELLIJ_REAPER_NO_TIMER  set to 1 to install the binary only
+#   ZELLIJ_REAPER_NO_SETUP  set to 1 to start the timers with the defaults, without
+#                           the setup screen a terminal otherwise gets
 #   ZELLIJ_REAPER_BASE_URL  where releases are downloaded from (mirrors, tests)
 set -eu
 
@@ -82,6 +84,11 @@ say "installed $bin_dir/zellij-reaper"
 
 if [ "${ZELLIJ_REAPER_NO_TIMER:-}" = 1 ]; then
   say "run 'zellij-reaper install' to start the timers"
+elif [ "${ZELLIJ_REAPER_NO_SETUP:-}" != 1 ] && [ -t 1 ] && { : </dev/tty; } 2>/dev/null; then
+  # In a terminal: the setup screen, which shows what the first pass would
+  # reap and starts the timers. Piped through sh, this script's own input is
+  # the script, so the screen reads the terminal.
+  "$bin_dir/zellij-reaper" setup </dev/tty
 else
   "$bin_dir/zellij-reaper" install
 fi

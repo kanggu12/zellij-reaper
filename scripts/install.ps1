@@ -6,6 +6,8 @@
 #   ZELLIJ_REAPER_VERSION   release to install, like v0.6.0 (default: the latest)
 #   ZELLIJ_REAPER_BIN_DIR   where the binary goes (default: %LOCALAPPDATA%\Programs\zellij-reaper)
 #   ZELLIJ_REAPER_NO_TIMER  set to 1 to install the binary only
+#   ZELLIJ_REAPER_NO_SETUP  set to 1 to start the task with the defaults, without the
+#                           setup screen a console otherwise gets
 #   ZELLIJ_REAPER_BASE_URL  where releases are downloaded from (mirrors, tests)
 #
 # Everything runs in a script block of its own: run through iex, the script
@@ -94,6 +96,10 @@
 
   if ($env:ZELLIJ_REAPER_NO_TIMER -eq '1') {
     Write-Host "run 'zellij-reaper install' to start the task"
+  } elseif ($env:ZELLIJ_REAPER_NO_SETUP -ne '1' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+    # In a console: the setup screen, which shows what the first pass would
+    # reap and starts the task.
+    & (Join-Path $binDir 'zellij-reaper.exe') setup
   } else {
     & (Join-Path $binDir 'zellij-reaper.exe') install
   }

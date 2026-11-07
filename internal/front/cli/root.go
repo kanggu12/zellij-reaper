@@ -59,6 +59,15 @@ Run it without a command in a terminal to open the dashboard.`,
 		// No command: the dashboard in a terminal, the plan otherwise.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if isTerminal(os.Stdout) && isTerminal(os.Stdin) {
+				// The first time, with no settings file, the setup
+				// screen comes first: nothing runs until it is done.
+				if firstTime() {
+					a, err := load()
+					if err != nil {
+						return err
+					}
+					return setup(cmd, a)
+				}
 				return runTUI()
 			}
 			return runPlan(cmd.Context(), cmd.OutOrStdout(), false)
@@ -67,7 +76,7 @@ Run it without a command in a terminal to open the dashboard.`,
 	root.PersistentFlags().StringVar(&configPath, "config", "", "settings file (default ~/.config/zellij-reaper/config.toml)")
 	root.SetVersionTemplate("zellij-reaper {{.Version}}\n")
 	root.AddCommand(
-		cmdTUI(), cmdPlan(), cmdRun(), cmdLogs(), cmdInstall(), cmdUninstall(), cmdConfig(),
+		cmdTUI(), cmdSetup(), cmdPlan(), cmdRun(), cmdLogs(), cmdInstall(), cmdUninstall(), cmdConfig(),
 		cmdProtect(true), cmdProtect(false), cmdKeepName(true), cmdKeepName(false), cmdHere(), cmdShellHook(),
 		cmdDoctor(), cmdRecover(), cmdResize(), cmdVersion(),
 	)

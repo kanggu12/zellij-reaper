@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.6.2" src="docs/assets/badges/release.svg"></a>
+  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.7.0" src="docs/assets/badges/release.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="docs/assets/badges/demo.svg"></a>
   <img alt="Runs on Linux, macOS and Windows" src="docs/assets/badges/runs-on.svg">
@@ -44,7 +44,7 @@ Linux, macOS or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43
 ([requirements](docs/setup.md#requirements)):
 
 ```sh
-# 1. Install. The timers start; the first pass comes in ten minutes.
+# 1. Install. In a terminal it opens the setup screen, then starts the timers.
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -61,16 +61,16 @@ Windows, in PowerShell, then a new terminal:
 irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
 ```
 
-Optional, on Linux and macOS: name sessions after what they show, and keep open panes following the new names.
+The setup screen shows what the first pass would reap before anything runs. Pick the waits, keep sessions with
+<kbd>space</kbd>, and choose whether passes reap or only log what they would reap:
 
-```sh
-echo 'auto_rename = true' >>"$(zellij-reaper config path)"
-echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"' >>~/.bashrc
-echo 'command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"' >>~/.zshrc
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/setup-dark.png">
+  <img alt="The setup screen: the waits for idle and exited sessions, the mode, names and the prompt hook, each changed with the arrow keys, then the sessions the first pass would reap, old-experiment marked to keep and scratch, idle 13 hours, still to go" src="docs/assets/setup-light.png">
+</picture>
 
-Keep a session out of every pass: `zellij-reaper protect NAME`, or `p` in the dashboard. No install yet?
-[Try it in a sandbox](#try-it-in-a-sandbox).
+`zellij-reaper setup` opens it again. Keep a session out of every pass: `zellij-reaper protect NAME`, or `p` in the
+dashboard. No install yet? [Try it in a sandbox](#try-it-in-a-sandbox).
 
 ## Why zellij-reaper
 
@@ -83,7 +83,12 @@ Keep a session out of every pass: `zellij-reaper protect NAME`, or `p` in the da
 - **Names that say what a session is.** With `auto_rename = true`, `brave-peach` becomes `fix-the-login-bug`.
 - **It shows why.** The dashboard shows every check with its evidence, and the log keeps one line per
   session, in words that stay the same across releases.
-- **Light.** It runs as you, with no root and no network. A pass takes about 35 ms and 12 MB, then exits.
+- **Light.** It runs as you, with no root and no network. A pass reads the machine once, decides, and exits:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/speed-dark.svg">
+  <img alt="How long one pass takes and how much memory it uses, by the number of sessions: 13 sessions in 25.5 ms and 11.5 MB, 25 in 38.6 ms and 11.5 MB, 50 in 63.4 ms and 12.3 MB, 100 in 112.6 ms and 13.1 MB. The median of 40 runs of plan each, in a container on a Ryzen 9 9950X with zellij 0.45.1." src="docs/assets/speed-light.svg">
+</picture>
 
 ## What goes and what stays
 
@@ -148,6 +153,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 |:---|:---|
 | `zellij-reaper` | the dashboard; the plan as a table when input or output is not a terminal |
 | `tui` | the dashboard, always; it needs a terminal |
+| `setup` | choose the waits, the mode and the sessions to keep, then start the timers |
 | `plan [--json]` | what the next pass would do, changing nothing |
 | `run [--dry-run] [--force] [--names-only]` | one pass now, as the timer runs it; `--names-only` only renames |
 | `logs [-n 50] [-f]` | the decision log |
