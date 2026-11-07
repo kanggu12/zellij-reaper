@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ import (
 func cmdSetup() *cobra.Command {
 	var snap, look, keys string
 	var installer bool
+	var f setupFlags
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Choose the waits, the mode and the sessions to keep, then start the timers",
@@ -31,6 +33,12 @@ reap, whether sessions are named after what they show, the prompt hook, and whic
 of the sessions it lists to keep. Enter writes the choices into the settings file,
 leaving the rest of it as it is, puts the kept sessions on the protected list and
 starts the timers, as install does. Esc changes nothing.
+
+With any of the flags below it opens no screen: the flags are the choices, what
+they leave out stays as the settings have it, and it then does what Enter does.
+That works anywhere, in a script or a shell without a terminal too:
+
+  zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run --protect api
 
 The installers open it in a terminal on a first install, and with no settings file
 zellij-reaper opens it instead of the dashboard.`,
@@ -42,6 +50,19 @@ zellij-reaper opens it instead of the dashboard.`,
 			if installer {
 				return fromInstaller(cmd)
 			}
+			// Choices given as flags: no screen, so no terminal needed.
+			for _, name := range setupFlagNames {
+				if cmd.Flags().Changed(name) {
+					f.set = append(f.set, name)
+				}
+			}
+			if len(f.set) > 0 {
+				a, err := load()
+				if err != nil {
+					return err
+				}
+				return setupWith(cmd, a, f, load)
+			}
 			if !isTerminal(os.Stdout) || !isTerminal(os.Stdin) {
 				return errors.New(i18n.T("setup.notty"))
 			}
@@ -52,6 +73,12 @@ zellij-reaper opens it instead of the dashboard.`,
 			return setup(cmd, a, false)
 		},
 	}
+	cmd.Flags().StringVar(&f.idle, "idle-after", "", "reap running sessions idle this long, like 4h (idle_after)")
+	cmd.Flags().StringVar(&f.exited, "exited-after", "", "reap exited sessions kept this long, like 1w (exited_after)")
+	cmd.Flags().BoolVar(&f.dry, "dry-run", false, "only log what passes would reap (dry_run); --dry-run=false reaps")
+	cmd.Flags().BoolVar(&f.rename, "auto-rename", false, "name sessions after what they show (auto_rename); --auto-rename=false stops it")
+	cmd.Flags().BoolVar(&f.hook, "hook", false, "add the prompt hook to your shell's startup file")
+	cmd.Flags().StringSliceVar(&f.protect, "protect", nil, "put these sessions on the protected list (repeat it, or separate names with commas)")
 	cmd.Flags().StringVar(&snap, "snapshot", "", "print one frame of WIDTHxHEIGHT and exit")
 	cmd.Flags().StringVar(&look, "theme", "dark", "colors for --snapshot: dark or light")
 	cmd.Flags().StringVar(&keys, "keys", "", "keys to press before --snapshot prints")
@@ -189,24 +216,134 @@ func setup(cmd *cobra.Command, a *app.App, installer bool) error {
 	return install(cmd, b, load)
 }
 
-// hookFor returns the startup file of the shell in $SHELL and the line that
-// adds the prompt hook to it, or "" when the shell has no hook or its file
-// has one already.
-func hookFor(shell, home string) (file, line string) {
+// setupFlagNames are the flags that give setup's choices on the command line.
+var setupFlagNames = []string{"idle-after", "exited-after", "dry-run", "auto-rename", "hook", "protect"}
+
+// setupFlags are the setup screen's choices, given as flags.
+type setupFlags struct {
+	idle, exited      string
+	dry, rename, hook bool
+	protect           []string
+	// set lists the flags given: one left out changes nothing.
+	set []string
+}
+
+// given reports whether a flag was given.
+func (f setupFlags) given(name string) bool { return slices.Contains(f.set, name) }
+
+// setupWith is setup without the screen: the flags given are the choices, and
+// what they leave out stays as the settings have it. Every value is checked
+// before anything is written; then it does what Enter does in the screen.
+func setupWith(cmd *cobra.Command, a *app.App, f setupFlags, reload func() (*app.App, error)) error {
+	// The settings in effect with the new values, to check them together.
+	c := *a.Config
+	// A new settings file starts from the defaults, as the screen's does.
+	base := *config.Default(config.OSEnv{})
+	values := map[string]string{}
+	for _, d := range []struct {
+		flag, key, value string
+		to               []*time.Duration
+	}{
+		{"idle-after", "idle_after", f.idle, []*time.Duration{&c.IdleAfter, &base.IdleAfter}},
+		{"exited-after", "exited_after", f.exited, []*time.Duration{&c.ExitedAfter, &base.ExitedAfter}},
+	} {
+		if !f.given(d.flag) {
+			continue
+		}
+		v, err := duration.Parse(d.value)
+		if err != nil {
+			return fmt.Errorf("--%s: %w", d.flag, err)
+		}
+		for _, p := range d.to {
+			*p = v
+		}
+		values[d.key] = strconv.Quote(duration.Setting(v))
+	}
+	if f.given("dry-run") {
+		c.DryRun, base.DryRun = f.dry, f.dry
+		values["dry_run"] = strconv.FormatBool(f.dry)
+	}
+	if f.given("auto-rename") {
+		c.AutoRename, base.AutoRename = f.rename, f.rename
+		values["auto_rename"] = strconv.FormatBool(f.rename)
+	}
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	w, t := cmd.OutOrStdout(), theme()
+	if len(values) > 0 {
+		path := settingsPath()
+		if err := config.SetKeys(path, &base, values); err != nil {
+			return err
+		}
+		println(w, ok(t)+i18n.T("setup.saved", tilde(path)))
+	}
+	for _, name := range f.protect {
+		if name = strings.TrimSpace(name); name == "" {
+			continue
+		}
+		if err := a.Protected.Set(name, true); err != nil {
+			return err
+		}
+		println(w, ok(t)+i18n.T("setup.protected", name))
+	}
+	if f.given("hook") && f.hook {
+		shell := os.Getenv("SHELL")
+		file, line := shellHook(shell, homeDir())
+		switch {
+		case file == "":
+			// No hook to add is no reason to leave the timers off.
+			name := filepath.Base(shell)
+			if shell == "" {
+				name = "-"
+			}
+			println(w, warn(t)+i18n.T("setup.hook.none", name))
+		case hasHook(file):
+			println(w, ok(t)+i18n.T("setup.hook.there", tilde(file)))
+		default:
+			if err := appendLine(file, line); err != nil {
+				return err
+			}
+			println(w, ok(t)+i18n.T("setup.hooked", tilde(file)))
+		}
+	}
+	// install reads the settings again, so the timers and its summary of the
+	// next pass go by what was just written.
+	b, err := reload()
+	if err != nil {
+		return err
+	}
+	return install(cmd, b, reload)
+}
+
+// shellHook returns the startup file of the shell in $SHELL and the line that
+// adds the prompt hook to it, or "" for a shell that has no hook.
+func shellHook(shell, home string) (file, line string) {
 	if home == "" {
 		return "", ""
 	}
 	switch filepath.Base(shell) {
 	case "bash":
-		file, line = filepath.Join(home, ".bashrc"), `command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"`
+		return filepath.Join(home, ".bashrc"), `command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"`
 	case "zsh":
-		file, line = filepath.Join(home, ".zshrc"), `command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"`
+		return filepath.Join(home, ".zshrc"), `command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"`
 	case "fish":
-		file, line = filepath.Join(home, ".config", "fish", "config.fish"), `zellij-reaper shell-hook fish | source`
-	default:
-		return "", ""
+		return filepath.Join(home, ".config", "fish", "config.fish"), `zellij-reaper shell-hook fish | source`
 	}
-	if b, err := os.ReadFile(file); err == nil && strings.Contains(string(b), "zellij-reaper shell-hook") {
+	return "", ""
+}
+
+// hasHook reports whether a startup file has the prompt hook already.
+func hasHook(file string) bool {
+	b, err := os.ReadFile(file)
+	return err == nil && strings.Contains(string(b), "zellij-reaper shell-hook")
+}
+
+// hookFor is what the setup screen offers: the startup file and the hook's
+// line, or "" when the shell has no hook or its file has one already.
+func hookFor(shell, home string) (file, line string) {
+	file, line = shellHook(shell, home)
+	if file == "" || hasHook(file) {
 		return "", ""
 	}
 	return file, line

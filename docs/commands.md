@@ -69,6 +69,22 @@ takes them off. A name the `protect` pattern matches stays protected either way,
 renames them. With no name it prints the kept names. **`forget-name NAME...`** takes names off that list, so passes may
 rename those sessions again. Both wait for a pass that holds the lock, and log what they did.
 
+**`delete NAME...`** reaps sessions now, as <kbd>d</kbd> does in the dashboard. Each is asked about first with the
+dashboard's question, which says what protects it or still runs in it; `--yes` (`-y`) reaps without asking, and without
+a terminal to answer in, `delete` needs it. Right before each delete, zellij is asked again: a session with a client
+attached, one whose clients nobody can tell, or one zellij no longer lists is kept. The waits do not apply. The exit
+status is 1 when any session it was not told to keep was kept.
+
+**`rename NAME NEW-NAME`** renames a running session, as <kbd>r</kbd> does in the dashboard. A name given by hand is
+someone's choice, so passes leave it alone, and a protection follows the session to its new name. A name too long for
+the socket path or taken by another session is refused, and so is an exited session; renaming a session to the name it
+has keeps that name, as `keep-name` does. zellij on Windows cannot reach a session after a rename, so `rename` refuses
+there.
+
+Every action the dashboard takes is a command too: <kbd>f</kbd> is `run`, <kbd>F</kbd> `run --force`, <kbd>p</kbd>
+`protect` or `unprotect`, <kbd>d</kbd> `delete`, <kbd>r</kbd> `rename` or `keep-name`, <kbd>l</kbd> `logs`, and the
+table itself `plan`.
+
 **`recover [--dry-run] [--aggressive]`** repairs sessions that no zellij command can reach. A session's name is part
 of its socket path, which Linux caps at 107 bytes and macOS at 103; a session renamed past that keeps a server nobody can talk to, and
 its files come back after every delete. `recover` deletes such sessions and clears their files. `--aggressive` also
@@ -91,7 +107,24 @@ with <kbd>space</kbd>.
 - <kbd>esc</kbd> changes nothing; opened by an install script, it keeps the defaults and the install goes on.
   <kbd>ctrl+c</kbd> stops there either way.
 - The install scripts open it on a first install in a terminal. With no settings file, `zellij-reaper` opens it
-  instead of the dashboard. It needs a terminal.
+  instead of the dashboard.
+
+With any of these flags, `setup` opens no screen and needs no terminal: the flags are the choices, what they leave out
+stays as the settings have it, and then it does what <kbd>⏎</kbd> does. Each value is checked before anything is
+written.
+
+| Flag | Sets |
+|:---|:---|
+| `--idle-after 4h` | `idle_after` |
+| `--exited-after 1w` | `exited_after` |
+| `--dry-run`, `--dry-run=false` | `dry_run`: only log, or reap |
+| `--auto-rename`, `--auto-rename=false` | `auto_rename` |
+| `--hook` | adds the prompt hook to the startup file of the shell in `$SHELL` (bash, zsh, fish), once |
+| `--protect NAME` | puts sessions on the protected list; repeat it, or separate names with commas |
+
+```sh
+zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run --protect api,notes
+```
 
 **`install`** writes a settings file and the timers, the systemd units with lingering on Linux (crontab lines where
 systemd has no user instance but cron runs), the launch agents on macOS and the scheduled task on Windows, and says

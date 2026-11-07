@@ -345,7 +345,14 @@ var en = map[string]string{
 	"setup.protected":      "protected: %s",
 	"setup.hooked":         "prompt hook added to %s; it applies in new shells",
 	"setup.left":           "Nothing changed. `zellij-reaper setup` opens this again; `zellij-reaper install` starts the timers with the settings as they are.",
-	"setup.notty":          "setup needs a terminal; `zellij-reaper install` starts the timers with the settings as they are",
+	"setup.notty":          "setup needs a terminal for its screen; give the choices as flags instead (`zellij-reaper setup --help`), or start the timers with the settings as they are: `zellij-reaper install`",
+	"setup.hook.there":     "prompt hook: already in %s",
+	"setup.hook.none":      "no prompt hook for the shell in $SHELL (%s): bash, zsh and fish have one",
+	"delete.needyes":       "delete asks before it reaps; with no terminal to answer in, pass --yes",
+	"delete.skipped":       "Kept %s",
+	"delete.some":          "%d of %d sessions not reaped",
+	"rename.none":          "no session is called %s",
+	"rename.empty":         "the new name is empty",
 }
 
 // ko is the Korean catalog.
@@ -673,5 +680,12 @@ var ko = map[string]string{
 	"setup.protected":      "보호: %s",
 	"setup.hooked":         "프롬프트 훅 추가: %s (새 셸부터 적용)",
 	"setup.left":           "바꾼 것이 없습니다. 다시 열려면 `zellij-reaper setup`, 지금 설정 그대로 타이머만 켜려면 `zellij-reaper install`.",
-	"setup.notty":          "설정 화면은 터미널에서만 열립니다. 지금 설정 그대로 타이머만 켜려면 `zellij-reaper install`",
+	"setup.notty":          "설정 화면은 터미널에서만 열립니다. 고를 값을 플래그로 주거나(`zellij-reaper setup --help`), 지금 설정 그대로 타이머만 켜려면 `zellij-reaper install`",
+	"setup.hook.there":     "프롬프트 훅: 이미 %s에 있음",
+	"setup.hook.none":      "$SHELL의 셸(%s)에는 프롬프트 훅이 없습니다. bash, zsh, fish에 있습니다",
+	"delete.needyes":       "delete는 정리하기 전에 묻습니다. 답할 터미널이 없으면 --yes를 붙이세요",
+	"delete.skipped":       "%s 세션을 남김",
+	"delete.some":          "세션 %d개는 정리하지 않았습니다(모두 %d개 중)",
+	"rename.none":          "%s 이름의 세션이 없습니다",
+	"rename.empty":         "새 이름이 비어 있습니다",
 }

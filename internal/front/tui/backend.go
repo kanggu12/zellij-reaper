@@ -67,11 +67,20 @@ type Backend interface {
 	SwitchTo(ctx context.Context, name string, server int) error
 }
 
-// real is the Backend of a loaded App.
-type real struct{ a *app.App }
+// real is the Backend of a loaded App. from names where the actions by hand
+// come from, for the decision log.
+type real struct {
+	a    *app.App
+	from string
+}
 
-// NewBackend returns the Backend for a.
-func NewBackend(a *app.App) Backend { return real{a: a} }
+// NewBackend returns the Backend for a, as the dashboard uses it.
+func NewBackend(a *app.App) Backend { return real{a: a, from: "the dashboard"} }
+
+// NewCommandLine returns the same Backend for the commands that do by hand
+// what the dashboard does, so they make the same checks; the log says they
+// came from the command line.
+func NewCommandLine(a *app.App) Backend { return real{a: a, from: "the command line"} }
 
 func (r real) Plan(ctx context.Context) (reaper.Report, error) {
 	// Other terminals and the timer change the protected list: read it as
@@ -109,7 +118,7 @@ func (r real) Delete(ctx context.Context, name string) error {
 			return err
 		}
 		return r.a.Zellij.Delete(ctx, name)
-	}, "%s :: deleted from the dashboard", name)
+	}, "%s :: deleted from %s", name, r.from)
 }
 
 // unused checks, right before a delete by hand, that nobody uses the session:
@@ -159,14 +168,14 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 			}
 		}
 		return err
-	}, "%s :: renamed from the dashboard to %s", name, to)
+	}, "%s :: renamed from %s to %s", name, r.from, to)
 	return note, err
 }
 
 // KeepName runs under the pass lock: a pass that read the list a moment before
 // would rename the session anyway.
 func (r real) KeepName(ctx context.Context, name string) error {
-	err := reaper.KeepName(ctx, r.a.Reaper, name, true, "the dashboard", 2*time.Second)
+	err := reaper.KeepName(ctx, r.a.Reaper, name, true, r.from, 2*time.Second)
 	// The dialog may have stayed open while a pass renamed the session.
 	if errors.Is(err, reaper.ErrNoSession) {
 		return errors.New(i18n.T("keep.gone", name))

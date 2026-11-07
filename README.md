@@ -152,12 +152,14 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 |:---|:---|
 | `zellij-reaper` | the dashboard; the plan as a table when input or output is not a terminal |
 | `tui` | the dashboard, always; it needs a terminal |
-| `setup` | choose the waits, the mode and the sessions to keep, then start the timers |
+| `setup` | choose the waits, the mode and the sessions to keep, then start the timers; with flags (`--idle-after 4h`, `--dry-run`, ...) without the screen |
 | `plan [--json]` | what the next pass would do, changing nothing |
 | `run [--dry-run] [--force] [--names-only]` | one pass now, as the timer runs it; `--names-only` only renames |
 | `logs [-n 50] [-f]` | the decision log |
 | `protect NAME` / `unprotect NAME` | keep a session out of every pass, or let it go again |
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
+| `delete NAME [--yes]` | reap a session now, as `d` does in the dashboard; one somebody is attached to is kept |
+| `rename NAME NEW-NAME` | rename a session and keep the new name, as `r` does in the dashboard |
 | `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
 | `install` / `uninstall [--purge]` | the timers: systemd units (or cron), launch agents or a scheduled task |

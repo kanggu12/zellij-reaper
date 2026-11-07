@@ -6,6 +6,18 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Added
+
+- `setup` takes the setup screen's choices as flags: `--idle-after`, `--exited-after`, `--dry-run`, `--auto-rename`,
+  `--hook` and `--protect`. With any of them it opens no screen and needs no terminal, for scripts and
+  `ssh host command`; it checks every value before it writes one, changes only the settings the flags name, and then
+  starts the timers as <kbd>⏎</kbd> does.
+- `delete NAME...` reaps sessions by hand, as <kbd>d</kbd> does in the dashboard. It asks the dashboard's question
+  first (`--yes` reaps without asking; with no terminal it needs it), and zellij is asked right before whether a client
+  is attached.
+- `rename NAME NEW-NAME` renames a session, as <kbd>r</kbd> does in the dashboard: passes keep the new name, and a
+  protection follows the session to it.
+
 ## [0.8.1] - 2026-11-08
 
 ### Fixed

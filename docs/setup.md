@@ -63,6 +63,14 @@ These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPE
 `install.ps1` takes the same variables from PowerShell (`$env:ZELLIJ_REAPER_NO_TIMER = '1'` before `irm ... | iex`);
 its `ZELLIJ_REAPER_BIN_DIR` defaults to `%LOCALAPPDATA%\Programs\zellij-reaper`.
 
+In a script, or over `ssh host command` with no terminal, make the setup screen's choices as flags: install the binary
+alone, then let `setup` write them and start the timers ([the flags](commands.md#setting-up)):
+
+```sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | ZELLIJ_REAPER_NO_TIMER=1 sh
+~/.local/bin/zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run
+```
+
 Other ways:
 
 | From | Then |

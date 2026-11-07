@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 )
@@ -43,30 +44,36 @@ func (m model) confirmBox() string {
 	case confirmPass:
 		text = i18n.TN("confirm.pass", m.report.Due(), m.report.Due())
 	case confirmDelete:
-		text = i18n.T("confirm.reap", m.target)
-		for _, o := range m.report.Outcomes {
-			if o.Session.Name() != m.target {
-				continue
-			}
-			switch {
-			// Protection is said first: it is why the pass would not.
-			case o.Verdict.Code == policy.ProtectedName:
-				text = i18n.T("confirm.reap.protected", m.target, ui.Why(o.Verdict))
-				cat = ui.CatSafe
-			// Something still runs in it: say what stops with it.
-			case o.Verdict.Code == policy.ProtectedCommand:
-				text = i18n.T("confirm.reap.running", m.target, o.Verdict.Detail, o.Verdict.Detail)
-				cat = ui.CatSafe
-			case o.Verdict.Code == policy.Busy:
-				text = i18n.T("confirm.reap.running", m.target, o.Verdict.Detail, o.Verdict.Detail)
-				cat = ui.CatBusy
-			case o.Session.Listed.Exited:
-				text = i18n.T("confirm.reap.exited", m.target)
-			}
-		}
+		text, cat = ReapQuestion(m.report, m.target)
 	}
 	keys := t.KeyCap("y", i18n.T("confirm.yes")) + "  " + t.KeyCap("n", i18n.T("confirm.no"))
 	return m.box(lipgloss.NewStyle().BorderForeground(t.Cat[cat]), text, "", keys)
+}
+
+// ReapQuestion is what is asked before a session is reaped by hand, in the
+// dashboard or by `delete`, with the color to ask it in: what protects the
+// session or still runs in it is said first, since a pass would keep it for
+// that.
+func ReapQuestion(r reaper.Report, name string) (string, ui.Category) {
+	text, cat := i18n.T("confirm.reap", name), ui.CatReap
+	for _, o := range r.Outcomes {
+		if o.Session.Name() != name {
+			continue
+		}
+		switch {
+		// Protection is said first: it is why the pass would not.
+		case o.Verdict.Code == policy.ProtectedName:
+			text, cat = i18n.T("confirm.reap.protected", name, ui.Why(o.Verdict)), ui.CatSafe
+		// Something still runs in it: say what stops with it.
+		case o.Verdict.Code == policy.ProtectedCommand:
+			text, cat = i18n.T("confirm.reap.running", name, o.Verdict.Detail, o.Verdict.Detail), ui.CatSafe
+		case o.Verdict.Code == policy.Busy:
+			text, cat = i18n.T("confirm.reap.running", name, o.Verdict.Detail, o.Verdict.Detail), ui.CatBusy
+		case o.Session.Listed.Exited:
+			text = i18n.T("confirm.reap.exited", name)
+		}
+	}
+	return text, cat
 }
 
 // inputBox holds the rename field.
