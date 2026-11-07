@@ -64,6 +64,10 @@ func (l Launchd) Available() bool {
 // Persists cannot be told: a launch agent runs while its user is logged in.
 func (l Launchd) Persists() (on, known bool) { return false, false }
 
+// FirstPass comes one interval after the install: launchd starts a job that
+// has an interval once the interval has passed.
+func (l Launchd) FirstPass(now time.Time, interval time.Duration) time.Time { return now.Add(interval) }
+
 // Plist renders a launch agent that runs args every interval.
 func Plist(label, exe, zellijDir, configFile string, args []string, interval time.Duration) string {
 	argv := []string{exe}

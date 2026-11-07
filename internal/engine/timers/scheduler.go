@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
@@ -30,6 +31,10 @@ type Scheduler interface {
 	// Persists reports whether the timers keep running after logout, and
 	// whether that can be told (systemd's lingering).
 	Persists() (on, known bool)
+	// FirstPass is when the first pass runs after an install at now with
+	// passes every interval, as this scheduler starts them: what the setup
+	// screen promises nothing is deleted before.
+	FirstPass(now time.Time, interval time.Duration) time.Time
 }
 
 // For returns the scheduler of the system this runs on.

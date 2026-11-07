@@ -143,6 +143,22 @@ func TestSetupOpensWithoutAPlan(t *testing.T) {
 	}
 }
 
+func TestSetupWrapsTheReasonThereIsNoList(t *testing.T) {
+	// The reason names what failed, and on a 100-column Windows console it
+	// ran past the edge and lost its last words to an ellipsis.
+	s := SetupStart{IdleAfter: 12 * time.Hour, ExitedAfter: 72 * time.Hour, FirstPass: time.Now(),
+		NoPlan: "zellij is not installed or not in PATH"}
+	for _, w := range []int{100, 60} {
+		m := newSetup(s, true)
+		m.width, m.height = w, 24
+		out := ansi.Strip(m.render())
+		if strings.Contains(out, "…") || !strings.Contains(strings.Join(strings.Fields(out), " "), "the settings still apply once there are.") {
+			t.Errorf("at %d columns the reason is cut:\n%s", w, out)
+		}
+		measure(t, "no list", m.render(), w, 24)
+	}
+}
+
 func TestSetupListFollowsTheCursorWhenShort(t *testing.T) {
 	// 13 rows tall: two session rows do not fit with the settings above.
 	m := pressAll(newSetup(setupSample("~/.bashrc"), true), "down", "down", "down", "down", "down", "down")

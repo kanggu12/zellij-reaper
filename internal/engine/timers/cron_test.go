@@ -3,6 +3,7 @@ package timers
 import (
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -54,6 +55,62 @@ func TestCronSchedules(t *testing.T) {
 		// What it writes reads back as the same interval.
 		if got, next := cronEvery(strings.Fields(sched), time.Now()); got != every || next.IsZero() {
 			t.Errorf("%q reads back as %v, next %v", sched, got, next)
+		}
+	}
+}
+
+func TestFirstPassFollowsEachScheduler(t *testing.T) {
+	// The setup screen promises nothing is deleted before the first pass, so
+	// it must name the time the scheduler really starts it. cron has no delay
+	// of its own: an install at 22:58 meets the hourly line at 23:05, seven
+	// minutes on, where the screen used to say ten.
+	at := func(d, h, m, s int) time.Time { return time.Date(2026, 11, d, h, m, s, 0, time.Local) }
+	now := at(7, 22, 21, 25)
+	for _, c := range []struct {
+		name  string
+		s     Scheduler
+		now   time.Time
+		every time.Duration
+		want  time.Time
+	}{
+		{"systemd", Systemd{}, now, time.Hour, now.Add(FirstPassDelay)},
+		{"Task Scheduler", Tasks{}, now, time.Hour, now.Add(FirstPassDelay)},
+		{"launchd", Launchd{}, now, time.Hour, now.Add(time.Hour)},
+		{"cron hourly", Cron{}, now, time.Hour, at(7, 23, 5, 0)},
+		{"cron hourly, late in the hour", Cron{}, at(7, 22, 58, 0), time.Hour, at(7, 23, 5, 0)},
+		{"cron every minute", Cron{}, now, time.Minute, at(7, 22, 22, 0)},
+		{"cron every 5 minutes", Cron{}, now, 5 * time.Minute, at(7, 22, 25, 0)},
+		{"cron daily", Cron{}, now, 24 * time.Hour, at(8, 0, 5, 0)},
+	} {
+		if got := c.s.FirstPass(c.now, c.every); !got.Equal(c.want) {
+			t.Errorf("%s: first pass %s, want %s", c.name, got.Format("01-02 15:04:05"), c.want.Format("01-02 15:04:05"))
+		}
+	}
+}
+
+func TestAutoFirstPassIsTheChosenSchedulers(t *testing.T) {
+	// Without a systemd user instance the passes go to cron, and so does the
+	// promise of when the first one comes.
+	f := &fakeCrontab{}
+	a := auto{sys: Systemd{Run: func(string, ...string) (string, error) { return "", errExit }},
+		cron: Cron{Run: f.run, Running: func() bool { return true }}, once: &sync.Once{}, pick: new(Scheduler)}
+	now := time.Date(2026, 11, 7, 22, 21, 25, 0, time.Local)
+	want := time.Date(2026, 11, 7, 23, 5, 0, 0, time.Local)
+	if got := a.FirstPass(now, time.Hour); a.Kind() != "cron" || !got.Equal(want) {
+		t.Errorf("%s: first pass %s, want 23:05", a.Kind(), got.Format("15:04:05"))
+	}
+}
+
+func TestCronLinePutsZellijFirstAndOnce(t *testing.T) {
+	for dir, want := range map[string]string{
+		"/opt/zellij":    "PATH='/opt/zellij:/usr/local/bin:/usr/bin:/bin'",
+		"/usr/local/bin": "PATH='/usr/local/bin:/usr/bin:/bin'",
+		"/usr/bin":       "PATH='/usr/bin:/usr/local/bin:/bin'",
+		"":               "PATH='/usr/local/bin:/usr/bin:/bin'",
+	} {
+		line := cronLine("5 * * * *", InstallOptions{Exe: "/x/zellij-reaper", ZellijDir: dir}, "run", "--quiet")
+		if !strings.Contains(line, " "+want+" ") {
+			t.Errorf("zellij in %q: %s", dir, line)
 		}
 	}
 }

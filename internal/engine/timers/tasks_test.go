@@ -4,8 +4,25 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 )
+
+func TestTaskTimesAreLocal(t *testing.T) {
+	// The status script prints UTC, and every message shows a time as it is:
+	// left in UTC, a pass due at 07:35 in Seoul read "11-07 22:35".
+	w := Tasks{Run: func(string, ...string) (string, error) {
+		return `{"State":"Ready","Last":"","Next":"2026-11-07T22:35:23.0000000Z","Exec":"conhost.exe","Args":"--headless run --quiet","Interval":"PT1H"}`, nil
+	}}
+	st := w.askStatus(TaskName)
+	want := time.Date(2026, 11, 7, 22, 35, 23, 0, time.UTC)
+	if !st.Next.Equal(want) || st.Next.Location() != time.Local || !st.Last.IsZero() {
+		t.Errorf("next %v in %v, last %v", st.Next, st.Next.Location(), st.Last)
+	}
+	if !st.Installed || st.Interval != time.Hour || st.ExecStart != "run --quiet" {
+		t.Errorf("status %+v", st)
+	}
+}
 
 func TestATaskScriptEndsInExitZero(t *testing.T) {
 	// PowerShell exits 1 when the last command failed, even with its error

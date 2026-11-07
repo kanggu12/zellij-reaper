@@ -41,6 +41,10 @@ func (w Tasks) Kind() string { return "Task Scheduler" }
 // logged in, which is when the user's zellij sessions run too.
 func (w Tasks) Persists() (on, known bool) { return false, false }
 
+// FirstPass comes FirstPassDelay after the install, where the task's trigger
+// first starts it.
+func (w Tasks) FirstPass(now time.Time, _ time.Duration) time.Time { return now.Add(FirstPassDelay) }
+
 // ps runs a PowerShell script. The script goes base64-encoded, as UTF-16, so
 // no quoting on the way can change it, and its output comes back as UTF-8,
 // so a path with non-ASCII letters survives.
@@ -215,11 +219,20 @@ $when = { param($d) if ($d -and $d.Year -gt 2000) { $d.ToUniversalTime().ToStrin
 	st.Installed = true
 	st.Enabled = ti.State != "Disabled"
 	st.Active = st.Enabled
-	st.Last, _ = time.Parse(time.RFC3339Nano, ti.Last)
-	st.Next, _ = time.Parse(time.RFC3339Nano, ti.Next)
+	st.Last, st.Next = localTime(ti.Last), localTime(ti.Next)
 	st.Interval = isoDuration(ti.Interval)
 	st.ExecStart = strings.TrimSpace(strings.TrimPrefix(ti.Args, "--headless "))
 	return st
+}
+
+// localTime reads a time the status script printed, in UTC, as the local time
+// every message shows it in; "" or anything unreadable is the zero time.
+func localTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.Local()
 }
 
 // isoDuration reads the ISO 8601 durations the Task Scheduler uses, like

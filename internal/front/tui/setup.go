@@ -311,7 +311,11 @@ func (m setupModel) render() string {
 	due := m.due()
 	switch {
 	case m.start.NoPlan != "":
-		lines = append(lines, " "+ui.Fg(t.Muted).Render(i18n.T("setup.noplan", m.start.NoPlan)))
+		// Wrapped like the intro: the reason can name a path or an error and
+		// run past the edge.
+		for _, l := range wrapWords(i18n.T("setup.noplan", m.start.NoPlan), m.width-2) {
+			lines = append(lines, " "+ui.Fg(t.Muted).Render(l))
+		}
 	case m.dry && due == 0:
 		lines = append(lines, " "+ui.Fg(t.Cat[ui.CatAttached]).Render(i18n.T("setup.first.none")))
 	case m.dry:

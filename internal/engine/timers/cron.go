@@ -83,6 +83,15 @@ func (c Cron) HasJobs() bool {
 // Persists: cron runs whether or not the user is logged in.
 func (c Cron) Persists() (on, known bool) { return false, false }
 
+// FirstPass is the next time the pass line's schedule comes round: cron has
+// no delay of its own, so the first pass after an install may come within a
+// minute, or up to an interval later.
+func (c Cron) FirstPass(now time.Time, interval time.Duration) time.Time {
+	sched, _ := CronSchedule(interval)
+	_, next := cronEvery(strings.Fields(sched), now)
+	return next
+}
+
 // read returns the crontab's lines; a user with none has an empty one.
 func (c Cron) read() ([]string, error) {
 	out, err := c.Run("", "-l")
@@ -162,11 +171,13 @@ func absDur(d time.Duration) time.Duration {
 // variables go on the line itself, so they reach this job only and none of
 // the person's lines after it.
 func cronLine(schedule string, o InstallOptions, args ...string) string {
-	path := "/usr/local/bin:/usr/bin:/bin"
+	dirs := []string{"/usr/local/bin", "/usr/bin", "/bin"}
 	if o.ZellijDir != "" {
-		path = o.ZellijDir + ":" + path
+		// zellij's directory first, so the job runs the zellij install found,
+		// and only once when it is one of the others.
+		dirs = append([]string{o.ZellijDir}, slices.DeleteFunc(dirs, func(d string) bool { return d == o.ZellijDir })...)
 	}
-	env := []string{"env", "PATH=" + shQuote(path)}
+	env := []string{"env", "PATH=" + shQuote(strings.Join(dirs, ":"))}
 	if v := os.Getenv("XDG_RUNTIME_DIR"); v != "" {
 		env = append(env, "XDG_RUNTIME_DIR="+shQuote(v))
 	}

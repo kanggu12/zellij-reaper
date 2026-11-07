@@ -48,6 +48,9 @@ type Systemd struct {
 // user's systemd starts) the first pass runs: time to look at the plan first.
 const FirstPassDelay = 10 * time.Minute
 
+// FirstPass comes FirstPassDelay after the install starts the timer.
+func (s Systemd) FirstPass(now time.Time, _ time.Duration) time.Time { return now.Add(FirstPassDelay) }
+
 // systemctl runs `systemctl --user ...`.
 func (s Systemd) systemctl(args ...string) (string, error) {
 	return s.Run("systemctl", append([]string{"--user"}, args...)...)

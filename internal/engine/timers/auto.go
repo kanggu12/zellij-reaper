@@ -2,6 +2,7 @@ package timers
 
 import (
 	"sync"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
@@ -41,6 +42,10 @@ func (a auto) Status() TimerStatus                        { return a.chosen().St
 func (a auto) NamesStatus() TimerStatus                   { return a.chosen().NamesStatus() }
 func (a auto) Persists() (on, known bool)                 { return a.chosen().Persists() }
 func (a auto) Uninstall(p bool, l string) (Result, error) { return a.chosen().Uninstall(p, l) }
+
+func (a auto) FirstPass(now time.Time, every time.Duration) time.Time {
+	return a.chosen().FirstPass(now, every)
+}
 
 // Install installs with the chosen scheduler. Once systemd's timers run, jobs
 // an earlier install left in the crontab go, so passes do not run twice.

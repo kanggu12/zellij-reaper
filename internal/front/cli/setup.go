@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
-	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -244,12 +242,10 @@ func homeDir() string {
 	return h
 }
 
-// firstPassAt is when the first pass after an install runs: FirstPassDelay
-// after the timers start, except on macOS, where launchd runs a job first one
-// interval after it is loaded.
+// firstPassAt is when the first pass after an install runs, as the scheduler
+// that will run the passes starts them: ten minutes after the timers start
+// with systemd and the Task Scheduler, one interval with launchd, the next
+// time the schedule comes round with cron.
 func firstPassAt(a *app.App) time.Time {
-	if runtime.GOOS == "darwin" {
-		return time.Now().Add(a.Config.Interval)
-	}
-	return time.Now().Add(timers.FirstPassDelay)
+	return a.System.FirstPass(time.Now(), a.Config.Interval)
 }

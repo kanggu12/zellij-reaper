@@ -77,13 +77,15 @@
 
   # The user's PATH gets the folder once, for terminals opened from now on. It
   # is read and written as it is stored, so entries like %USERPROFILE%\bin
-  # keep their variables.
+  # keep their variables, and it keeps its kind: a plain string stays one,
+  # and only a PATH made here is one Windows expands.
   $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
   try {
     $userPath = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    $kind = if ($null -ne $key.GetValue('Path')) { $key.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
     $entries = @($userPath -split ';' | Where-Object { $_ })
     if (-not ($entries | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -eq $binDir.TrimEnd('\') })) {
-      $key.SetValue('Path', (@($entries + $binDir) -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
+      $key.SetValue('Path', (@($entries + $binDir) -join ';'), $kind)
       # Tell Windows the environment changed, so new terminals see it: setting
       # a variable through .NET sends that message.
       [Environment]::SetEnvironmentVariable('ZELLIJ_REAPER_INSTALLING', '1', 'User')
