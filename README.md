@@ -25,7 +25,7 @@
   <a href="#names-that-say-what-a-session-is">Names</a> |
   <a href="#the-dashboard">Dashboard</a> |
   <a href="docs/README.md">Documentation</a> |
-  <a href=".github/CONTRIBUTING.md">Contributing</a>
+  <a href="#open-source">Open source</a>
 </p>
 
 <picture>
@@ -227,20 +227,24 @@ dry-run setting. See [setup](docs/setup.md#coming-from-the-shell-scripts).
 
 ## Documentation
 
-- [How it decides](docs/how-it-decides.md): a pass step by step, every check, the log's words.
-- [Setup](docs/setup.md): installing, every setting, protecting and naming sessions, zellij versions, macOS,
-  Windows.
-- [Commands](docs/commands.md): every command and flag, the dashboard's keys and colors.
-- [Troubleshooting](docs/troubleshooting.md): a timer that does not run, a session kept longer than you expect, a
-  session nothing can delete.
-- [Internals](docs/internals.md): the layers, how the facts are read, the design decisions, the tests.
-- [Changelog](CHANGELOG.md): what changed in each release.
+| Guide | What it covers |
+|:---|:---|
+| [How it decides](docs/how-it-decides.md) | a pass step by step, every check, the log's words |
+| [Setup](docs/setup.md) | installing, every setting, protecting and naming sessions, macOS, Windows, WSL 2 |
+| [Commands](docs/commands.md) | every command and flag, the dashboard's keys and colors |
+| [Troubleshooting](docs/troubleshooting.md) | a timer that does not run, a session kept longer than you expect |
+| [Internals](docs/internals.md) | the layers, how the facts are read, the design decisions, the tests |
 
-## Contributing
+## Open source
 
-Bug reports with `zellij-reaper plan --json` and the log lines for the session help most.
-[CONTRIBUTING.md](.github/CONTRIBUTING.md) covers how the code fits together, the tests (fake machines for the rules,
-real zellij in containers) and what a change needs.
+zellij-reaper is MIT licensed and built in the open. Its tests build fake machines for the rules and run real zellij
+releases in throwaway containers, so no change needs your own sessions.
+
+- **Report a session it got wrong** in [Issues](https://github.com/kanggu12/zellij-reaper/issues/new/choose), with
+  `zellij-reaper plan --json` and the log lines for the session.
+- **Change the code.** [CONTRIBUTING.md](.github/CONTRIBUTING.md) has a map of the code and what a change needs.
+- **See what changed** in [CHANGELOG.md](CHANGELOG.md), and report security problems through
+  [SECURITY.md](.github/SECURITY.md).
 
 ```sh
 git clone https://github.com/kanggu12/zellij-reaper && cd zellij-reaper

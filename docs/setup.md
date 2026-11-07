@@ -339,6 +339,11 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 
 ## Files
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/files-dark.svg">
+  <img alt="Where zellij-reaper keeps its files. On Linux the settings are ~/.config/zellij-reaper/config.toml, the log and the lists are in ~/.local/state/zellij-reaper, and the timers are systemd user units in ~/.config/systemd/user. On macOS the settings and the log are in the same places, and the timers are launch agents in ~/Library/LaunchAgents. On Windows the settings are in %APPDATA%\zellij-reaper, the log and the lists in %LOCALAPPDATA%\zellij-reaper, and the timer is a task in the Task Scheduler. zellij's own files are only read, except by recover." src="assets/files-light.svg">
+</picture>
+
 | Path | What |
 |:---|:---|
 | `~/.config/zellij-reaper/config.toml` | the settings |

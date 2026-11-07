@@ -3,6 +3,11 @@
 Start with `zellij-reaper doctor`: one line per thing it needs, and what to do about each one that is off. Then
 `zellij-reaper plan`, where every session's row says why it is kept.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/trouble-dark.svg">
+  <img alt="Where to look first. doctor saying the timer is not installed, or that lingering is off, leads to The timer does not run; saying the names timer is not running leads to A name is slow to change. A plan row that says reap in, running a program or attached leads to A session you left hours ago is kept. A log line saying zellij not installed leads to the section of that name." src="assets/trouble-light.svg">
+</picture>
+
 ## The timer does not run
 
 - `systemctl --user status zellij-reaper.timer` says whether systemd knows it. If not, run `zellij-reaper install`.
