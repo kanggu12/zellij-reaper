@@ -3,6 +3,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/version"
 )
 
@@ -32,6 +34,12 @@ func Execute() int {
 		// doctor has already printed its findings.
 		if err != errSilentExit {
 			fmt.Fprintln(os.Stderr, "zellij-reaper:", err)
+			// A settings file that does not load stops every command: say
+			// how to get past it.
+			var fe *config.FileError
+			if errors.As(err, &fe) {
+				fmt.Fprintln(os.Stderr, i18n.T("config.broken", fe.Path))
+			}
 			// A mistyped command or flag: say where the right ones are.
 			if msg := err.Error(); strings.HasPrefix(msg, "unknown command") || strings.HasPrefix(msg, "unknown flag") || strings.HasPrefix(msg, "unknown shorthand flag") {
 				fmt.Fprintln(os.Stderr, i18n.T("help.hint"))
@@ -66,7 +74,7 @@ Run it without a command in a terminal to open the dashboard.`,
 					if err != nil {
 						return err
 					}
-					return setup(cmd, a)
+					return setup(cmd, a, false)
 				}
 				return runTUI()
 			}

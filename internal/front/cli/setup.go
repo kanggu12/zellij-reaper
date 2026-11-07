@@ -23,6 +23,7 @@ import (
 
 func cmdSetup() *cobra.Command {
 	var snap, look, keys string
+	var installer bool
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Choose the waits, the mode and the sessions to keep, then start the timers",
@@ -33,12 +34,15 @@ of the sessions it lists to keep. Enter writes the choices into the settings fil
 leaving the rest of it as it is, puts the kept sessions on the protected list and
 starts the timers, as install does. Esc changes nothing.
 
-The installer opens it when it runs in a terminal; the dashboard opens it the first
-time, before there are settings or timers.`,
+The installers open it in a terminal on a first install, and with no settings file
+zellij-reaper opens it instead of the dashboard.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if snap != "" {
 				return setupSnapshot(cmd, snap, look, keys)
+			}
+			if installer {
+				return fromInstaller(cmd)
 			}
 			if !isTerminal(os.Stdout) || !isTerminal(os.Stdin) {
 				return errors.New(i18n.T("setup.notty"))
@@ -47,13 +51,14 @@ time, before there are settings or timers.`,
 			if err != nil {
 				return err
 			}
-			return setup(cmd, a)
+			return setup(cmd, a, false)
 		},
 	}
 	cmd.Flags().StringVar(&snap, "snapshot", "", "print one frame of WIDTHxHEIGHT and exit")
 	cmd.Flags().StringVar(&look, "theme", "dark", "colors for --snapshot: dark or light")
 	cmd.Flags().StringVar(&keys, "keys", "", "keys to press before --snapshot prints")
-	for _, f := range []string{"snapshot", "theme", "keys"} {
+	cmd.Flags().BoolVar(&installer, "installer", false, "as the install scripts run it: the screen on a first install, install otherwise")
+	for _, f := range []string{"snapshot", "theme", "keys", "installer"} {
 		cmd.Flags().MarkHidden(f)
 	}
 	return cmd
@@ -90,8 +95,36 @@ func firstTime() bool {
 	return errors.Is(err, os.ErrNotExist)
 }
 
-// setup shows the setup screen and applies what was chosen.
-func setup(cmd *cobra.Command, a *app.App) error {
+// fromInstaller is setup as the install scripts run it: an install must end
+// with the timers running whatever happens on the way. An upgrade, with
+// settings already there, only rewrites the timers; a first install in a
+// terminal gets the screen, where esc keeps the defaults; anything that
+// keeps the screen from opening falls back to the plain install.
+func fromInstaller(cmd *cobra.Command) error {
+	a, err := load()
+	if err != nil {
+		return err
+	}
+	if !firstTime() || !isTerminal(os.Stdout) || !isTerminal(os.Stdin) {
+		return install(cmd, a, load)
+	}
+	if err := setup(cmd, a, true); err != nil {
+		if errors.Is(err, errNoScreen) {
+			println(cmd.ErrOrStderr(), i18n.T("setup.fallback", err))
+			return install(cmd, a, load)
+		}
+		return err
+	}
+	return nil
+}
+
+// errNoScreen wraps a failure to show the setup screen, as opposed to one
+// applying what was chosen.
+var errNoScreen = errors.New("the setup screen did not open")
+
+// setup shows the setup screen and applies what was chosen. From the
+// installer, esc keeps the defaults and still starts the timers.
+func setup(cmd *cobra.Command, a *app.App, installer bool) error {
 	hook, hookLine := hookFor(os.Getenv("SHELL"), homeDir())
 	start, err := tui.StartFrom(cmd.Context(), a, firstPassAt(a), zellij.RenameReachable(), tilde(hook))
 	if err != nil {
@@ -100,18 +133,29 @@ func setup(cmd *cobra.Command, a *app.App) error {
 	if hook == "" {
 		start.HookFile = ""
 	}
-	choice, chosen, err := tui.RunSetup(start)
+	start.Installer = installer
+	choice, how, err := tui.RunSetup(start)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", errNoScreen, err)
 	}
 	w := cmd.OutOrStdout()
-	if !chosen {
+	switch {
+	case how == tui.SetupQuit:
+		println(w, i18n.T("setup.left"))
+		return nil
+	case how == tui.SetupLeft && installer:
+		// The defaults, as an install without the screen would set up.
+		println(w, i18n.T("setup.defaults"))
+		return install(cmd, a, load)
+	case how == tui.SetupLeft:
 		println(w, i18n.T("setup.left"))
 		return nil
 	}
 	t := theme()
 	// The values as the settings file words them.
-	c := *a.Config
+	// A new file starts from the defaults: values from ZELLIJ_REAPER_*
+	// variables apply to this shell only and must not become settings.
+	c := *config.Default(config.OSEnv{})
 	c.IdleAfter, c.ExitedAfter, c.DryRun, c.AutoRename = choice.IdleAfter, choice.ExitedAfter, choice.DryRun, choice.AutoRename
 	values := map[string]string{
 		"idle_after":   strconv.Quote(duration.Setting(choice.IdleAfter)),

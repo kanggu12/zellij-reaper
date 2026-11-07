@@ -156,7 +156,7 @@ func Load(path string, env Env) (*Config, error) {
 		path = ConfigFile(env)
 	}
 	if err := c.loadFile(path, env); err != nil {
-		return nil, err
+		return nil, &FileError{Path: path, Err: err}
 	}
 	if err := c.loadEnv(env); err != nil {
 		return nil, err
@@ -166,6 +166,16 @@ func Load(path string, env Env) (*Config, error) {
 	}
 	return c, nil
 }
+
+// FileError is a settings file that cannot be read or holds something that
+// is not a setting. Its message is the underlying one, which names the file.
+type FileError struct {
+	Path string
+	Err  error
+}
+
+func (e *FileError) Error() string { return e.Err.Error() }
+func (e *FileError) Unwrap() error { return e.Err }
 
 // loadFile applies the settings file at path, if there is one.
 func (c *Config) loadFile(path string, env Env) error {

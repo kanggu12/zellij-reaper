@@ -26,23 +26,23 @@
 | Install script | `curl`, `tar`, and `sha256sum` or `shasum`; on Windows, PowerShell 5.1 or later | |
 | Demo sandbox | Docker | |
 
-The binary is 7.5 MB and needs no other library. On a machine with 4 sessions and 150 processes a pass took 35 ms and
-at most 12 MB of memory, and nothing stays running between passes. With 100 sessions it takes about 113 ms and 13 MB
-([measured](../README.md#why-zellij-reaper)). The dashboard, while it is open, uses about 16 MB and
+The binary is 7.5 MB and needs no other library. A pass takes about 26 ms and 12 MB with 13 sessions and 113 ms and
+13 MB with 100 ([measured](../README.md#why-zellij-reaper)), and nothing stays running between passes. The dashboard, while it is open, uses about 16 MB and
 reads the sessions every five seconds.
 
 ## Install
 
-The [Quick start](../README.md#quick-start) covers the usual install. Without systemd,
-`ZELLIJ_REAPER_NO_TIMER=1` installs the binary only, and [cron can run the passes](#without-systemd).
+The [Quick start](../README.md#quick-start) covers the usual install. Without systemd, the passes run from
+[cron](#without-systemd).
 
 ```sh
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
 ```
 
 The script works on Linux and macOS. It downloads the latest release for your system and architecture,
-checks it against the release's `checksums.txt`, installs it to `~/.local/bin` and, in a terminal, opens
-[the setup screen](commands.md#setting-up); piped into something else, it runs `zellij-reaper install` with the defaults. On
+checks it against the release's `checksums.txt` and installs it to `~/.local/bin`. On a first install in a terminal it
+then opens [the setup screen](commands.md#setting-up); <kbd>esc</kbd> there keeps the defaults. Otherwise (an upgrade,
+or no terminal) it runs `zellij-reaper install`. On
 Windows, `install.ps1` does the same in PowerShell, puts the binary in `%LOCALAPPDATA%\Programs\zellij-reaper` and adds
 that folder to your `PATH`:
 
@@ -83,6 +83,8 @@ On Linux it:
   removes them. A names pass does nothing while `auto_rename` is off.
 - Writes `~/.config/zellij-reaper/config.toml` if there is none, every key commented out at its default.
 - Enables the timer and turns on lingering (`loginctl enable-linger`), so the timer runs without a login.
+- Without a systemd user instance, puts the two jobs in your crontab instead, when a cron daemon runs
+  ([without systemd](#without-systemd)).
 - Says when the first pass runs and how many sessions it would delete.
 
 On macOS it writes two launch agents to `~/Library/LaunchAgents/`, `io.github.kanggu12.zellij-reaper.plist` and
@@ -100,9 +102,16 @@ With `--config FILE` (or `ZELLIJ_REAPER_CONFIG`), the timer is set up to read th
 
 ### Without systemd
 
-cron can run the passes in place of the timer. It starts a job with a short `PATH` and none of the variables your login
-sets, so put what the job needs at the top of your crontab (`crontab -e`), with your home directory in place of
-`/home/me`:
+When no systemd user instance answers (WSL without systemd, many containers) and a cron daemon runs, `install` puts two
+lines in your crontab, each ending in `# zellij-reaper`: a pass every `interval` and a names pass every
+`rename_interval`, at the nearest step cron can repeat at (5 minutes, an hour, ...). Each line carries its own `PATH`,
+with zellij's directory first, and your `XDG_RUNTIME_DIR`; your other lines are left as they are. `uninstall` removes
+only those two, and once systemd answers, `install` moves the passes back to its timers. With neither, `install` stops
+and says so: turn on systemd (on WSL, `systemd=true` in `/etc/wsl.conf`) or start cron (`sudo service cron start`).
+
+To write the lines yourself instead, install with `ZELLIJ_REAPER_NO_TIMER=1`. cron starts a job with a short `PATH` and
+none of the variables your login sets, so put what the job needs at the top of your crontab (`crontab -e`), with your
+home directory in place of `/home/me`:
 
 ```
 PATH=/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -111,8 +120,8 @@ XDG_RUNTIME_DIR=/run/user/1000
 */5 * * * * zellij-reaper run --names-only --quiet
 ```
 
-The third line runs a pass at five past every hour, and the last one renames every five minutes; `interval` sets the
-systemd timer only. `PATH` has to find both `zellij-reaper` and `zellij`: without `zellij` on it, a pass logs
+The third line runs a pass at five past every hour, and the last one renames every five minutes; written by hand,
+`interval` does not change them. `PATH` has to find both `zellij-reaper` and `zellij`: without `zellij` on it, a pass logs
 `zellij not installed, nothing to do` and exits 0. `XDG_RUNTIME_DIR` is where zellij keeps its sockets. Copy the value
 `echo "$XDG_RUNTIME_DIR"` prints in your shell, or leave the line out if it prints nothing. With any other value, a pass
 does not see your running sessions.
@@ -184,8 +193,9 @@ A closed network also keeps you from checking for new releases: the steps above 
 
 ## Upgrade and uninstall
 
-**Upgrade** by running the install script again, or with your package manager. The settings stay;
-`zellij-reaper install` rewrites the timers. After moving the binary by hand, run `zellij-reaper install` again:
+**Upgrade** by running the install script again, or with your package manager. The settings stay, and the script runs
+`zellij-reaper install`, which rewrites the timers; the setup screen opens only on a first install
+(`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install` again:
 `doctor` notices a timer that still runs an old path. **Uninstall** with `zellij-reaper uninstall`, which stops and
 removes the timers: the systemd units, the launch agents or the scheduled task. `--purge` also removes the settings,
 the log, the protected list and the lists of given and kept names. Lingering stays on; `loginctl disable-linger` turns

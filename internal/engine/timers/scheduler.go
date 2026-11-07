@@ -40,7 +40,7 @@ func For(env config.Env, user string) Scheduler {
 	case "windows":
 		return Tasks{Env: env, Run: Exec}
 	}
-	return Systemd{Env: env, Run: Exec, User: user}
+	return newAuto(env, user)
 }
 
 // purgeState removes the settings, the log, the name lists and the lock, and

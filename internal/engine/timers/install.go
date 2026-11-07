@@ -56,7 +56,7 @@ func (s Systemd) Install(o InstallOptions) (Result, error) {
 		return r, err
 	}
 	if !s.Available() {
-		return r, errors.New("no systemd user instance answers (on WSL, set systemd=true in /etc/wsl.conf)")
+		return r, errors.New("neither a systemd user instance nor a cron daemon answers: on WSL, set systemd=true in /etc/wsl.conf, or start cron, then run install again")
 	}
 	// The shell version's settings live in its service file, which is about
 	// to be overwritten: read them first.

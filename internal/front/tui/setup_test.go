@@ -96,10 +96,10 @@ func TestSetupChoices(t *testing.T) {
 		t.Error("the hook row stays with names off")
 	}
 	// Enter chooses; esc leaves.
-	if m = pressAll(m, "enter"); !m.done || !m.ok {
+	if m = pressAll(m, "enter"); !m.done || m.how != SetupChosen {
 		t.Error("enter does not choose")
 	}
-	if m = pressAll(newSetup(setupSample(""), true), "esc"); !m.done || m.ok {
+	if m = pressAll(newSetup(setupSample(""), true), "esc"); !m.done || m.how != SetupLeft {
 		t.Error("esc does not leave")
 	}
 }
@@ -138,8 +138,8 @@ func TestSetupFitsEverySize(t *testing.T) {
 func TestSetupOpensWithoutAPlan(t *testing.T) {
 	s := SetupStart{IdleAfter: 12 * time.Hour, ExitedAfter: 72 * time.Hour, FirstPass: time.Now(), NoPlan: "zellij is not installed"}
 	m := pressAll(newSetup(s, true), "right", "enter")
-	if !m.ok || m.Choice().IdleAfter != 24*time.Hour || !strings.Contains(m.render(), "zellij is not installed") {
-		t.Errorf("without a plan: ok %v, idle %v", m.ok, m.Choice().IdleAfter)
+	if m.how != SetupChosen || m.Choice().IdleAfter != 24*time.Hour || !strings.Contains(m.render(), "zellij is not installed") {
+		t.Errorf("without a plan: how %v, idle %v", m.how, m.Choice().IdleAfter)
 	}
 }
 

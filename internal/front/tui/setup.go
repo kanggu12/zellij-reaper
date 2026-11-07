@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +30,9 @@ type SetupStart struct {
 	// CanRename is false on Windows, where zellij cannot reach a renamed
 	// session, so the names row is left out.
 	CanRename bool
+	// Installer is true when the install script opened the screen: esc then
+	// keeps the defaults and the install goes on.
+	Installer bool
 	// NoPlan says why no session could be listed, like zellij not being
 	// installed yet; the settings can still be chosen.
 	NoPlan string
@@ -86,8 +88,9 @@ type setupModel struct {
 	keep map[string]bool
 
 	cursor int
-	// done is true once the person chose; ok says whether to apply it.
-	done, ok bool
+	// done is true once the person chose; how says what they chose.
+	done bool
+	how  SetupOutcome
 }
 
 // choicesWith returns the offered waits with cur among them, and its index.
@@ -195,11 +198,14 @@ func (m setupModel) key(s string) (tea.Model, tea.Cmd) {
 	rows := m.rows()
 	m.cursor = min(m.cursor, len(rows)-1)
 	switch s {
-	case "ctrl+c", "esc", "q":
-		m.done = true
+	case "ctrl+c":
+		m.done, m.how = true, SetupQuit
+		return m, tea.Quit
+	case "esc", "q":
+		m.done, m.how = true, SetupLeft
 		return m, tea.Quit
 	case "enter":
-		m.done, m.ok = true, true
+		m.done, m.how = true, SetupChosen
 		return m, tea.Quit
 	case "up", "k":
 		m.cursor = max(0, m.cursor-1)
@@ -253,8 +259,12 @@ func (m setupModel) render() string {
 		return frameTo([]string{ui.Fg(t.Muted).Render(i18n.T("small"))}, m.width, m.height)
 	}
 	name := lipgloss.NewStyle().Background(t.Mark).Foreground(lipgloss.Color("#1D1C1D")).Bold(true).Padding(0, 1).Render("zellij-reaper")
-	lines := []string{" " + name + ui.Fg(t.Muted).Render("  "+i18n.T("setup.title")), ""}
-	lines = append(lines, " "+ui.Fg(t.Muted).Render(i18n.T("setup.intro", ui.Clock(m.start.FirstPass))), "")
+	lines := []string{" " + name + ui.Fg(t.Ink).Bold(true).Render("  "+i18n.T("setup.title")), ""}
+	// The intro wraps rather than losing its last words on a narrow screen.
+	for _, l := range wrapWords(i18n.T("setup.intro", ui.Clock(m.start.FirstPass)), m.width-2) {
+		lines = append(lines, " "+ui.Fg(t.Muted).Render(l))
+	}
+	lines = append(lines, "")
 
 	rows := m.rows()
 	labelW := 0
@@ -266,25 +276,30 @@ func (m setupModel) render() string {
 	// pointer marks the row under the cursor.
 	pointer := func(i int) string {
 		if i == m.cursor {
-			return ui.Fg(t.Mark).Bold(true).Render(" ›")
+			return ui.Fg(t.Ink).Bold(true).Render(" ›")
 		}
 		return "  "
 	}
-	// Values line up too, so the notes after them start in one column.
+	// Values line up too, at the width of the widest value each row can
+	// take, so the notes after them start in one column that never moves.
 	valueW := 0
 	for _, r := range rows {
 		if r != rowSession {
-			valueW = max(valueW, lipgloss.Width(m.value(r)))
+			for _, v := range m.values(r) {
+				valueW = max(valueW, lipgloss.Width(v))
+			}
 		}
 	}
 	i := 0
 	for ; i < len(rows) && rows[i] != rowSession; i++ {
 		r := rows[i]
-		label := fmt.Sprintf("%-*s", labelW, m.label(r))
+		// Padded by cells, not letters: a Korean letter takes two.
+		label := padCells(m.label(r), labelW)
 		pad := strings.Repeat(" ", valueW-lipgloss.Width(m.value(r)))
 		value := ui.Fg(t.Ink).Bold(true).Render("‹ "+m.value(r)+" ›") + pad
 		line := pointer(i) + " " + ui.Fg(t.Ink).Render(label) + "   " + value
-		if note := m.note(r); note != "" {
+		// A note that does not fit whole is left out rather than cut.
+		if note := m.note(r); note != "" && lipgloss.Width(line)+2+lipgloss.Width(note) <= m.width {
 			line += "  " + ui.Fg(t.Muted).Render(note)
 		}
 		lines = append(lines, line)
@@ -297,6 +312,8 @@ func (m setupModel) render() string {
 	switch {
 	case m.start.NoPlan != "":
 		lines = append(lines, " "+ui.Fg(t.Muted).Render(i18n.T("setup.noplan", m.start.NoPlan)))
+	case m.dry && due == 0:
+		lines = append(lines, " "+ui.Fg(t.Cat[ui.CatAttached]).Render(i18n.T("setup.first.none")))
 	case m.dry:
 		lines = append(lines, " "+ui.Fg(t.Cat[ui.CatReap]).Render(i18n.TN("setup.first.dry", due, due)))
 	case due == 0:
@@ -326,7 +343,7 @@ func (m setupModel) render() string {
 			box = "[x]"
 		}
 		cat := ui.Categorize(v)
-		line := pointer(i+j) + " " + ui.Fg(t.Ink).Render(box+" "+fmt.Sprintf("%-*s", nameW, o.Session.Facts.Name)) +
+		line := pointer(i+j) + " " + ui.Fg(t.Ink).Render(box+" "+padCells(o.Session.Facts.Name, nameW)) +
 			"  " + t.Dot(cat) + " " + ui.Fg(t.Cat[cat]).Render(setupWhy(v))
 		lines = append(lines, line)
 	}
@@ -340,7 +357,15 @@ func (m setupModel) render() string {
 	if i < len(rows) && m.cursor >= i {
 		keys = append(keys, [2]string{"space", i18n.T("setup.key.keep")})
 	}
-	keys = append(keys, [2]string{"⏎", i18n.T("setup.key.start")}, [2]string{"esc", i18n.T("setup.key.quit")})
+	enter := i18n.T("setup.key.start")
+	if m.dry {
+		enter = i18n.T("setup.key.start.dry")
+	}
+	esc := i18n.T("setup.key.quit")
+	if m.start.Installer {
+		esc = i18n.T("setup.key.defaults")
+	}
+	keys = append(keys, [2]string{"⏎", enter}, [2]string{"esc", esc})
 	out[m.height-1] = m.keyBar(keys)
 	return frameTo(out, m.width, m.height)
 }
@@ -416,6 +441,53 @@ func (m setupModel) value(r setupRow) string {
 	return ""
 }
 
+// values lists every value a row can show, for the width of the column.
+func (m setupModel) values(r setupRow) []string {
+	c := m
+	var out []string
+	switch r {
+	case rowIdle:
+		for i := range m.idle {
+			c.idleAt = i
+			out = append(out, c.value(r))
+		}
+	case rowExited:
+		for i := range m.exited {
+			c.exitedAt = i
+			out = append(out, c.value(r))
+		}
+	default:
+		for _, b := range []bool{false, true} {
+			c.dry, c.names, c.hook = b, b, b
+			out = append(out, c.value(r))
+		}
+	}
+	return out
+}
+
+// padCells pads s with spaces to w terminal cells.
+func padCells(s string, w int) string {
+	return s + strings.Repeat(" ", max(0, w-lipgloss.Width(s)))
+}
+
+// wrapWords breaks s into lines of at most w cells, at spaces.
+func wrapWords(s string, w int) []string {
+	var out []string
+	line := ""
+	for _, word := range strings.Fields(s) {
+		switch {
+		case line == "":
+			line = word
+		case lipgloss.Width(line)+1+lipgloss.Width(word) <= w:
+			line += " " + word
+		default:
+			out = append(out, line)
+			line = word
+		}
+	}
+	return append(out, line)
+}
+
 // note is the muted words after a row's value.
 func (m setupModel) note(r setupRow) string {
 	switch r {
@@ -427,6 +499,7 @@ func (m setupModel) note(r setupRow) string {
 		if m.dry {
 			return i18n.T("setup.mode.dry.note")
 		}
+		return i18n.T("setup.mode.live.note")
 	case rowNames:
 		if m.names {
 			return i18n.T("setup.names.note")
@@ -450,15 +523,27 @@ func frameTo(lines []string, w, h int) string {
 	return strings.Join(out, "\n")
 }
 
-// RunSetup shows the setup screen and returns what was chosen; ok is false
-// when the person left without choosing.
-func RunSetup(s SetupStart) (SetupChoice, bool, error) {
+// SetupOutcome is how the person left the setup screen.
+type SetupOutcome int
+
+const (
+	// SetupLeft: esc or q, nothing chosen.
+	SetupLeft SetupOutcome = iota
+	// SetupChosen: enter, apply the choice.
+	SetupChosen
+	// SetupQuit: ctrl+c, stop here whatever called the screen.
+	SetupQuit
+)
+
+// RunSetup shows the setup screen and returns what was chosen and how the
+// person left it.
+func RunSetup(s SetupStart) (SetupChoice, SetupOutcome, error) {
 	final, err := tea.NewProgram(newSetup(s, true)).Run()
 	if err != nil {
-		return SetupChoice{}, false, err
+		return SetupChoice{}, SetupQuit, err
 	}
 	m := final.(setupModel)
-	return m.Choice(), m.ok, nil
+	return m.Choice(), m.how, nil
 }
 
 // SetupSnapshot prints one frame of the setup screen after keys, for the

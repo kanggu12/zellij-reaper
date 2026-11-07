@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.7.0" src="docs/assets/badges/release.svg"></a>
+  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.8.0" src="docs/assets/badges/release.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="docs/assets/badges/demo.svg"></a>
   <img alt="Runs on Linux, macOS and Windows" src="docs/assets/badges/runs-on.svg">
@@ -46,7 +46,7 @@ Linux, macOS or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43
 ```sh
 # 1. Install. In a terminal it opens the setup screen, then starts the timers.
 curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"   # this shell; the installer says if your startup file needs it
 
 # 2. See what the next pass would do. It changes nothing.
 zellij-reaper plan
@@ -55,14 +55,13 @@ zellij-reaper plan
 zellij-reaper
 ```
 
-Windows, in PowerShell, then a new terminal:
+Windows, in PowerShell (open a new terminal afterwards to run it by name):
 
 ```powershell
 irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
 ```
 
-The setup screen shows what the first pass would reap before anything runs. Pick the waits, keep sessions with
-<kbd>space</kbd>, and choose whether passes reap or only log what they would reap:
+The setup screen shows what the first pass would reap before anything runs:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/setup-dark.png">
@@ -161,7 +160,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |
 | `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
-| `install` / `uninstall [--purge]` | the timers: systemd units, launch agents or a scheduled task |
+| `install` / `uninstall [--purge]` | the timers: systemd units (or cron), launch agents or a scheduled task |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
 | `doctor` | check zellij, the timers, the settings and the log |
 | `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket |

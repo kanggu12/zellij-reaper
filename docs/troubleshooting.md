@@ -14,6 +14,8 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
 - Without lingering (`loginctl show-user $USER -p Linger`) the timer stops when you log out. `install` turns it on;
   `doctor` says when it is off.
 - On WSL 2, systemd has to be turned on, and the timer stops with the VM: see [setup](setup.md#wsl-2).
+- Without systemd, `crontab -l` lists two lines ending in `# zellij-reaper`, which a running cron daemon reads
+  ([without systemd](setup.md#without-systemd)).
 - On macOS, `launchctl print gui/$(id -u)/io.github.kanggu12.zellij-reaper` shows the launch agent; the first pass
   comes one `interval` (an hour) after install.
 - On Windows, the Task Scheduler lists `zellij-reaper` (`Get-ScheduledTask zellij-reaper` in PowerShell). It runs while

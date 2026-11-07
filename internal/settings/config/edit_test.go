@@ -41,3 +41,16 @@ func TestSetKeysWritesAWholeFileWhenThereIsNone(t *testing.T) {
 		t.Errorf("read back %v, %v", got.ExitedAfter, err)
 	}
 }
+
+func TestSetKeysStaysAboveTables(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(p, []byte("idle_after = \"2h\"\r\n[log]\r\npath = \"/tmp/x\"\r\nidle_after = 3\r\n"), 0o644)
+	if err := SetKeys(p, Default(MapEnv{"HOME": "/h"}), map[string]string{"idle_after": `"4h"`, "dry_run": "true"}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(p)
+	want := "idle_after = \"4h\"\r\ndry_run = true\n[log]\r\npath = \"/tmp/x\"\r\nidle_after = 3\r\n"
+	if string(b) != want {
+		t.Errorf("got %q\nwant %q", b, want)
+	}
+}
