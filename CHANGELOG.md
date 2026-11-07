@@ -6,6 +6,34 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-08
+
+### Added
+
+- Where systemd has no user instance (WSL without systemd, many containers) but a cron daemon runs, `install` puts the
+  passes in your crontab: two lines marked `# zellij-reaper`, each with its own `PATH` and `XDG_RUNTIME_DIR`, at the
+  nearest step cron can repeat at. Your other lines stay; `uninstall` removes only these, and an install once systemd
+  answers moves the passes back to its timers.
+- A settings file that does not load says how to get past it: `zellij-reaper config edit`, or moving it away.
+
+### Changed
+
+- The install scripts open the setup screen only on a first install; an upgrade rewrites the timers as before. Opened
+  by them, <kbd>esc</kbd> keeps the defaults and the install goes on, ctrl+c stops it, and a screen that cannot open
+  falls back to `install`.
+- The setup screen lines up in Korean, keeps the column of notes in place and leaves out a note that does not fit
+  instead of cutting it, wraps its first line on a narrow terminal, follows the cursor in a short one, and names the
+  mode on <kbd>⏎</kbd> ("save and start (log only)").
+
+### Fixed
+
+- `setup` added a new setting at the end of a settings file that ends in a table (`[log]`), where TOML reads it as
+  part of the table and the file stops loading. New settings now go above the first table, and a line keeps its
+  Windows line ending.
+- `setup` wrote values from `ZELLIJ_REAPER_*` variables into a new settings file, where they stayed after the
+  variable was gone.
+- `install.sh` stopped without starting the timers under dash when the terminal could not be opened (`/dev/tty`).
+
 ## [0.7.0] - 2026-11-08
 
 ### Added
@@ -14,10 +42,10 @@ that only fixes raises the patch number. Each release's section here is its rele
   waits, whether passes reap or only log what they would reap, names and the prompt hook, and which listed sessions
   to keep, then starts the timers. It writes only the keys it sets into the settings file, so notes and other
   settings written by hand stay. The installers open it in a terminal (`ZELLIJ_REAPER_NO_SETUP=1` skips it), and
-  `zellij-reaper` opens it before the dashboard while there is no settings file.
+  with no settings file `zellij-reaper` opens it instead of the dashboard.
 - The README shows the setup screen and a chart of how long a pass takes with 13 to 100 sessions; troubleshooting
-  opens with a figure from what `doctor`, `plan` and `logs` say to the section that covers it, and setup's files
-  section with one of where each system keeps its files.
+  opens with a figure from what `doctor`, `plan` and `logs` say to the section that covers it, and the Files section
+  of setup.md with a figure of where each system keeps its files.
 
 ## [0.6.2] - 2026-11-07
 
@@ -347,7 +375,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.7.0
 [0.6.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.2
 [0.6.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.1
