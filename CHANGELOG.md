@@ -6,6 +6,19 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-08
+
+### Added
+
+- `zellij-reaper setup`: a screen that shows what the first pass would reap and lets you choose the idle and exited
+  waits, whether passes reap or only log what they would reap, names and the prompt hook, and which listed sessions
+  to keep, then starts the timers. It writes only the keys it sets into the settings file, so notes and other
+  settings written by hand stay. The installers open it in a terminal (`ZELLIJ_REAPER_NO_SETUP=1` skips it), and
+  `zellij-reaper` opens it before the dashboard while there is no settings file.
+- The README shows the setup screen and a chart of how long a pass takes with 13 to 100 sessions; troubleshooting
+  opens with a figure from what `doctor`, `plan` and `logs` say to the section that covers it, and setup's files
+  section with one of where each system keeps its files.
+
 ## [0.6.2] - 2026-11-07
 
 ### Changed
@@ -334,7 +347,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.7.0
 [0.6.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.2
 [0.6.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.1
 [0.6.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.0
