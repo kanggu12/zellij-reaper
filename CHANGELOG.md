@@ -6,6 +6,24 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-08
+
+### Fixed
+
+- Where cron runs the passes, the setup screen said nothing is deleted before a first pass ten minutes away, but cron
+  starts it the next time its line comes round, which can be sooner. The screen now gives that time, the one `install`
+  reports, worked out on the cron daemon's clock: the system's time zone, which `TZ` can differ from, with a line that
+  summer time skips counted as run right after the jump.
+- Opened where the timers run already, the setup screen gives their next pass when it comes before the first one an
+  install would start, since that pass runs with the settings as they are.
+- On Windows, the next and last pass times showed in UTC, in `install`, `doctor` and the dashboard. They show in local
+  time.
+- The setup screen cut the reason it lists no sessions (zellij not installed, say) at the edge of a 100-column window;
+  it wraps.
+- The crontab lines named zellij's directory twice in their `PATH` when it is `/usr/local/bin` or another of the
+  usual ones.
+- `install.ps1` turned a user `PATH` stored as a plain string into one Windows expands; it keeps the kind it has.
+
 ## [0.8.0] - 2026-11-08
 
 ### Added
@@ -375,7 +393,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.7.0
 [0.6.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.6.2
