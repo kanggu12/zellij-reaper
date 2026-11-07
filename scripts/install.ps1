@@ -77,12 +77,15 @@
 
   # The user's PATH gets the folder once, for terminals opened from now on. It
   # is read and written as it is stored, so entries like %USERPROFILE%\bin
-  # keep their variables, and it keeps its kind: a plain string stays one,
-  # and only a PATH made here is one Windows expands.
+  # keep their variables. A PATH stored as a plain string stays one; any
+  # other, or a new one, is one Windows expands.
   $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
   try {
     $userPath = [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-    $kind = if ($null -ne $key.GetValue('Path')) { $key.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+    $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+    if ($null -ne $key.GetValue('Path') -and $key.GetValueKind('Path') -eq [Microsoft.Win32.RegistryValueKind]::String) {
+      $kind = [Microsoft.Win32.RegistryValueKind]::String
+    }
     $entries = @($userPath -split ';' | Where-Object { $_ })
     if (-not ($entries | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -eq $binDir.TrimEnd('\') })) {
       $key.SetValue('Path', (@($entries + $binDir) -join ';'), $kind)

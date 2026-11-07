@@ -245,7 +245,14 @@ func homeDir() string {
 // firstPassAt is when the first pass after an install runs, as the scheduler
 // that will run the passes starts them: ten minutes after the timers start
 // with systemd and the Task Scheduler, one interval with launchd, the next
-// time the schedule comes round with cron.
+// time the schedule comes round with cron. Where the timers run already, the
+// next of their passes can come sooner, with the settings as they are, and
+// an install does not always move it.
 func firstPassAt(a *app.App) time.Time {
-	return a.System.FirstPass(time.Now(), a.Config.Interval)
+	now := time.Now()
+	at := a.System.FirstPass(now, a.Config.Interval)
+	if st := a.System.Status(); st.Active && st.Next.After(now) && st.Next.Before(at) {
+		at = st.Next
+	}
+	return at
 }

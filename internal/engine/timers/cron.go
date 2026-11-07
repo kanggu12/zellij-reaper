@@ -27,6 +27,9 @@ type Cron struct {
 	Run func(stdin string, args ...string) (string, error)
 	// Running reports whether a cron daemon runs. Tests replace it.
 	Running func() bool
+	// Zone is the time zone the daemon reads its lines in. Tests replace
+	// it; without one, the local zone.
+	Zone func() *time.Location
 }
 
 // cronMark ends every line zellij-reaper writes into the crontab.
@@ -37,7 +40,31 @@ func NewCron(env config.Env) Cron {
 	return Cron{Env: env, Run: crontab, Running: func() bool {
 		_, err := exec.LookPath("crontab")
 		return err == nil && cronDaemonRuns()
-	}}
+	}, Zone: daemonZone}
+}
+
+// daemonZone is the time zone a cron daemon reads its lines in: the system's,
+// from /etc/localtime, since a daemon the init system or `service` starts
+// has no TZ of its own. A person's TZ can name another zone, which Go follows;
+// without the file, the C library takes UTC.
+func daemonZone() *time.Location {
+	b, err := os.ReadFile("/etc/localtime")
+	if err != nil {
+		return time.UTC
+	}
+	z, err := time.LoadLocationFromTZData("cron", b)
+	if err != nil {
+		return time.UTC
+	}
+	return z
+}
+
+// zone is the daemon's time zone, or the local one when none is set.
+func (c Cron) zone() *time.Location {
+	if c.Zone == nil {
+		return time.Local
+	}
+	return c.Zone()
 }
 
 // crontab runs the crontab command.
@@ -83,13 +110,17 @@ func (c Cron) HasJobs() bool {
 // Persists: cron runs whether or not the user is logged in.
 func (c Cron) Persists() (on, known bool) { return false, false }
 
-// FirstPass is the next time the pass line's schedule comes round: cron has
-// no delay of its own, so the first pass after an install may come within a
-// minute, or up to an interval later.
+// FirstPass is the next time the pass line's schedule comes round, on the
+// daemon's clock: cron has no delay of its own, so the first pass after an
+// install may come within a minute, or up to an interval later. It is given
+// in now's zone.
 func (c Cron) FirstPass(now time.Time, interval time.Duration) time.Time {
 	sched, _ := CronSchedule(interval)
-	_, next := cronEvery(strings.Fields(sched), now)
-	return next
+	_, next := cronEvery(strings.Fields(sched), now.In(c.zone()))
+	if next.IsZero() {
+		return next
+	}
+	return next.In(now.Location())
 }
 
 // read returns the crontab's lines; a user with none has an empty one.
@@ -265,7 +296,11 @@ func (c Cron) statusOf(names bool) TimerStatus {
 		}
 		st.Installed, st.Enabled = true, true
 		st.Active = c.Running()
-		st.Interval, st.Next = cronEvery(f[:5], time.Now())
+		// Worked out on the daemon's clock, shown on the local one.
+		st.Interval, st.Next = cronEvery(f[:5], time.Now().In(c.zone()))
+		if !st.Next.IsZero() {
+			st.Next = st.Next.Local()
+		}
 		st.ExecStart = strings.Join(f[5:], " ")
 		return st
 	}
@@ -273,7 +308,8 @@ func (c Cron) statusOf(names bool) TimerStatus {
 }
 
 // cronEvery reads back a schedule CronSchedule wrote: how often it runs and
-// when next after now. Anything else gives zero.
+// when next after now, on now's clock, which should be the daemon's. Anything
+// else gives zero.
 func cronEvery(f []string, now time.Time) (time.Duration, time.Time) {
 	min, hour := f[0], f[1]
 	step := func(s string) int {
@@ -286,19 +322,19 @@ func cronEvery(f []string, now time.Time) (time.Duration, time.Time) {
 		}
 		return n
 	}
-	t := now.Truncate(time.Minute).Add(time.Minute)
+	// every is how often the line runs, match whether it runs at a time of
+	// day.
+	var every time.Duration
+	var match func(h, m int) bool
 	switch {
 	case hour == "*" && strings.HasPrefix(min, "*"):
 		n := step(min)
 		if n == 0 {
 			return 0, time.Time{}
 		}
-		for t.Minute()%n != 0 {
-			t = t.Add(time.Minute)
-		}
-		return time.Duration(n) * time.Minute, t
+		every, match = time.Duration(n)*time.Minute, func(_, m int) bool { return m%n == 0 }
 	default:
-		m, err := strconv.Atoi(min)
+		at, err := strconv.Atoi(min)
 		if err != nil {
 			return 0, time.Time{}
 		}
@@ -308,11 +344,41 @@ func cronEvery(f []string, now time.Time) (time.Duration, time.Time) {
 				return 0, time.Time{}
 			}
 		}
-		for t.Minute() != m || t.Hour()%h != 0 {
-			t = t.Add(time.Minute)
-		}
-		return time.Duration(h) * time.Hour, t
+		every, match = time.Duration(h)*time.Hour, func(hh, mm int) bool { return mm == at && hh%h == 0 }
 	}
+	// Minute by minute, as the daemon looks, for at most two days. Where the
+	// clock jumps forward (summer time), cron runs a line whose time was
+	// skipped right after the jump, so that minute counts as its run: what
+	// this gives is a time nothing runs before.
+	prev := now.Truncate(time.Minute)
+	for range 2 * 24 * 60 {
+		t := prev.Add(time.Minute)
+		if match(t.Hour(), t.Minute()) || jumpedOver(prev, t, match) {
+			return every, t
+		}
+		prev = t
+	}
+	return 0, time.Time{}
+}
+
+// jumpedOver reports whether the clock jumped forward between two minutes in
+// a row, past a time of day the line runs at.
+func jumpedOver(prev, t time.Time, match func(h, m int) bool) bool {
+	from, to := prev.Hour()*60+prev.Minute(), t.Hour()*60+t.Minute()
+	if to < from {
+		to += 24 * 60
+	}
+	// One minute on is the usual step; going back, or on by more than three
+	// hours, is no summer-time jump.
+	if to-from <= 1 || to-from > 3*60 {
+		return false
+	}
+	for w := from + 1; w < to; w++ {
+		if match(w/60%24, w%60) {
+			return true
+		}
+	}
+	return false
 }
 
 // fmtDur words a duration the way the settings do.

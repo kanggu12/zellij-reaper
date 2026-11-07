@@ -6,6 +6,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+	// Zones for the tests below, also where the system has no zone files
+	// (Windows).
+	_ "time/tzdata"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
@@ -85,6 +88,73 @@ func TestFirstPassFollowsEachScheduler(t *testing.T) {
 		if got := c.s.FirstPass(c.now, c.every); !got.Equal(c.want) {
 			t.Errorf("%s: first pass %s, want %s", c.name, got.Format("01-02 15:04:05"), c.want.Format("01-02 15:04:05"))
 		}
+	}
+}
+
+// zone loads a time zone from the data built into the test binary.
+func zone(t *testing.T, name string) *time.Location {
+	t.Helper()
+	z, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return z
+}
+
+func TestCronTimesAreOnTheDaemonsClock(t *testing.T) {
+	// The daemon reads its lines in the system's zone, which a person's TZ
+	// can differ from. With TZ in India and the daemon on UTC, the hourly
+	// line runs at 22:35 India time, not 23:05; with TZ in Seoul, the daily
+	// one at 09:05, not at midnight. Both came before the time promised.
+	india, seoul := zone(t, "Asia/Kolkata"), zone(t, "Asia/Seoul")
+	c := Cron{Zone: func() *time.Location { return time.UTC }}
+	for _, tc := range []struct {
+		now   time.Time
+		every time.Duration
+		want  time.Time
+	}{
+		{time.Date(2026, 11, 7, 22, 21, 25, 0, india), time.Hour, time.Date(2026, 11, 7, 22, 35, 0, 0, india)},
+		{time.Date(2026, 11, 8, 1, 51, 25, 0, seoul), 24 * time.Hour, time.Date(2026, 11, 8, 9, 5, 0, 0, seoul)},
+	} {
+		got := c.FirstPass(tc.now, tc.every)
+		if !got.Equal(tc.want) || got.Location() != tc.now.Location() {
+			t.Errorf("%s every %v: first pass %s, want %s", tc.now.Format("15:04 MST"), tc.every,
+				got.Format("01-02 15:04 MST"), tc.want.Format("01-02 15:04 MST"))
+		}
+	}
+
+	// The status reads an installed line back on the daemon's clock too,
+	// and gives the time in the local zone.
+	f := &fakeCrontab{}
+	c = Cron{Env: config.MapEnv{"HOME": t.TempDir()}, Run: f.run, Running: func() bool { return true },
+		Zone: func() *time.Location { return india }}
+	o := InstallOptions{Exe: "/h/.local/bin/zellij-reaper", Config: config.Default(config.MapEnv{"HOME": "/h"})}
+	if _, err := c.Install(o); err != nil {
+		t.Fatal(err)
+	}
+	if st := c.Status(); st.Next.In(india).Minute() != 5 || st.Next.Location() != time.Local {
+		t.Errorf("next pass %s in %v, want five past in India", st.Next.In(india).Format("15:04"), st.Next.Location())
+	}
+}
+
+func TestCronCountsALineTheClockJumpsOver(t *testing.T) {
+	// Summer time in Chile starts at midnight: 00:05 never comes on
+	// 2026-09-06, and cron runs the daily line right after the jump, at
+	// 01:00, not a day later.
+	chile := zone(t, "America/Santiago")
+	c := Cron{Zone: func() *time.Location { return chile }}
+	now := time.Date(2026, 9, 5, 23, 30, 0, 0, chile)
+	if got, want := c.FirstPass(now, 24*time.Hour), time.Date(2026, 9, 6, 1, 0, 0, 0, chile); !got.Equal(want) {
+		t.Errorf("first pass %s, want %s", got.Format("01-02 15:04 MST"), want.Format("01-02 15:04 MST"))
+	}
+	// When the clock goes back an hour, nothing counts as jumped over: in
+	// New York on 2026-11-01, 01:59 EDT is followed by 01:00 EST, and the
+	// hourly line next runs at 01:05 EST.
+	ny := zone(t, "America/New_York")
+	c = Cron{Zone: func() *time.Location { return ny }}
+	now = time.Date(2026, 11, 1, 5, 50, 0, 0, time.UTC) // 01:50 EDT
+	if got, want := c.FirstPass(now, time.Hour), time.Date(2026, 11, 1, 6, 5, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("first pass %s, want %s", got.In(ny).Format("01-02 15:04 MST"), want.In(ny).Format("01-02 15:04 MST"))
 	}
 }
 

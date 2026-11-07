@@ -106,7 +106,8 @@ When no systemd user instance answers (WSL without systemd, many containers) and
 lines in your crontab, each ending in `# zellij-reaper`: a pass every `interval` and a names pass every
 `rename_interval`, at the nearest step cron can repeat at (5 minutes, an hour, ...). cron has no start delay, so the
 first pass comes the next time its line comes round (five past the hour, by default), not ten minutes after install;
-the setup screen and `install` give that time. Each line carries its own `PATH`,
+the setup screen and `install` give that time. cron reads the lines on the system's clock (`/etc/localtime`); with
+another `TZ` in your shell, the times shown are converted to it. Each line carries its own `PATH`,
 with zellij's directory first, and your `XDG_RUNTIME_DIR`; your other lines are left as they are. `uninstall` removes
 only those two, and once systemd answers, `install` moves the passes back to its timers. With neither, `install` stops
 and says so: turn on systemd (on WSL, `systemd=true` in `/etc/wsl.conf`) or start cron (`sudo service cron start`).
