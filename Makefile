@@ -34,11 +34,7 @@ test:
 ## fuzz: every fuzz target for FUZZTIME each (default 30s); failures land in testdata/fuzz
 FUZZTIME ?= 30s
 fuzz:
-	@for pkg in ./internal/core/rename ./internal/machine/zellij; do \
-	  for f in $$(go test -list '^Fuzz' $$pkg | grep '^Fuzz'); do \
-	    go test -run '^$$' -fuzz "^$$f$$" -fuzztime $(FUZZTIME) $$pkg || exit 1; \
-	  done; \
-	done
+	@sh scripts/fuzz.sh $(FUZZTIME)
 
 ## integration: real zellij releases in throwaway containers (needs Docker);
 ## ZELLIJ_VERSIONS="0.45.1" picks releases. Not ZELLIJ: zellij sets that
