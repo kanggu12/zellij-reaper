@@ -353,6 +353,7 @@ var en = map[string]string{
 	"delete.some":          "%d of %d sessions not reaped",
 	"rename.none":          "no session is called %s",
 	"rename.empty":         "the new name is empty",
+	"rename.control":       "the new name has a control character, such as a line break",
 }
 
 // ko is the Korean catalog.
@@ -688,4 +689,5 @@ var ko = map[string]string{
 	"delete.some":          "세션 %d개는 정리하지 않았습니다(모두 %d개 중)",
 	"rename.none":          "%s 이름의 세션이 없습니다",
 	"rename.empty":         "새 이름이 비어 있습니다",
+	"rename.control":       "새 이름에 줄바꿈 같은 제어 문자가 있습니다",
 }

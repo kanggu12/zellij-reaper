@@ -31,7 +31,10 @@ func TestParse(t *testing.T) {
 
 func TestParseRejects(t *testing.T) {
 	// Each of these would otherwise turn into a surprising threshold.
-	for _, in := range []string{"", "90", "-1h", "h", "3x", "1h-", "1..5h"} {
+	// Past what a Duration holds, a value wrapped around: two huge terms came
+	// out as zero, a wait switched off; the last two are just under and over.
+	for _, in := range []string{"", "90", "-1h", "h", "3x", "1h-", "1..5h",
+		"9999999999w9999999999w", "15251w", "15250w15250w"} {
 		if d, err := Parse(in); err == nil {
 			t.Errorf("Parse(%q) = %v, want an error", in, d)
 		}

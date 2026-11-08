@@ -8,6 +8,7 @@ package duration
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -72,7 +73,13 @@ func Parse(s string) (time.Duration, error) {
 			return 0, fmt.Errorf("duration %q: missing unit (use s, m, h, d or w)", s)
 		}
 		rest = rest[len(unit):]
-		total += time.Duration(num * float64(units[unit]))
+		// Past what a Duration holds, the conversion wraps around: a huge
+		// wait would come out as zero, which switches the wait off.
+		part := num * float64(units[unit])
+		if part >= float64(math.MaxInt64)-float64(total) {
+			return 0, fmt.Errorf("duration %q is too long", s)
+		}
+		total += time.Duration(part)
 	}
 	return total, nil
 }

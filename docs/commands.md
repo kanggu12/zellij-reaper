@@ -69,11 +69,12 @@ takes them off. A name the `protect` pattern matches stays protected either way,
 renames them. With no name it prints the kept names. **`forget-name NAME...`** takes names off that list, so passes may
 rename those sessions again. Both wait for a pass that holds the lock, and log what they did.
 
-**`delete NAME...`** reaps sessions now, as <kbd>d</kbd> does in the dashboard. Each is asked about first with the
-dashboard's question, which says what protects it or still runs in it; `--yes` (`-y`) reaps without asking, and without
-a terminal to answer in, `delete` needs it. Right before each delete, zellij is asked again: a session with a client
-attached, one whose clients nobody can tell, or one zellij no longer lists is kept. The waits do not apply. The exit
-status is 1 when any session it was not told to keep was kept.
+**`delete NAME...`** reaps sessions now, as <kbd>d</kbd> does in the dashboard, with its checks: a session with a client
+attached, one whose clients nobody can tell, or one not in the list of sessions is kept, going by a plan made just
+before and by zellij asked once more right before the delete. Each is asked about first with the dashboard's question,
+which says what protects it or still runs in it, and checked again after the answer; `--yes` (`-y`) reaps without
+asking, and without a terminal to answer in, `delete` needs it. The waits do not apply. The exit status is 1 when any
+session it was not told to keep was kept.
 
 **`rename NAME NEW-NAME`** renames a running session, as <kbd>r</kbd> does in the dashboard. A name given by hand is
 someone's choice, so passes leave it alone, and a protection follows the session to its new name. A name too long for
@@ -81,9 +82,9 @@ the socket path or taken by another session is refused, and so is an exited sess
 has keeps that name, as `keep-name` does. zellij on Windows cannot reach a session after a rename, so `rename` refuses
 there.
 
-Every action the dashboard takes is a command too: <kbd>f</kbd> is `run`, <kbd>F</kbd> `run --force`, <kbd>p</kbd>
-`protect` or `unprotect`, <kbd>d</kbd> `delete`, <kbd>r</kbd> `rename` or `keep-name`, <kbd>l</kbd> `logs`, and the
-table itself `plan`.
+Every change the dashboard makes is a command too: <kbd>f</kbd> is `run`, <kbd>F</kbd> `run --force`, <kbd>p</kbd>
+`protect` or `unprotect`, <kbd>d</kbd> `delete`, <kbd>r</kbd> `rename` or `keep-name`. What it shows is `plan` (the
+table) and `logs` (<kbd>l</kbd>).
 
 **`recover [--dry-run] [--aggressive]`** repairs sessions that no zellij command can reach. A session's name is part
 of its socket path, which Linux caps at 107 bytes and macOS at 103; a session renamed past that keeps a server nobody can talk to, and

@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -147,12 +148,16 @@ func (m model) keyConfirm(s string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// refuseDelete says why a session must not be reaped by hand, with the color
-// to say it in, or "" when it may be. It reads the current report: a client
-// attached, an attach state nobody could read, or a session the last refresh
-// did not list at all keeps it.
-func (m model) refuseDelete(name string) (string, ui.Category) {
-	for _, o := range m.report.Outcomes {
+// refuseDelete says why a session must not be reaped by hand, from the
+// current report.
+func (m model) refuseDelete(name string) (string, ui.Category) { return RefuseReap(m.report, name) }
+
+// RefuseReap says why a session must not be reaped by hand, in the dashboard
+// or by `delete`, with the color to say it in, or "" when it may be. It reads a
+// report: a client attached, an attach state nobody could read, or a session
+// the report does not list at all keeps it.
+func RefuseReap(r reaper.Report, name string) (string, ui.Category) {
+	for _, o := range r.Outcomes {
 		if o.Session.Name() != name {
 			continue
 		}

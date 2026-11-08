@@ -93,12 +93,45 @@ func TestSetupFlagsCheckEveryValueBeforeWriting(t *testing.T) {
 	if _, err := os.Stat(settingsPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a settings file was written: %v", err)
 	}
+	// A name the protected list cannot hold, beside a setting: the setting
+	// stays as it was and nothing is protected. It used to be written first.
+	path := settingsPath()
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.WriteFile(path, []byte("dry_run = true\n"), 0o644)
+	cmd, _ := output()
+	f := setupFlags{dry: false, protect: []string{"#scratch", "api"}, set: []string{"dry-run", "protect"}}
+	if err := setupWith(cmd, a, f, reload); err == nil || !strings.Contains(err.Error(), "--protect") {
+		t.Errorf("a name starting with # accepted: %v", err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != "dry_run = true\n" || a.Protected.Has("api") {
+		t.Errorf("settings %q, protected %v", b, a.Protected.Names())
+	}
 	// The flags reach setup without a terminal: the value is what fails.
-	root := newRoot()
-	root.SetArgs([]string{"setup", "--idle-after", "banana"})
-	root.SetOut(&strings.Builder{})
-	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "--idle-after") {
-		t.Errorf("setup --idle-after banana: %v", err)
+	// (Only commands that stop before the timers run here: --installer would
+	// start this machine's own.)
+	for args, want := range map[string]string{
+		"setup --idle-after banana":               "--idle-after",
+		"setup --snapshot 100x30 --idle-after 4h": "take none of the choices",
+	} {
+		root := newRoot()
+		root.SetArgs(strings.Fields(args))
+		root.SetOut(&strings.Builder{})
+		if err := root.Execute(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %q", args, err, want)
+		}
+	}
+	// The hidden modes would drop a choice without a word.
+	if err := choicesInHiddenMode([]string{"dry-run"}, "", true); err == nil {
+		t.Error("--installer took --dry-run")
+	}
+	if err := choicesInHiddenMode(nil, "", true); err != nil {
+		t.Errorf("--installer alone: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != "dry_run = true\n" {
+		t.Errorf("settings changed: %q", b)
 	}
 }
 

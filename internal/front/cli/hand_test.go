@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
+	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
@@ -97,57 +103,153 @@ func logged(t *testing.T, a *app.App) string {
 	return string(b)
 }
 
-func TestDeleteReapsWhatNobodyUsesAndSaysWhatItKept(t *testing.T) {
-	z := &fakeSessions{
-		listed:  "notes [Created 2h ago] \nbusy [Created 1h ago] \nold [Created 5d ago] (EXITED - attach to resurrect)\n",
-		clients: map[string]int{"busy": 1},
+// fakeBackend is the dashboard's backend with the plan given: it records the
+// sessions reaped, and fails the ones named in fail.
+type fakeBackend struct {
+	tui.Backend
+	report  reaper.Report
+	fail    map[string]error
+	deleted []string
+}
+
+func (f *fakeBackend) Plan(context.Context) (reaper.Report, error) { return f.report, nil }
+
+func (f *fakeBackend) Delete(_ context.Context, name string) error {
+	if err := f.fail[name]; err != nil {
+		return err
 	}
-	a := handApp(t, z)
-	cmd, out := output()
-	err := reapByHand(cmd, tui.NewCommandLine(a), []string{"notes", "busy", "old"}, false)
-	if err == nil || err.Error() != "1 of 3 sessions not reaped" {
-		t.Errorf("error %v, want 1 of 3 not reaped", err)
-	}
-	// zellij is asked right before, as from the dashboard: the session with
-	// a client stays, the exited one has no server to ask.
-	for _, name := range []string{"notes", "old"} {
-		if !z.did("delete-session " + name) {
-			t.Errorf("%s not reaped: %v", name, z.calls)
+	f.deleted = append(f.deleted, name)
+	return nil
+}
+
+// set changes a session in the plan: attached says whether a client is
+// attached, clients how many (-1 when nobody could ask).
+func (f *fakeBackend) set(name string, attached policy.Tri, clients int) {
+	for i, o := range f.report.Outcomes {
+		if o.Session.Name() == name {
+			f.report.Outcomes[i].Session.Facts.Attached, f.report.Outcomes[i].Session.Clients = attached, clients
 		}
 	}
-	if z.did("delete-session busy") {
-		t.Error("reaped a session with a client attached")
+}
+
+// outcome is one session in a plan, running and unattached or exited.
+func outcome(name string, exited bool, code policy.Code) reaper.Outcome {
+	s := inspect.Session{Listed: zellij.Listed{Name: name, Exited: exited}, Facts: policy.Facts{Name: name, Exited: exited}}
+	if exited {
+		s.Facts.Attached, s.Clients = policy.Unknown, -1
 	}
-	if !strings.Contains(out.String(), "Could not reap busy: a client is attached now") {
-		t.Errorf("output:\n%s", out)
+	return reaper.Outcome{Session: s, Verdict: policy.Verdict{Code: code}}
+}
+
+// answers gives one line per read and calls before(i) as line i is asked
+// for: what happens while a question waits.
+type answers struct {
+	lines  []string
+	before func(i int)
+	i      int
+}
+
+func (a *answers) Read(p []byte) (int, error) {
+	if a.i >= len(a.lines) {
+		return 0, io.EOF
 	}
-	if log := logged(t, a); !strings.Contains(log, "notes :: deleted from the command line") {
-		t.Errorf("log:\n%s", log)
+	if a.before != nil {
+		a.before(a.i)
+	}
+	n := copy(p, a.lines[a.i]+"\n")
+	a.i++
+	return n, nil
+}
+
+func TestDeleteKeepsWhatTheDashboardWouldNot(t *testing.T) {
+	// The dashboard refuses from its report before zellij is asked again: a
+	// client attached, attach state nobody could read (as when the server
+	// was not found), a session not listed. delete once skipped that and
+	// went by list-clients alone.
+	isolate(t)
+	f := &fakeBackend{report: reaper.Report{Outcomes: []reaper.Outcome{
+		outcome("notes", false, policy.IdleOld),
+		outcome("web", false, policy.Attached),
+		outcome("unsure", false, policy.AttachUnknown),
+		outcome("lost", false, policy.NoServer),
+		outcome("old", true, policy.ExitedOld),
+		outcome("busy-now", false, policy.IdleOld),
+	}}, fail: map[string]error{"busy-now": errors.New("a client is attached now")}}
+	f.set("web", policy.Yes, 1)
+	f.set("unsure", policy.Unknown, -1)
+	f.set("lost", policy.No, -1)
+	cmd, out := output()
+	err := reapByHand(cmd, f, []string{"notes", "web", "unsure", "lost", "old", "nobody", "busy-now"}, false)
+	if err == nil || err.Error() != "5 of 7 sessions not reaped" {
+		t.Errorf("error %v, want 5 of 7 not reaped", err)
+	}
+	if !slices.Equal(f.deleted, []string{"notes", "old"}) {
+		t.Errorf("reaped %v, want notes and old", f.deleted)
+	}
+	for _, want := range []string{
+		"web has a client attached: detach it first.",
+		"Not reaped: nobody can tell whether a client is attached to unsure",
+		"Not reaped: nobody can tell whether a client is attached to lost",
+		"Not reaped: nobody is not in the latest list of sessions",
+		// What zellij says right before still counts.
+		"Could not reap busy-now: a client is attached now",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
 	}
 }
 
 func TestDeleteAsksAsTheDashboardDoes(t *testing.T) {
-	z := &fakeSessions{listed: "notes [Created 2h ago] \nold [Created 5d ago] (EXITED - attach to resurrect)\n"}
-	a := handApp(t, z)
+	isolate(t)
+	f := &fakeBackend{report: reaper.Report{Outcomes: []reaper.Outcome{
+		outcome("old", true, policy.ExitedOld),
+		outcome("notes", false, policy.IdleOld),
+		outcome("web", false, policy.Attached),
+		outcome("late", false, policy.IdleOld),
+	}}}
+	f.set("web", policy.Yes, 1)
 	cmd, out := output()
-	cmd.SetIn(strings.NewReader("y\nn\n"))
-	err := reapByHand(cmd, tui.NewCommandLine(a), []string{"old", "notes", "nobody"}, true)
-	// A no is the person's choice; only the session nobody lists fails.
-	if err == nil || err.Error() != "1 of 3 sessions not reaped" {
-		t.Errorf("error %v, want 1 of 3 not reaped", err)
+	// Somebody attaches to late while its question waits.
+	cmd.SetIn(&answers{lines: []string{"y", "n", "y"}, before: func(i int) {
+		if i == 2 {
+			f.set("late", policy.Yes, 1)
+		}
+	}})
+	err := reapByHand(cmd, f, []string{"old", "notes", "web", "late"}, true)
+	// A no is the person's choice; web and late have clients.
+	if err == nil || err.Error() != "2 of 4 sessions not reaped" {
+		t.Errorf("error %v, want 2 of 4 not reaped", err)
 	}
 	s := out.String()
 	for _, want := range []string{
 		"Reap old now? Its resurrection data is removed, so it cannot be resurrected. [y/N]",
 		"Kept notes",
-		"Not reaped: nobody is not in the latest list of sessions",
+		"web has a client attached: detach it first.",
+		"late has a client attached: detach it first.",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("output lacks %q:\n%s", want, s)
 		}
 	}
-	if !z.did("delete-session old") || z.did("delete-session notes") {
+	// web, attached already, is not even asked about.
+	if strings.Contains(s, "Reap web now?") || !slices.Equal(f.deleted, []string{"old"}) {
+		t.Errorf("reaped %v, output:\n%s", f.deleted, s)
+	}
+}
+
+func TestDeleteLogsThatItCameFromTheCommandLine(t *testing.T) {
+	z := &fakeSessions{listed: "old [Created 5d ago] (EXITED - attach to resurrect)\n"}
+	a := handApp(t, z)
+	cmd, _ := output()
+	if err := reapByHand(cmd, tui.NewCommandLine(a), []string{"old"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if !z.did("delete-session old") {
 		t.Errorf("calls: %v", z.calls)
+	}
+	if log := logged(t, a); !strings.Contains(log, "old :: deleted from the command line") {
+		t.Errorf("log:\n%s", log)
 	}
 }
 
@@ -183,6 +285,14 @@ func TestRenameFromTheCommandLine(t *testing.T) {
 		if err := renameByHand(cmd, a, b, name, "x"); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("rename %s: %v, want %q", name, err, want)
 		}
+	}
+	// A line break never reaches zellij: the dashboard's field turns it into
+	// a space, and a name split in two would list as two sessions.
+	if err := renameByHand(cmd, a, b, "release-notes", "a\nb"); err == nil || !strings.Contains(err.Error(), "control character") {
+		t.Errorf("rename to a name with a line break: %v", err)
+	}
+	if z.did("--session release-notes action rename-session") {
+		t.Errorf("zellij was asked: %v", z.calls)
 	}
 	// The name it has already: kept as it is.
 	cmd, out = output()

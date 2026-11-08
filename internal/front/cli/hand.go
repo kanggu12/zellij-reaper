@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
@@ -56,39 +58,44 @@ needs it.`,
 func reapByHand(cmd *cobra.Command, b tui.Backend, names []string, ask bool) error {
 	// Not theme(): its question to the terminal would read the answers.
 	ctx, w, t := cmd.Context(), cmd.OutOrStdout(), themeWithoutAsking()
-	// The question says what the plan knows of the session, as the
-	// dashboard's does.
-	var listed map[string]bool
-	var question func(string) string
-	if ask {
+	// refused reads a plan made now and says why name must stay, as the
+	// dashboard does from its report: a client attached, an attach state
+	// nobody could read, or a session the plan does not list.
+	refused := func(name string) (string, reaper.Report, error) {
 		report, err := b.Plan(ctx)
 		if err != nil {
-			return err
+			return "", report, err
 		}
-		listed = map[string]bool{}
-		for _, o := range report.Outcomes {
-			listed[o.Session.Name()] = true
-		}
-		question = func(name string) string {
-			q, _ := tui.ReapQuestion(report, name)
-			return q
-		}
+		why, _ := tui.RefuseReap(report, name)
+		return why, report, nil
 	}
 	in := bufio.NewReader(cmd.InOrStdin())
 	failed := 0
 	for _, name := range names {
-		if ask {
-			if !listed[name] {
-				println(w, bad(t)+i18n.T("confirm.gone", name))
-				failed++
-				continue
-			}
-			fmt.Fprint(w, question(name)+" [y/N] ")
+		why, report, err := refused(name)
+		if err != nil {
+			return err
+		}
+		if why == "" && ask {
+			// The dashboard's question, which says what protects the
+			// session or still runs in it.
+			q, _ := tui.ReapQuestion(report, name)
+			fmt.Fprint(w, q+" [y/N] ")
 			answer, _ := in.ReadString('\n')
 			if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
 				println(w, warn(t)+i18n.T("delete.skipped", name))
 				continue
 			}
+			// Somebody may have attached while the question waited: decide
+			// on the plan as it is now, as the dashboard does after its y.
+			if why, _, err = refused(name); err != nil {
+				return err
+			}
+		}
+		if why != "" {
+			println(w, bad(t)+why)
+			failed++
+			continue
 		}
 		if err := b.Delete(ctx, name); err != nil {
 			if errors.Is(err, lock.ErrBusy) {
@@ -136,6 +143,11 @@ func renameByHand(cmd *cobra.Command, a *app.App, b tui.Backend, name, to string
 	ctx, w, t := cmd.Context(), cmd.OutOrStdout(), theme()
 	if to == "" {
 		return errors.New(i18n.T("rename.empty"))
+	}
+	// The dashboard's field turns control characters into spaces, so a
+	// pasted line break never reaches a session name; here it is refused.
+	if strings.IndexFunc(to, unicode.IsControl) >= 0 {
+		return errors.New(i18n.T("rename.control"))
 	}
 	// The dashboard offers a rename only for a running session it lists.
 	sessions, err := a.Zellij.ListSessions(ctx)

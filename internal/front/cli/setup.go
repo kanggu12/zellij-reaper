@@ -18,6 +18,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
+	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
 )
 
 func cmdSetup() *cobra.Command {
@@ -44,6 +45,14 @@ The installers open it in a terminal on a first install, and with no settings fi
 zellij-reaper opens it instead of the dashboard.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, name := range setupFlagNames {
+				if cmd.Flags().Changed(name) {
+					f.set = append(f.set, name)
+				}
+			}
+			if err := choicesInHiddenMode(f.set, snap, installer); err != nil {
+				return err
+			}
 			if snap != "" {
 				return setupSnapshot(cmd, snap, look, keys)
 			}
@@ -51,11 +60,6 @@ zellij-reaper opens it instead of the dashboard.`,
 				return fromInstaller(cmd)
 			}
 			// Choices given as flags: no screen, so no terminal needed.
-			for _, name := range setupFlagNames {
-				if cmd.Flags().Changed(name) {
-					f.set = append(f.set, name)
-				}
-			}
 			if len(f.set) > 0 {
 				a, err := load()
 				if err != nil {
@@ -228,6 +232,15 @@ type setupFlags struct {
 	set []string
 }
 
+// choicesInHiddenMode refuses choices given with --snapshot or --installer,
+// whose modes would drop them without a word.
+func choicesInHiddenMode(set []string, snap string, installer bool) error {
+	if len(set) > 0 && (snap != "" || installer) {
+		return fmt.Errorf("--snapshot and --installer take none of the choices (--%s)", set[0])
+	}
+	return nil
+}
+
 // given reports whether a flag was given.
 func (f setupFlags) given(name string) bool { return slices.Contains(f.set, name) }
 
@@ -270,6 +283,18 @@ func setupWith(cmd *cobra.Command, a *app.App, f setupFlags, reload func() (*app
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	// The names too: one the list file cannot hold would stop the setup
+	// halfway, with the settings written and nothing protected.
+	var names []string
+	for _, name := range f.protect {
+		if name = strings.TrimSpace(name); name == "" {
+			continue
+		}
+		if err := protect.Storable(name); err != nil {
+			return fmt.Errorf("--protect: %w", err)
+		}
+		names = append(names, name)
+	}
 	w, t := cmd.OutOrStdout(), theme()
 	if len(values) > 0 {
 		path := settingsPath()
@@ -278,10 +303,7 @@ func setupWith(cmd *cobra.Command, a *app.App, f setupFlags, reload func() (*app
 		}
 		println(w, ok(t)+i18n.T("setup.saved", tilde(path)))
 	}
-	for _, name := range f.protect {
-		if name = strings.TrimSpace(name); name == "" {
-			continue
-		}
+	for _, name := range names {
 		if err := a.Protected.Set(name, true); err != nil {
 			return err
 		}
