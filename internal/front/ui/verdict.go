@@ -26,17 +26,22 @@ func Categorize(v policy.Verdict) Category {
 	return CatUnknown
 }
 
+// ProtectedBy says what protects a session kept for its name: the protected
+// list or the protect pattern.
+func ProtectedBy(v policy.Verdict) string {
+	if v.Detail == "protect pattern" {
+		return i18n.T("protected.pattern")
+	}
+	return i18n.T("protected.list")
+}
+
 // Why is the reason a session is in its state, as a short phrase:
 // "running htop", "attached", "claude running", "idle 12m".
 func Why(v policy.Verdict) string {
 	key := "why." + string(v.Code)
 	switch v.Code {
 	case policy.ProtectedName:
-		by := "protected.list"
-		if v.Detail == "protect pattern" {
-			by = "protected.pattern"
-		}
-		return i18n.T(key, i18n.T(by))
+		return i18n.T(key, ProtectedBy(v))
 	case policy.ProtectedCommand, policy.Busy, policy.IdleRecent, policy.IdleOld, policy.ExitedRecent, policy.ExitedOld:
 		return i18n.T(key, v.Detail)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -105,6 +106,23 @@ func theme() ui.Theme {
 		return ui.NewTheme(true)
 	}
 	return ui.NewTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+}
+
+// themeWithoutAsking picks colors without asking the terminal, for a command
+// that reads answers from it: the background query reads its reply from the
+// same input, and took an answer typed ahead for it, so the question then
+// waited for an answer already given. COLORFGBG says the background where a
+// terminal sets it; otherwise the colors are the dark ones.
+func themeWithoutAsking() ui.Theme {
+	dark := true
+	if v := os.Getenv("COLORFGBG"); v != "" {
+		f := strings.Split(v, ";")
+		if bg, err := strconv.Atoi(f[len(f)-1]); err == nil {
+			// 7 and 9 to 15 are the light ones.
+			dark = bg != 7 && bg < 9
+		}
+	}
+	return ui.NewTheme(dark)
 }
 
 // println prints styled text, downsampled to what the output can show:

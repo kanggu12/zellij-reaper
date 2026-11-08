@@ -63,7 +63,8 @@ func ReapQuestion(r reaper.Report, name string) (string, ui.Category) {
 		switch {
 		// Protection is said first: it is why the pass would not.
 		case o.Verdict.Code == policy.ProtectedName:
-			text, cat = i18n.T("confirm.reap.protected", name, ui.Why(o.Verdict)), ui.CatSafe
+			// The question says protected already: in brackets, only by what.
+			text, cat = i18n.T("confirm.reap.protected", name, ui.ProtectedBy(o.Verdict)), ui.CatSafe
 		// Something still runs in it: say what stops with it.
 		case o.Verdict.Code == policy.ProtectedCommand:
 			text, cat = i18n.T("confirm.reap.running", name, o.Verdict.Detail, o.Verdict.Detail), ui.CatSafe

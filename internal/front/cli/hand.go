@@ -54,7 +54,8 @@ needs it.`,
 // reapByHand reaps each named session through b, asking first when ask is
 // set. It fails when any session it was not told to keep was kept.
 func reapByHand(cmd *cobra.Command, b tui.Backend, names []string, ask bool) error {
-	ctx, w, t := cmd.Context(), cmd.OutOrStdout(), theme()
+	// Not theme(): its question to the terminal would read the answers.
+	ctx, w, t := cmd.Context(), cmd.OutOrStdout(), themeWithoutAsking()
 	// The question says what the plan knows of the session, as the
 	// dashboard's does.
 	var listed map[string]bool

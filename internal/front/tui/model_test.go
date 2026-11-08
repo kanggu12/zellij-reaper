@@ -480,6 +480,32 @@ func TestDetailExplainsTheVerdict(t *testing.T) {
 	}
 }
 
+func TestTheReapQuestionSaysWhatKeepsTheSession(t *testing.T) {
+	// Protected is said once, then by what: the list's whole reason in the
+	// brackets read "is protected (protected (list))".
+	r := reaper.Report{Outcomes: []reaper.Outcome{
+		session("listed", false, func(f *policy.Facts) { f.Protected, f.ProtectedBy = true, "protected list" }),
+		session("matched", false, func(f *policy.Facts) { f.Protected, f.ProtectedBy = true, "protect pattern" }),
+		session("old", true, nil),
+	}}
+	i18n.Set(i18n.English)
+	for name, want := range map[string]string{
+		"listed":  "listed is protected (list). Reap it anyway?",
+		"matched": "matched is protected (pattern). Reap it anyway?",
+		"old":     "Reap old now? Its resurrection data is removed",
+		"nobody":  "Reap nobody now?",
+	} {
+		if q, _ := ReapQuestion(r, name); !strings.HasPrefix(q, want) {
+			t.Errorf("%s: %q, want it to start %q", name, q, want)
+		}
+	}
+	i18n.Set(i18n.Korean)
+	if q, _ := ReapQuestion(r, "listed"); !strings.HasPrefix(q, "listed 세션은 보호 중입니다(목록).") {
+		t.Errorf("Korean: %q", q)
+	}
+	i18n.Set(i18n.English)
+}
+
 func TestDeleteDecidesOnTheReportAsItIsNow(t *testing.T) {
 	i18n.Set(i18n.English)
 	for _, c := range []struct {
