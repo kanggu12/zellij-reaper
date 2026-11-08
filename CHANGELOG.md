@@ -6,17 +6,27 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-08
+
 ### Added
 
 - `setup` takes the setup screen's choices as flags: `--idle-after`, `--exited-after`, `--dry-run`, `--auto-rename`,
   `--hook` and `--protect`. With any of them it opens no screen and needs no terminal, for scripts and
   `ssh host command`; it checks every value before it writes one, changes only the settings the flags name, and then
   starts the timers as <kbd>⏎</kbd> does.
-- `delete NAME...` reaps sessions by hand, as <kbd>d</kbd> does in the dashboard. It asks the dashboard's question
-  first (`--yes` reaps without asking; with no terminal it needs it), and zellij is asked right before whether a client
-  is attached.
+- `delete NAME...` reaps sessions by hand, as <kbd>d</kbd> does in the dashboard, and keeps what it keeps: a session
+  with a client attached, one whose clients nobody can tell, or one not listed, going by a plan made just before and by
+  zellij asked once more. It asks the dashboard's question first; `--yes` reaps without asking, and with no terminal it
+  needs it.
 - `rename NAME NEW-NAME` renames a session, as <kbd>r</kbd> does in the dashboard: passes keep the new name, and a
   protection follows the session to it.
+
+### Fixed
+
+- A duration too long for Go to hold could wrap around: `9999999999w9999999999w` came out as zero, which switches the
+  wait off. Such a value is refused now.
+- The question before a reap by hand in the dashboard said "is protected (protected (list))"; it says "is protected
+  (list)".
 
 ## [0.8.1] - 2026-11-08
 
@@ -405,7 +415,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.7.0
