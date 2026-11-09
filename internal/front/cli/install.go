@@ -77,22 +77,9 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 	}
 	// When the next pass runs and what it would reap: on a fresh
 	// install there is time to protect a session first.
-	if st := a.System.Status(); !st.Next.IsZero() {
-		at, in := ui.Clock(st.Next), duration.Format(max(time.Minute, time.Until(st.Next).Round(time.Minute)))
+	if next := a.System.Status().NextPass(); !next.IsZero() {
 		r, err := reaper.Plan(cmd.Context(), a.Reaper, reaper.Options{})
-		// Counted at the time of that pass, as the setup screen and plan
-		// count: a session a few minutes short of its wait now is due by then.
-		due := r.DueAtNext(st.Next, time.Now())
-		switch {
-		case a.Config.DryRun:
-			println(w, ok(t)+i18n.T("install.next.dry", at, in))
-		case err != nil:
-			println(w, ok(t)+i18n.T("install.next.at", at, in))
-		case due == 0:
-			println(w, ok(t)+i18n.T("install.next.none", at, in))
-		default:
-			println(w, warn(t)+i18n.TN("install.next", due, at, in, due))
-		}
+		println(w, nextPassLine(t, r, err, next, a.Config.DryRun, time.Now()))
 	}
 	// What this shell set through the environment applies here only.
 	for _, m := range envOnly(a.Config, settingsPath()) {
@@ -207,4 +194,21 @@ func tilde(p string) string {
 
 func startsWithDotDot(rel string) bool {
 	return len(rel) >= 3 && rel[:3] == ".."+string(filepath.Separator)
+}
+
+// nextPassLine is what install says about the next pass: when it runs, and
+// what it would reap then, counted at that time as plan and the setup screen
+// count, so a session a few minutes short of its wait now is in it.
+func nextPassLine(t ui.Theme, r reaper.Report, planErr error, next time.Time, dry bool, now time.Time) string {
+	at, in := ui.Clock(next), duration.Format(max(time.Minute, next.Sub(now).Round(time.Minute)))
+	due := r.DueAtNext(next, now)
+	switch {
+	case dry:
+		return ok(t) + i18n.T("install.next.dry", at, in)
+	case planErr != nil:
+		return ok(t) + i18n.T("install.next.at", at, in)
+	case due == 0:
+		return ok(t) + i18n.T("install.next.none", at, in)
+	}
+	return warn(t) + i18n.TN("install.next", due, at, in, due)
 }

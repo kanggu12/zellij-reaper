@@ -1046,3 +1046,23 @@ func TestDueAtCountsAtTheTimeOfThePass(t *testing.T) {
 		}
 	}
 }
+
+func TestASessionTheQuietBookHasNotRecordedStartsItsWaitAtThePass(t *testing.T) {
+	// Without terminal times (every session on Windows), a plan sees a quiet
+	// session for the first time "from now", but does not write that down:
+	// the pass that first records it starts the wait, so it is not due then.
+	now := time.Now()
+	f := policy.Facts{Name: "new-quiet", HasInfo: true, LastActive: now, ActivitySource: "quiet",
+		SocketOK: true, ServerPID: 7, Attached: policy.No, PaneCount: 1}
+	th := policy.Thresholds{Idle: 30 * time.Minute, Exited: 72 * time.Hour}
+	o := reaper.Outcome{Session: inspect.Session{Facts: f, QuietFromNow: true}, Verdict: policy.Decide(f, th, now)}
+	r := reaper.Report{Thresholds: th, Outcomes: []reaper.Outcome{o}}
+	if r.ReapsAt(o, now.Add(42*time.Minute)) || r.DueAt(now.Add(42*time.Minute)) != 0 {
+		t.Error("a session no pass has recorded as quiet is counted for the next pass")
+	}
+	// Once recorded, the wait runs from the record.
+	o.Session.QuietFromNow = false
+	if !r.ReapsAt(o, now.Add(42*time.Minute)) {
+		t.Error("a recorded quiet session is not due 42 minutes on, past its 30m wait")
+	}
+}

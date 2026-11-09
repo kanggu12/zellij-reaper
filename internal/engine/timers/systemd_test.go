@@ -415,3 +415,21 @@ func TestTheNamesTimerOnlyRenamesAndGoesWithItsSetting(t *testing.T) {
 		t.Errorf("result %+v, calls %v", r, f.calls)
 	}
 }
+
+func TestOnlyARunningTimerHasANextPass(t *testing.T) {
+	next := time.Now().Add(42 * time.Minute)
+	on := TimerStatus{Installed: true, Enabled: true, Active: true, Next: next}
+	if !on.NextPass().Equal(next) {
+		t.Errorf("a running timer: %v, want %v", on.NextPass(), next)
+	}
+	// A cron line keeps its next time while the daemon is down.
+	for _, st := range []TimerStatus{
+		{Installed: true, Enabled: true, Active: false, Next: next},
+		{Installed: true, Enabled: false, Active: true, Next: next},
+		{Installed: false, Next: next},
+	} {
+		if !st.NextPass().IsZero() {
+			t.Errorf("%+v has a next pass", st)
+		}
+	}
+}

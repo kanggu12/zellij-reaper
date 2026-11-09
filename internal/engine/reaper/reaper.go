@@ -147,14 +147,26 @@ func (r Report) Due() int {
 	return n
 }
 
-// DueAt is how many sessions a pass at a given time would reap, with the
-// facts as they are now: a session a few minutes short of its wait now is due
-// at a pass later on. What a plan or the dashboard says the next pass reaps,
-// when it knows when that pass runs.
+// ReapsAt reports whether a pass at a given time would reap a session, with
+// its facts as they are now: one a few minutes short of its wait now is due at
+// a pass later on.
+func (r Report) ReapsAt(o Outcome, at time.Time) bool {
+	f := o.Session.Facts
+	// The quiet book had not recorded it: the pass at that time is the first
+	// to, and its wait starts there.
+	if o.Session.QuietFromNow {
+		f.LastActive = at
+	}
+	return policy.Decide(f, r.Thresholds, at).Action == policy.Reap
+}
+
+// DueAt is how many sessions a pass at a given time would reap: what a plan,
+// the dashboard and install say the next pass reaps, when the timer says
+// when that pass runs.
 func (r Report) DueAt(at time.Time) int {
 	n := 0
 	for _, o := range r.Outcomes {
-		if policy.Decide(o.Session.Facts, r.Thresholds, at).Action == policy.Reap {
+		if r.ReapsAt(o, at) {
 			n++
 		}
 	}

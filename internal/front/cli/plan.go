@@ -61,13 +61,8 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 		println(w, trimRight(line))
 	}
 	// "At the next pass": counted at the time it runs, when the timer says.
-	reaped := r.DueAtNext(a.System.Status().Next, time.Now())
-	key := "plan.summary"
-	if r.DryRun {
-		key = "plan.summary.dry"
-	}
 	println(w)
-	println(w, ui.Fg(t.Muted).Render("  "+i18n.TN(key, len(r.Outcomes), len(r.Outcomes), reaped)+" · "+i18n.T("plan.dashboard")))
+	println(w, ui.Fg(t.Muted).Render("  "+ui.Summary(r, a.System.Status().NextPass(), time.Now())+" · "+i18n.T("plan.dashboard")))
 	return nil
 }
 

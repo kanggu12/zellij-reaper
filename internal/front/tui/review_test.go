@@ -11,6 +11,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -140,14 +141,26 @@ func TestTheDashboardCountsWhatTheNextPassReaps(t *testing.T) {
 	b := sample()
 	now := time.Now()
 	b.report.Outcomes = append(b.report.Outcomes, session("soon", false, func(f *policy.Facts) { f.LastActive = now.Add(-30 * time.Minute) }))
-	b.report.Thresholds = policy.Thresholds{Idle: time.Hour, Exited: 72 * time.Hour}
 	m := loaded(t, b, 132, 40)
 	want := b.report.Due() + 1
-	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass", want)) {
-		t.Errorf("status line %q, want %d to reap", s, want)
+	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass (%d due now)", want, want-1)) {
+		t.Errorf("status line %q, want %d to reap, %d due now", s, want, want-1)
 	}
 	m = pick(t, m, "soon")
 	if out := ansi.Strip(m.View().Content); !strings.Contains(out, "Will be reaped at the next pass, at ") {
 		t.Errorf("the details of soon do not say the next pass reaps it:\n%s", out)
+	}
+}
+
+func TestATimerThatDoesNotRunHasNoNextPassToCountAt(t *testing.T) {
+	// A cron line keeps its next time while the daemon is down; the header
+	// says the timer is off, so the count is the one as of now.
+	b := sample()
+	now := time.Now()
+	b.report.Outcomes = append(b.report.Outcomes, session("soon", false, func(f *policy.Facts) { f.LastActive = now.Add(-30 * time.Minute) }))
+	m := loaded(t, b, 132, 40)
+	m = step(t, m, timerMsg{st: timers.TimerStatus{Installed: true, Enabled: true, Active: false, Next: now.Add(42 * time.Minute), Interval: time.Hour}})
+	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass", b.report.Due())) || strings.Contains(s, "due now") {
+		t.Errorf("with the timer off: %q", s)
 	}
 }

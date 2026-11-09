@@ -12,9 +12,14 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 - After 0.10.0, `install` counted the sessions the next pass reaps at the time of that pass, but `plan` and the
   dashboard counted them as of now under the same words, "to reap at the next pass": right after an install one said 1
-  and the other 0 about a session a minute short of its wait. All three count at the time the timer runs the next pass
-  now, as the setup screen does, and the selected session's details say "Will be reaped at the next pass, at 14:00" when
-  its wait ends before then.
+  and the other 0 about a session a minute short of its wait. All three now count at the time the timer runs the next
+  pass, as the setup screen does, whenever the timer is running and says when that is: systemd, cron and the Task
+  Scheduler do; launchd on macOS does not, so there the count stays as of now. When the two counts differ, the line
+  gives both, as in "2 to reap at the next pass (1 due now)", since only the sessions due now show in yellow, and the
+  details of a session whose wait ends first say "Will be reaped at the next pass, at 14:00, if nothing changes."
+- A session the timer's next pass would only then find quiet for the first time (one without terminal times, which is
+  every session on Windows) is not counted for that pass: its wait starts there. A cron line's next time no longer
+  counts while the cron daemon is down.
 
 ## [0.10.0] - 2026-11-10
 

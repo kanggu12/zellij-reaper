@@ -33,7 +33,11 @@ func (m model) detail(width, height int) []string {
 	if m.width >= sideBySide {
 		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(t.Ink).Render(s.Name()))
 	}
-	lines = append(lines, ui.Fg(t.Cat[cat]).Bold(true).Render(verdictSentence(v, m.report.DryRun, m.nextPass(), m.now)))
+	// The pass the timer runs next reaps it once its wait is over by then,
+	// judged as the count in the status line is.
+	next := m.nextPass()
+	byNext := !next.IsZero() && v.Action != policy.Reap && m.report.ReapsAt(o, next)
+	lines = append(lines, ui.Fg(t.Cat[cat]).Bold(true).Render(verdictSentence(v, m.report.DryRun, byNext, next)))
 	lines = append(lines, "")
 	lines = append(lines, ui.Fg(t.Muted).Bold(true).Render(i18n.T("detail.why")))
 	for _, c := range v.Checks {
@@ -202,9 +206,9 @@ func (m model) recentLines(n int) []string {
 	return events
 }
 
-// verdictSentence says in a sentence what the next pass does. next is when
-// the timer runs it, zero when that is not known.
-func verdictSentence(v policy.Verdict, dry bool, next, now time.Time) string {
+// verdictSentence says in a sentence what the next pass does. byNext is set
+// when the timer's next pass, at next, reaps a session not due now.
+func verdictSentence(v policy.Verdict, dry, byNext bool, next time.Time) string {
 	switch {
 	case v.Action == policy.Reap && dry:
 		return i18n.T("detail.verdict.dry")
@@ -212,7 +216,7 @@ func verdictSentence(v policy.Verdict, dry bool, next, now time.Time) string {
 		return i18n.T("detail.verdict.reap")
 	// The wait ends before the next pass: that pass reaps it, not the end
 	// of the wait.
-	case v.Wait > 0 && !next.IsZero() && !dry && now.Add(v.Wait).Before(next):
+	case byNext && !dry:
 		return i18n.T("detail.verdict.next", ui.Clock(next))
 	case v.Wait > 0:
 		return i18n.T("detail.verdict.in", duration.Format(v.Wait))

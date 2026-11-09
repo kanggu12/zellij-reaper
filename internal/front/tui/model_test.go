@@ -115,7 +115,7 @@ func sample() *fake {
 			"[2026-11-04 09:00:00]   -> deleted: scratch",
 			"[2026-11-04 09:00:00] === reaper end (1 reaped, 1 kept, 0 renamed) ===",
 		},
-		report: reaper.Report{Outcomes: []reaper.Outcome{
+		report: reaper.Report{Thresholds: policy.Thresholds{Idle: time.Hour, Exited: 72 * time.Hour}, Outcomes: []reaper.Outcome{
 			session("scratch", false, nil, bash),
 			session("api-server", false, func(f *policy.Facts) { f.BusyWith = "npm run dev" }, inspect.Pane{PID: 2, Command: "npm run dev", Busy: "npm run dev"}),
 			session("notes", false, func(f *policy.Facts) { f.Attached, f.AttachDetail = policy.Yes, "1 client(s) attached" }, bash),

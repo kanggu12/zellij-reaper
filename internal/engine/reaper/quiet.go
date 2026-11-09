@@ -103,6 +103,7 @@ func (q *quietBook) apply(sessions []inspect.Session, now time.Time) {
 			since = now.Truncate(time.Second)
 			q.at[k] = since
 			q.changed = true
+			s.QuietFromNow = true
 		}
 		// The files' time stays when it is the later one: a client left
 		// after the first quiet pass.

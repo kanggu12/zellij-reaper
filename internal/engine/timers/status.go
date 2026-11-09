@@ -23,6 +23,16 @@ type TimerStatus struct {
 	ExecStart string
 }
 
+// NextPass is when the timer runs its next pass, or zero when it is not
+// installed, enabled and running: a cron line keeps its next time while the
+// daemon that would run it is down.
+func (s TimerStatus) NextPass() time.Time {
+	if s.Installed && s.Enabled && s.Active {
+		return s.Next
+	}
+	return time.Time{}
+}
+
 // Status asks systemd about the timer. Next comes from the monotonic time
 // systemd will fire at, read against the same clock; failing that, from the
 // last run and the interval, because systemd leaves NextElapseUSecRealtime empty for

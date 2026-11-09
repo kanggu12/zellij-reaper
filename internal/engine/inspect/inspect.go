@@ -106,6 +106,10 @@ type Session struct {
 	ServerSilent bool
 	// Facts is what the policy reads.
 	Facts policy.Facts
+	// QuietFromNow is set when the quiet book saw this session quiet for the
+	// first time in this survey. A plan does not write the book, so a pass
+	// later on is the first to record it, and its wait starts then.
+	QuietFromNow bool
 }
 
 // Name is the session's name.
