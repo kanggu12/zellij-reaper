@@ -75,7 +75,8 @@ func (m model) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "f":
 		// A pass that would reap something asks first, like every other
 		// delete from the dashboard.
-		if m.report.Due() > 0 {
+		// A dry run deletes nothing, so there is nothing to ask.
+		if m.report.Due() > 0 && !m.b.Config().DryRun {
 			m.mode, m.confirm = modeConfirm, confirmPass
 			return m, nil
 		}
@@ -209,7 +210,9 @@ func (m model) keyInput(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = modeMain
+		// An empty name renames nothing: say so rather than close quietly.
 		if value == "" {
+			m.say(i18n.T("rename.empty"), ui.CatWait)
 			return m, nil
 		}
 		// Enter on the name it has: that is the name the person wants.

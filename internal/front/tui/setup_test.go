@@ -12,6 +12,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
+	"github.com/kanggu12/zellij-reaper/internal/version"
 )
 
 // setupSample starts the setup screen on the sample sessions: with a 1h idle
@@ -166,5 +167,52 @@ func TestSetupListFollowsTheCursorWhenShort(t *testing.T) {
 	out := ansi.Strip(m.render())
 	if !strings.Contains(out, "› [ ] old-build") {
 		t.Errorf("the selected session is not on screen:\n%s", out)
+	}
+}
+
+func TestSetupShowsTheMarkedSessionOnEveryHeight(t *testing.T) {
+	// At 60x13 the settings and the intro filled the screen and the session
+	// rows fell under the keys, while Space still marked the hidden one.
+	for _, w := range []int{60, 100} {
+		for h := 11; h <= 24; h++ {
+			for _, k := range [][]string{{"down", "down", "down", "down", "down"}, {"down", "down", "down", "down", "down", "down"}} {
+				m := pressAll(newSetup(setupSample("~/.bashrc"), true), k...)
+				m.width, m.height = w, h
+				want := "› [ ] " + names(m)[m.cursor-5]
+				if out := ansi.Strip(m.render()); !strings.Contains(out, want) {
+					t.Errorf("%dx%d: %q is not on screen:\n%s", w, h, want, out)
+				}
+				measure(t, "short setup", m.render(), w, h)
+			}
+		}
+	}
+}
+
+func TestSetupWearsTheLogoWhenThereIsRoom(t *testing.T) {
+	m := newSetup(setupSample("~/.bashrc"), true)
+	m.width, m.height = 100, 30
+	if out := m.render(); !strings.Contains(out, "▀") || !strings.Contains(ansi.Strip(out), version.Short()) {
+		t.Errorf("no logo or version on a 100x30 setup screen:\n%s", ansi.Strip(out))
+	}
+	// Short of rows, the name and version stay on one line.
+	m.height = 16
+	if out := m.render(); strings.Contains(out, "▀") || !strings.Contains(ansi.Strip(out), version.Short()) {
+		t.Errorf("a 100x16 setup screen gave rows to the logo:\n%s", ansi.Strip(out))
+	}
+}
+
+func TestSetupOffersTheHookWhenNamesComeOn(t *testing.T) {
+	// Names off in the settings: switching them on showed the hook row at
+	// skip, though the hook is what keeps a renamed session's panes working.
+	s := setupSample("~/.bashrc")
+	s.AutoRename = false
+	m := pressAll(newSetup(s, true), "down", "down", "down", "right")
+	if !m.names || !m.hook {
+		t.Errorf("names %v, hook %v: want both on", m.names, m.hook)
+	}
+	// Switched off by hand, it stays off across names off and on.
+	m = pressAll(m, "down", "right", "up", "right", "right")
+	if !m.names || m.hook {
+		t.Errorf("names %v, hook %v: want names on, hook off", m.names, m.hook)
 	}
 }

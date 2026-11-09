@@ -66,7 +66,7 @@ but keeps every other check.`,
 						println(w, "  "+o.Session.Name()+" → "+o.RenamedTo)
 						n++
 					case o.WouldRename != "":
-						println(w, "  "+o.Session.Name()+" → "+o.WouldRename+ui.Fg(t.Muted).Render(" (dry run)"))
+						println(w, "  "+o.Session.Name()+" → "+o.WouldRename+ui.Fg(t.Muted).Render(" "+i18n.T("run.dry.mark")))
 						n++
 					case o.RenameErr != nil:
 						println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
@@ -152,6 +152,10 @@ func cmdLogs() *cobra.Command {
 				return err
 			}
 			t := theme()
+			// -n 0 asks for no lines, which is not the same as none written.
+			if n == 0 && !follow {
+				return nil
+			}
 			if len(lines) == 0 && !follow {
 				println(w, ui.Fg(t.Muted).Render(i18n.T("log.empty")))
 				return nil

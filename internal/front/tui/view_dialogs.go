@@ -10,6 +10,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/version"
 )
 
 // overlay floats a box in the middle of the screen. The screen behind it
@@ -31,7 +32,9 @@ func (m model) overlay(screen, box string) string {
 // what it is about.
 func (m model) box(border lipgloss.Style, lines ...string) string {
 	w := min(64, m.width-4)
-	body := lipgloss.NewStyle().Width(w - 4).Foreground(m.th.Ink).Render(strings.Join(lines, "\n"))
+	// The border takes a cell on each side and the padding two: the text
+	// gets the rest, or lipgloss wraps it a second time and strands a word.
+	body := lipgloss.NewStyle().Width(w - 6).Foreground(m.th.Ink).Render(strings.Join(lines, "\n"))
 	return border.Border(lipgloss.RoundedBorder()).Padding(0, 2).Width(w).Render(body)
 }
 
@@ -64,7 +67,13 @@ func ReapQuestion(r reaper.Report, name string) (string, ui.Category) {
 		// Protection is said first: it is why the pass would not.
 		case o.Verdict.Code == policy.ProtectedName:
 			// The question says protected already: in brackets, only by what.
-			text, cat = i18n.T("confirm.reap.protected", name, ui.ProtectedBy(o.Verdict)), ui.CatSafe
+			key := "confirm.reap.protected"
+			// An exited session has no panes to close: what goes is
+			// what zellij keeps to bring it back.
+			if o.Session.Listed.Exited {
+				key = "confirm.reap.protected.exited"
+			}
+			text, cat = i18n.T(key, name, ui.ProtectedBy(o.Verdict)), ui.CatSafe
 		// Something still runs in it: say what stops with it.
 		case o.Verdict.Code == policy.ProtectedCommand:
 			text, cat = i18n.T("confirm.reap.running", name, o.Verdict.Detail, o.Verdict.Detail), ui.CatSafe
@@ -148,8 +157,36 @@ func (m model) helpView() string {
 		{ui.CatReap, "help.legend.reap"}, {ui.CatWait, "help.legend.wait"}, {ui.CatBusy, "help.legend.busy"},
 		{ui.CatAttached, "help.legend.attached"}, {ui.CatSafe, "help.legend.safe"}, {ui.CatUnknown, "help.legend.unknown"},
 	}
-	for _, l := range legend {
-		lines = append(lines, "   "+t.Dot(l.cat)+" "+ui.Fg(t.Ink).Render(i18n.T(l.key)))
+	items := make([]string, len(legend))
+	for i, l := range legend {
+		items[i] = t.Dot(l.cat) + " " + ui.Fg(t.Ink).Render(i18n.T(l.key))
+	}
+	// Short of rows, the colors stand in two columns rather than lose
+	// their last lines; the keys above are too many to do the same.
+	if colW := blockWidth(items) + 3; len(lines)+len(items) > m.height-1 && 3+2*colW <= m.width {
+		half := (len(items) + 1) / 2
+		for i := range half {
+			l := "   " + items[i]
+			if i+half < len(items) {
+				l += strings.Repeat(" ", colW-lipgloss.Width(items[i])) + items[i+half]
+			}
+			lines = append(lines, l)
+		}
+	} else {
+		for _, it := range items {
+			lines = append(lines, "   "+it)
+		}
+	}
+	// A wide screen has room beside the keys for the logo, the version and
+	// where the project lives.
+	card := t.LogoBlock(t.Brand(version.Short()), ui.Fg(t.Muted).Render(i18n.T("logo.tagline")),
+		ui.Fg(t.Muted).Render("github.com/kanggu12/zellij-reaper"))
+	leftW := blockWidth(lines[2:])
+	if gutter := 6; m.width >= leftW+gutter+blockWidth(card) && len(lines) >= 2+len(card) {
+		for i, c := range card {
+			l := lines[2+i]
+			lines[2+i] = l + strings.Repeat(" ", leftW+gutter-lipgloss.Width(l)) + c
+		}
 	}
 	// On a short terminal the list is cut, with a mark where.
 	if len(lines) > m.height-1 && m.height > 2 {

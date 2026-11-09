@@ -11,6 +11,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
+	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
@@ -80,15 +81,18 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 	if st := a.System.Status(); !st.Next.IsZero() {
 		at, in := ui.Clock(st.Next), duration.Format(max(time.Minute, time.Until(st.Next).Round(time.Minute)))
 		r, err := reaper.Plan(cmd.Context(), a.Reaper, reaper.Options{})
+		// Counted at the time of that pass, as the setup screen counts: a
+		// session a few minutes short of its wait now is due by then.
+		due := dueAt(r, a.Config.IdleAfter, a.Config.ExitedAfter, st.Next)
 		switch {
 		case a.Config.DryRun:
 			println(w, ok(t)+i18n.T("install.next.dry", at, in))
 		case err != nil:
 			println(w, ok(t)+i18n.T("install.next.at", at, in))
-		case r.Due() == 0:
+		case due == 0:
 			println(w, ok(t)+i18n.T("install.next.none", at, in))
 		default:
-			println(w, warn(t)+i18n.TN("install.next", r.Due(), at, in, r.Due()))
+			println(w, warn(t)+i18n.TN("install.next", due, at, in, due))
 		}
 	}
 	// What this shell set through the environment applies here only.
@@ -204,4 +208,16 @@ func tilde(p string) string {
 
 func startsWithDotDot(rel string) bool {
 	return len(rel) >= 3 && rel[:3] == ".."+string(filepath.Separator)
+}
+
+// dueAt counts the sessions a pass at a given time would reap, with the
+// facts read now.
+func dueAt(r reaper.Report, idle, exited time.Duration, at time.Time) int {
+	n := 0
+	for _, o := range r.Outcomes {
+		if policy.Decide(o.Session.Facts, policy.Thresholds{Idle: idle, Exited: exited}, at).Action == policy.Reap {
+			n++
+		}
+	}
+	return n
 }

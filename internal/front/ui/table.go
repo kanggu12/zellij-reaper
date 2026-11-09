@@ -120,6 +120,20 @@ func Fit(s string, w int) string {
 	return s + strings.Repeat(" ", max(0, w-lipgloss.Width(s)))
 }
 
+// FitMiddle is Fit for a name: one too long keeps its start and its end
+// with "…" between, since names that differ often differ at the end
+// (work, work-2).
+func FitMiddle(s string, w int) string {
+	sw := lipgloss.Width(s)
+	if sw <= w || w < 5 {
+		return Fit(s, w)
+	}
+	tail := (w - 1) * 2 / 5
+	head := ansi.Truncate(s, w-1-tail, "")
+	end := ansi.TruncateLeft(s, sw-tail, "")
+	return Fit(head+"…"+end, w)
+}
+
 // columns are the widths of the fixed columns and the gap between columns.
 type columns struct{ name, state, idle, clients, next int }
 
@@ -202,6 +216,13 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 		}
 		return s.Render(Fit(text, w)) + gapStyle.Render(pad)
 	}
+	// The name column keeps both ends of a name it cuts.
+	nameCell := func(s lipgloss.Style, text string, w int, gapStyle lipgloss.Style) string {
+		if w == 0 {
+			return ""
+		}
+		return s.Render(FitMiddle(text, w)) + gapStyle.Render(pad)
+	}
 	plain := lipgloss.NewStyle()
 	lines := []string{
 		"  " + cell(head, i18n.T("col.session"), c.name, plain) +
@@ -214,6 +235,11 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 		bg := lipgloss.NewStyle()
 		if i == selected {
 			bg = bg.Background(t.Selected)
+			// Without colors a background does not show: the row is
+			// drawn reversed instead.
+			if t.Plain {
+				bg = bg.Reverse(true)
+			}
 		}
 		ink := bg.Foreground(t.Ink)
 		muted := bg.Foreground(t.Muted)
@@ -226,7 +252,7 @@ func (t Theme) TableWith(rows []Row, width, selected int, last string) []string 
 			name = name.Bold(true)
 		}
 		line := bg.Foreground(t.Cat[r.Cat]).Render("●") + bg.Render(" ") +
-			cell(name, r.Name, c.name, bg) +
+			nameCell(name, r.Name, c.name, bg) +
 			cell(muted, state, c.state, bg) +
 			cell(ink, r.Idle, c.idle, bg) +
 			cell(ink, r.Clients, c.clients, bg) +

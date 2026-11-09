@@ -146,6 +146,11 @@ func cmdTUI() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if snap == "" {
+				// Without a terminal the screen library fails with its own
+				// words about /dev/tty; say what to run instead.
+				if !isTerminal(os.Stdout) || !isTerminal(os.Stdin) {
+					return errors.New(i18n.T("tui.notty"))
+				}
 				return runTUI()
 			}
 			// One frame to stdout, for the documentation's screenshots.

@@ -10,6 +10,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
+	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 )
 
@@ -126,17 +127,25 @@ func cmdKeepName(on bool) *cobra.Command {
 			}
 			w := cmd.OutOrStdout()
 			if on && len(args) == 0 {
+				var names []string
 				if a.Reaper.Kept != nil {
-					for _, n := range a.Reaper.Kept.Names() {
-						fmt.Fprintln(w, n)
-					}
+					names = a.Reaper.Kept.Names()
+				}
+				// An empty list prints nothing to a script; a person is told.
+				if len(names) == 0 && isTerminal(os.Stdout) {
+					println(w, ui.Fg(theme().Muted).Render(i18n.T("keep.empty")))
+				}
+				for _, n := range names {
+					fmt.Fprintln(w, n)
 				}
 				return nil
 			}
 			for _, name := range args {
 				err := reaper.KeepName(cmd.Context(), a.Reaper, name, on, "the command line", reaper.LockWait)
+				// From the command line the name may be a typo: no "any
+				// more", as rename says it.
 				if errors.Is(err, reaper.ErrNoSession) {
-					return errors.New(i18n.T("keep.gone", name))
+					return errors.New(i18n.T("rename.none", name))
 				}
 				if err != nil {
 					return err

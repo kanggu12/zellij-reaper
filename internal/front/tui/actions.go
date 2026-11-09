@@ -8,6 +8,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
 // pass runs a pass in the background and reports the counts.
@@ -22,6 +23,10 @@ func (m model) pass(force bool) tea.Cmd {
 			return doneMsg{text: i18n.T("toast.pass.failed", err), cat: ui.CatUnknown}
 		}
 		reaped, kept, _ := r.Counts()
+		// A dry run deleted nothing: it says what it would have reaped.
+		if r.DryRun {
+			return doneMsg{text: i18n.T("toast.pass.dry", reaped, kept), cat: ui.CatWait}
+		}
 		return doneMsg{text: i18n.T("toast.pass", reaped, kept), cat: ui.CatReap}
 	}
 }
@@ -46,7 +51,7 @@ func (m model) rename(name, to string) tea.Cmd {
 	return func() tea.Msg {
 		note, err := b.Rename(ctx, name, to)
 		if err != nil {
-			return doneMsg{text: i18n.T("toast.rename.failed", err), cat: ui.CatUnknown}
+			return doneMsg{text: RenameFailed(err), cat: ui.CatUnknown}
 		}
 		// Renamed, with something the person must know (it lost its
 		// protection): in the color of what the next pass may reap.
@@ -57,12 +62,30 @@ func (m model) rename(name, to string) tea.Cmd {
 	}
 }
 
+// RenameFailed words a failed rename, in the dashboard and for `rename`:
+// zellij's refusals and a pass holding the lock in the screen's language,
+// anything else as it came.
+func RenameFailed(err error) string {
+	switch {
+	case errors.Is(err, lock.ErrBusy):
+		return i18n.T("toast.busy")
+	case errors.Is(err, zellij.ErrNameTaken):
+		return i18n.T("toast.rename.failed", i18n.T("rename.taken"))
+	case errors.Is(err, zellij.ErrUnconfirmed):
+		return i18n.T("toast.rename.failed", i18n.T("rename.unconfirmed"))
+	}
+	return i18n.T("toast.rename.failed", err)
+}
+
 // keepName keeps a session's name as it is, when Enter in the rename field leaves
 // the name unchanged: the person wants that name, whoever gave it.
 func (m model) keepName(name string) tea.Cmd {
 	b, ctx := m.b, m.ctx
 	return func() tea.Msg {
 		if err := b.KeepName(ctx, name); err != nil {
+			if errors.Is(err, lock.ErrBusy) {
+				return doneMsg{text: i18n.T("toast.busy"), cat: ui.CatWait}
+			}
 			return doneMsg{text: i18n.T("toast.keep.failed", err), cat: ui.CatUnknown}
 		}
 		return doneMsg{text: i18n.T("toast.kept", name), cat: ui.CatBusy}

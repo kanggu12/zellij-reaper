@@ -34,7 +34,12 @@ func cmdConfig() *cobra.Command {
 				if _, err := os.Stat(p); err == nil {
 					return fmt.Errorf("%s already exists", p)
 				}
-				return writeDefaults(p)
+				if err := writeDefaults(p); err != nil {
+					return err
+				}
+				// Say where it went: the next step is to open it.
+				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("config.written", p))
+				return nil
 			}},
 		&cobra.Command{Use: "edit", Short: "Open the settings in $VISUAL or $EDITOR (writing defaults first if needed)", Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {

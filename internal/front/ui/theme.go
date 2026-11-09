@@ -4,6 +4,7 @@ package ui
 
 import (
 	"image/color"
+	"os"
 
 	"charm.land/lipgloss/v2"
 )
@@ -34,8 +35,14 @@ type Theme struct {
 	Ink, Muted, Rule color.Color
 	// Mark is the brand highlighter, from the logo.
 	Mark color.Color
+	// Blade is the logo's scythe and the "reaper" of its name: the logo's
+	// own amber, a shade deeper than Mark on a light background.
+	Blade color.Color
 	// Cat holds the color of each category.
 	Cat map[Category]color.Color
+	// Plain is set when NO_COLOR asks for no colors: what a color would
+	// mark is marked another way.
+	Plain bool
 	// Selected is the background of the selected row; Key the keycaps'.
 	Selected, Key color.Color
 }
@@ -47,10 +54,12 @@ func NewTheme(dark bool) Theme {
 	ld := lipgloss.LightDark(dark)
 	return Theme{
 		Dark:  dark,
+		Plain: os.Getenv("NO_COLOR") != "",
 		Ink:   ld(lipgloss.Color("#1D1C1D"), lipgloss.Color("#E3E4E5")),
 		Muted: ld(lipgloss.Color("#616061"), lipgloss.Color("#9198A1")),
 		Rule:  ld(lipgloss.Color("#D1D9E0"), lipgloss.Color("#3D444D")),
 		Mark:  ld(lipgloss.Color("#F2C744"), lipgloss.Color("#ECB22E")),
+		Blade: ld(lipgloss.Color("#D99A0B"), lipgloss.Color("#ECB22E")),
 		Cat: map[Category]color.Color{
 			CatReap:     ld(lipgloss.Color("#A86A00"), lipgloss.Color("#ECB22E")),
 			CatWait:     ld(lipgloss.Color("#616061"), lipgloss.Color("#9198A1")),

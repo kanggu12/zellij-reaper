@@ -15,6 +15,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/version"
 )
 
 // SetupStart is what the setup screen starts from: the settings in effect,
@@ -84,6 +85,9 @@ type setupModel struct {
 	// idleAt and exitedAt index the chosen wait in idle and exited.
 	idleAt, exitedAt int
 	dry, names, hook bool
+	// hookSet is true once the hook row was changed by hand: turning names
+	// on again then leaves that choice alone.
+	hookSet bool
 	// keep is the sessions marked to keep, by name.
 	keep map[string]bool
 
@@ -233,8 +237,13 @@ func (m *setupModel) change(r setupRow, step int) {
 		m.dry = !m.dry
 	case rowNames:
 		m.names = !m.names
+		// The hook row comes back with names, switched on as it opens,
+		// unless it was switched off by hand.
+		if m.names && !m.hookSet {
+			m.hook = m.start.HookFile != ""
+		}
 	case rowHook:
-		m.hook = !m.hook
+		m.hook, m.hookSet = !m.hook, true
 	case rowSession:
 		i := m.cursor - (len(m.rows()) - len(m.listed()))
 		if l := m.listed(); i >= 0 && i < len(l) {
@@ -258,13 +267,18 @@ func (m setupModel) render() string {
 	if m.width < 30 || m.height < 8 {
 		return frameTo([]string{ui.Fg(t.Muted).Render(i18n.T("small"))}, m.width, m.height)
 	}
-	name := lipgloss.NewStyle().Background(t.Mark).Foreground(lipgloss.Color("#1D1C1D")).Bold(true).Padding(0, 1).Render("zellij-reaper")
-	lines := []string{" " + name + ui.Fg(t.Ink).Bold(true).Render("  "+i18n.T("setup.title")), ""}
+	// The name, this build's version and what this screen is: in one line,
+	// or beside the logo when the screen has the rows (below).
+	brand := t.Brand(version.Short())
+	title := ui.Fg(t.Ink).Bold(true).Render(i18n.T("setup.title"))
+	lines := []string{" " + brand + ui.Fg(t.Rule).Render("  ·  ") + title, ""}
 	// The intro wraps rather than losing its last words on a narrow screen.
+	intro := len(lines)
 	for _, l := range wrapWords(i18n.T("setup.intro", ui.Clock(m.start.FirstPass)), m.width-2) {
 		lines = append(lines, " "+ui.Fg(t.Muted).Render(l))
 	}
 	lines = append(lines, "")
+	introRows := len(lines) - intro
 
 	rows := m.rows()
 	labelW := 0
@@ -332,7 +346,30 @@ func (m setupModel) render() string {
 	// The session rows get what is left above the keys and a blank line.
 	// When they do not all fit, the ones shown follow the cursor and one line
 	// counts the rest.
-	room := max(1, m.height-len(lines)-2)
+	// The logo takes LogoHeight rows where the one-line header took one, and
+	// only rows the sessions would not need.
+	if spare := m.height - len(lines) - 2 - len(listed); spare >= ui.LogoHeight && m.width >= ui.LogoWidth+2+lipgloss.Width(brand)+2 {
+		logo := t.LogoBlock(brand, title)
+		for k := range logo {
+			logo[k] = " " + logo[k]
+		}
+		lines = append(logo, lines[1:]...)
+	}
+	// A short screen still shows the session under the cursor and a count
+	// of the rest: the intro and the blank line after the header go first,
+	// as Space would otherwise mark a row nobody can see.
+	if need := min(len(listed), 2); len(listed) > 0 && m.height-len(lines)-1 < need {
+		lines = append(lines[:intro], lines[intro+introRows:]...)
+		if m.height-len(lines)-1 < need && intro > 0 && lines[intro-1] == "" {
+			lines = append(lines[:intro-1], lines[intro:]...)
+		}
+	}
+	// A blank row above the keys when there is room for it.
+	room := m.height - len(lines) - 2
+	if room < min(len(listed), 2) {
+		room = m.height - len(lines) - 1
+	}
+	room = max(1, room)
 	start, show := 0, len(listed)
 	if len(listed) > room {
 		show = max(1, room-1)

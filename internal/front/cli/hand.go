@@ -168,6 +168,9 @@ func renameByHand(cmd *cobra.Command, a *app.App, b tui.Backend, name, to string
 	}
 	if to == name {
 		if err := b.KeepName(ctx, name); err != nil {
+			if errors.Is(err, lock.ErrBusy) {
+				return errors.New(i18n.T("toast.busy"))
+			}
 			return err
 		}
 		println(w, ok(t)+i18n.T("toast.kept", name))
@@ -175,10 +178,8 @@ func renameByHand(cmd *cobra.Command, a *app.App, b tui.Backend, name, to string
 	}
 	note, err := b.Rename(ctx, name, to)
 	switch {
-	case errors.Is(err, lock.ErrBusy):
-		return errors.New(i18n.T("toast.busy"))
 	case err != nil:
-		return errors.New(i18n.T("toast.rename.failed", err))
+		return errors.New(tui.RenameFailed(err))
 	case note != "":
 		// Renamed, with something to know about it, such as a lost
 		// protection.

@@ -97,6 +97,12 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 			fail(i18n.T("doctor.timer.none"))
 		case !st.Enabled || !st.Active:
 			fail(i18n.T("doctor.timer.off"))
+		// The interval can be unreadable (0): then it is left unsaid
+		// rather than shown as "every 0s".
+		case st.Interval == 0 && st.Next.IsZero():
+			pass(i18n.T("doctor.timer.on"))
+		case st.Interval == 0:
+			pass(i18n.T("doctor.timer.next", ui.Clock(st.Next)))
 		case st.Next.IsZero():
 			pass(i18n.T("doctor.timer.idle", duration.Format(st.Interval)))
 		default:

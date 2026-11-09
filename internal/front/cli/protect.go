@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
+	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 )
 
 // cmdProtect builds `protect NAME...` (on) or `unprotect NAME...` (off).
@@ -31,12 +34,26 @@ func cmdProtect(on bool) *cobra.Command {
 			}
 			w := cmd.OutOrStdout()
 			if on && len(args) == 0 {
-				for _, n := range a.Protected.Names() {
+				names := a.Protected.Names()
+				// An empty list prints nothing to a script; a person is told.
+				if len(names) == 0 && isTerminal(os.Stdout) {
+					println(w, ui.Fg(theme().Muted).Render(i18n.T("protect.empty")))
+				}
+				for _, n := range names {
 					fmt.Fprintln(w, n)
 				}
 				return nil
 			}
 			for _, name := range args {
+				// A name the list never had: nothing to lift, and the
+				// pattern may still be what protects it.
+				if !on && !slices.Contains(a.Protected.Names(), name) {
+					fmt.Fprintln(w, i18n.T("protect.notlisted", name))
+					if a.Config.ProtectMatches(name) {
+						fmt.Fprintln(w, i18n.T("toast.pattern", name))
+					}
+					continue
+				}
 				if err := a.Protected.Set(name, on); err != nil {
 					return err
 				}

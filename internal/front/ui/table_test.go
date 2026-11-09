@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
+
+	"charm.land/lipgloss/v2"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
@@ -29,5 +32,19 @@ func TestKeptAtTheDeleteReadsInTheReadersLanguage(t *testing.T) {
 		if rows[0].Next != want || rows[0].Cat != CatUnknown {
 			t.Errorf("%s: %q (%v), want %q", lang, rows[0].Next, rows[0].Cat, want)
 		}
+	}
+}
+
+func TestFitMiddleKeepsBothEndsOfAName(t *testing.T) {
+	// Cut from the end, these two read the same: "release-notes-dra…".
+	a, b := FitMiddle("release-notes-draft", 18), FitMiddle("release-notes-draft-2", 18)
+	if a == b || lipgloss.Width(a) != 18 || lipgloss.Width(b) != 18 {
+		t.Errorf("%q and %q", a, b)
+	}
+	if got := FitMiddle("short", 18); got != "short"+strings.Repeat(" ", 13) {
+		t.Errorf("a short name changed: %q", got)
+	}
+	if got := FitMiddle("세션이름이아주긴세션", 9); lipgloss.Width(got) != 9 {
+		t.Errorf("wide letters: %q is %d cells", got, lipgloss.Width(got))
 	}
 }

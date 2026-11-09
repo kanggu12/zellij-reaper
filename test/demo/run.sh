@@ -5,7 +5,8 @@
 #   test/demo/run.sh            # the dashboard
 #   test/demo/run.sh --shell    # a shell in the same sandbox, for the commands
 #
-# ZELLIJ_REAPER_LANG=ko shows it in Korean. Needs Docker.
+# ZELLIJ_REAPER_LANG=ko shows it in Korean; DEMO_VERSION=v1.2.3 shows that
+# version. Needs Docker.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -21,7 +22,10 @@ esac
 # The demo's own binaries: an integration run may be using the ones in $cache.
 bin="$cache/demo"
 mkdir -p "$bin"
-(cd "$root" && CGO_ENABLED=0 go build -o "$bin/zellij-reaper" ./cmd/zellij-reaper && CGO_ENABLED=0 go build -o "$bin/sleeper" ./test/demo/sleeper)
+# DEMO_VERSION=v1.2.3 stamps a release's version, for the README's pictures.
+ldflags=
+[ -n "${DEMO_VERSION:-}" ] && ldflags="-X github.com/kanggu12/zellij-reaper/internal/version.Version=$DEMO_VERSION"
+(cd "$root" && CGO_ENABLED=0 go build -ldflags "$ldflags" -o "$bin/zellij-reaper" ./cmd/zellij-reaper && CGO_ENABLED=0 go build -o "$bin/sleeper" ./test/demo/sleeper)
 docker build -q -t zellij-reaper-it "$root/test/integration" >/dev/null
 if [ ! -x "$cache/zellij-$version" ]; then
   curl -fsSL "https://github.com/zellij-org/zellij/releases/download/v$version/zellij-$arch-unknown-linux-musl.tar.gz" | tar -xz -C "$cache" zellij

@@ -14,6 +14,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/version"
 )
 
 // sideBySide is the width from which the details sit beside the table.
@@ -73,9 +74,15 @@ func (m model) mainView() string {
 			ui.Fg(m.th.Cat[ui.CatUnknown]).Render(ansi.Truncate(i18n.T("error.list", msg), m.width-2, "…")),
 			ui.Fg(m.th.Muted).Render(i18n.T("error.retry")))...)
 	case m.report.NoSessions:
-		lines = append(lines, m.centered(body,
+		msg := []string{
 			lipgloss.NewStyle().Bold(true).Foreground(m.th.Ink).Render(i18n.T("empty.title")),
-			ui.Fg(m.th.Muted).Render(i18n.T("empty.hint")))...)
+			ui.Fg(m.th.Muted).Render(i18n.T("empty.hint")),
+		}
+		// Nothing to list leaves the room for the logo above the words.
+		if logo := m.logoLines(); body >= len(logo)+len(msg)+2 && m.width >= blockWidth(logo)+2 {
+			msg = append(append(evenBlock(logo), ""), msg...)
+		}
+		lines = append(lines, m.centered(body, msg...)...)
 	default:
 		lines = append(lines, m.sessionsArea(body)...)
 	}
@@ -112,14 +119,44 @@ func (m model) centered(h int, lines ...string) []string {
 	return out
 }
 
+// logoLines is the logo with the name and version beside it, and under
+// them what the tool does.
+func (m model) logoLines() []string {
+	t := m.th
+	return t.LogoBlock(t.Brand(version.Short()), ui.Fg(t.Muted).Render(i18n.T("logo.tagline")))
+}
+
+// blockWidth is the widest of some lines, in cells.
+func blockWidth(lines []string) int {
+	w := 0
+	for _, l := range lines {
+		w = max(w, lipgloss.Width(l))
+	}
+	return w
+}
+
+// evenBlock pads lines to one width, so that centering moves them as one
+// block instead of each line on its own.
+func evenBlock(lines []string) []string {
+	w := blockWidth(lines)
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = l + strings.Repeat(" ", w-lipgloss.Width(l))
+	}
+	return out
+}
+
 // header is the top bar: the name, zellij's version, and the settings that
 // decide what the next pass does.
 func (m model) header() string {
 	t := m.th
-	name := lipgloss.NewStyle().Background(t.Mark).Foreground(lipgloss.Color("#1D1C1D")).Bold(true).Padding(0, 1).Render("zellij-reaper")
-	left := name
+	// The name as the logo writes it, then this build's version, then
+	// zellij's: the two versions a bug report asks for.
+	name := " " + t.Wordmark()
+	named := " " + t.Brand(version.Short())
+	left := named
 	if m.version != "" {
-		left += ui.Fg(t.Muted).Render("  zellij " + m.version)
+		left += ui.Fg(t.Rule).Render(" · ") + ui.Fg(t.Muted).Render("zellij "+m.version)
 	}
 	// A reload in flight shows as a small mark after the name.
 	if m.loading {
@@ -144,7 +181,11 @@ func (m model) header() string {
 		right = append(right[:1], right[2:]...)
 	}
 	r := strings.Join(right, sep)
-	// Still too wide: the zellij version goes before the mode would.
+	// Still too wide: zellij's version goes before the mode would, then
+	// this build's.
+	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
+		left = named
+	}
 	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
 		left = name
 	}
@@ -201,26 +242,23 @@ func (m model) statusLine() string {
 	if m.report.NoSessions || !m.loaded || m.err != nil {
 		return ""
 	}
+	var line string
 	if m.filter != "" {
-		line := i18n.T("status.filtered", len(m.rows()), len(m.report.Outcomes), m.filter)
-		if _, below := m.hidden(); below > 0 {
-			line += " · " + i18n.T("status.below", below)
+		line = i18n.T("status.filtered", len(m.rows()), len(m.report.Outcomes), m.filter)
+	} else {
+		key := "plan.summary"
+		if m.report.DryRun {
+			key = "plan.summary.dry"
 		}
-		return " " + ui.Fg(t.Muted).Render(line)
+		line = i18n.TN(key, len(m.report.Outcomes), len(m.report.Outcomes), m.report.Due())
 	}
-	reaped := m.report.Due()
-	key := "plan.summary"
-	if m.report.DryRun {
-		key = "plan.summary.dry"
+	// Rows scrolled out of sight, filtered or not.
+	above, below := m.hidden()
+	if above > 0 {
+		line += " · " + i18n.T("status.above", above)
 	}
-	line := i18n.TN(key, len(m.report.Outcomes), len(m.report.Outcomes), reaped)
-	if above, below := m.hidden(); above > 0 || below > 0 {
-		if above > 0 {
-			line += " · " + i18n.T("status.above", above)
-		}
-		if below > 0 {
-			line += " · " + i18n.T("status.below", below)
-		}
+	if below > 0 {
+		line += " · " + i18n.T("status.below", below)
 	}
 	return " " + ui.Fg(t.Muted).Render(line)
 }

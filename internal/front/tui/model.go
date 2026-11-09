@@ -196,7 +196,8 @@ func (m *model) openInput(prompt string, width int, value string) {
 // as it changes. A rename waits for enter.
 func (m *model) inputChanged() {
 	if m.mode == modeFilter {
-		m.filter = m.input.value()
+		// Trimmed as enter trims it, so the rows do not change on enter.
+		m.filter = strings.TrimSpace(m.input.value())
 		m.sel = 0
 		m.reselect()
 	}
