@@ -156,7 +156,7 @@ func lookAgain(in Inputs, sc Scan) (map[int]Orphan, string) {
 		return nil, "could not read the processes again: " + err.Error()
 	}
 	servers := table.Servers(in.UID)
-	found, known := orphans(in, table, servers, socketDirs(sc.SocketDir, in.SocketDirs, servers))
+	found, known := orphans(in, in.index(), table, servers, socketDirs(sc.SocketDir, in.SocketDirs, servers))
 	if !known {
 		return nil, "could not read the socket table again"
 	}

@@ -77,11 +77,11 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 		for _, o := range sc.Orphans {
 			// One somebody may still use is kept, and says why.
 			if o.Kept != "" {
-				println(w, ok(t)+i18n.T("recover.orphan.kept", o.PID, o.FirstName, o.Kept))
+				println(w, ok(t)+i18n.T("recover.orphan.kept", o.PID, orphanName(o), o.Kept))
 				continue
 			}
 			stoppable++
-			println(w, warn(t)+i18n.T("recover.orphan", o.PID, o.FirstName))
+			println(w, warn(t)+i18n.T("recover.orphan", o.PID, orphanName(o)))
 		}
 	}
 	if len(sc.Broken) == 0 && (stoppable == 0 || !aggressive || sc.AllOrphaned) {
@@ -100,6 +100,18 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 		}
 	}
 	return nil
+}
+
+// orphanName says which session an orphan server is: by the name it has now
+// when zellij's index still has one, else by the name it started under.
+func orphanName(o repair.Orphan) string {
+	switch {
+	case o.Name != "":
+		return i18n.T("recover.orphan.name", o.Name)
+	case o.FirstName != "":
+		return i18n.T("recover.orphan.first", o.FirstName)
+	}
+	return i18n.T("recover.orphan.unnamed")
 }
 
 func cmdResize() *cobra.Command {

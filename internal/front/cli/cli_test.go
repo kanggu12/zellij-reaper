@@ -290,6 +290,38 @@ func TestRecoverWaitsForThePassLock(t *testing.T) {
 	}
 }
 
+func TestRecoverSaysWhichSessionAnOrphanIs(t *testing.T) {
+	testutil.SkipOnWindows(t)
+	isolate(t)
+	lockPath := filepath.Join(t.TempDir(), "lock")
+	m := newRecoverMachine(t)
+	// said is what a dry run prints about the machine as it is now.
+	said := func() string {
+		t.Helper()
+		cmd, out := output()
+		if err := recoverSessions(cmd, lockPath, m.in, true, true); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	// Before ids, the command line has the name the session started under.
+	if out := said(); !strings.Contains(out, "pid 5000200 serves no socket file (first name: gone)\n") {
+		t.Errorf("an orphan from before ids:\n%s", out)
+	}
+	// Kept by id, the command line has an id nobody knows the session by:
+	// the index has the name it has now.
+	idx := zellij.NewIndex(map[string]string{"notes": "gone"})
+	m.in.Index = &idx
+	if out := said(); !strings.Contains(out, "pid 5000200 serves no socket file (name: notes)\n") {
+		t.Errorf("an orphan kept by id:\n%s", out)
+	}
+	// One that is kept is named the same way.
+	m.in.Protected = func(n string) bool { return n == "notes" }
+	if out := said(); !strings.Contains(out, "pid 5000200 serves no socket file (name: notes), kept: its name is protected\n") {
+		t.Errorf("a kept orphan kept by id:\n%s", out)
+	}
+}
+
 func TestConfigShowLinesUpTheValues(t *testing.T) {
 	isolate(t)
 	root := newRoot()

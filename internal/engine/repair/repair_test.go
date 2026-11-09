@@ -358,3 +358,79 @@ func TestALongNameKeptByIDIsNotBroken(t *testing.T) {
 		}
 	}
 }
+
+func TestAnOrphanKeptByIDIsKnownByItsNames(t *testing.T) {
+	fp := testutil.NewFakeProc(t)
+	sockDir := testutil.SocketDir(t)
+	info := filepath.Join(t.TempDir(), "session_info")
+	var socks []procfs.UnixSocket
+	// server adds a zellij 0.46 server: an id on its command line, the name
+	// it started under in its environment (none when started is ""), a
+	// shell at its prompt, and a socket file only when served.
+	server := func(pid int, id, started string, served bool) {
+		var env []string
+		if started != "" {
+			env = []string{"ZELLIJ_SESSION_NAME=" + started}
+		}
+		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(sockDir, id)}, Sockets: []uint32{uint32(pid)}, Env: env})
+		// The pane was opened under another name: it says nothing here.
+		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: "bash", Argv: []string{"-bash"}, Env: []string{"ZELLIJ_SESSION_NAME=keep-me"}})
+		u := procfs.UnixSocket{Inode: uint32(pid), State: 10, VFSIno: uint32(pid), VFSDev: 1}
+		if served {
+			u.VFSIno, u.VFSDev, _ = procfs.FileID(testutil.Socket(t, sockDir, id))
+		}
+		socks = append(socks, u)
+	}
+	server(base+100, "000000000001", "healthy", true)
+	// Renamed since it started: the index has the name it has now.
+	server(base+200, "000000000002", "quiet-mouse", false)
+	// Protected under the name it has now, and under the one it started with.
+	server(base+300, "000000000003", "quiet-duck", false)
+	server(base+400, "000000000004", "keep-me", false)
+	// An id the index no longer knows, on a server that started protected.
+	server(base+500, "000000000005", "keep-me", false)
+	// A server whose environment cannot say what it started under.
+	server(base+600, "000000000006", "", false)
+	idx := zellij.NewIndex(map[string]string{"healthy": "000000000001", "notes": "000000000002", "keep-me": "000000000003", "scratch": "000000000004", "later": "000000000006"})
+	var signals []string
+	gone := map[int]bool{}
+	in := repair.Inputs{Zellij: &fakeZellij{}, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(), Index: &idx,
+		Sockets:   func() ([]procfs.UnixSocket, error) { return socks, nil },
+		Protected: func(n string) bool { return n == "keep-me" },
+		Signal: func(pid int, sig syscall.Signal) error {
+			if gone[pid] {
+				return syscall.ESRCH
+			}
+			if sig != 0 {
+				signals = append(signals, fmt.Sprintf("%d %d", pid, sig))
+			}
+			if sig == syscall.SIGTERM {
+				gone[pid] = true
+			}
+			return nil
+		}}
+	sc, err := repair.Find(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// name now, first name, why kept.
+	want := map[int][3]string{
+		base + 200: {"notes", "quiet-mouse", ""},
+		base + 300: {"keep-me", "quiet-duck", "its name is protected"},
+		base + 400: {"scratch", "keep-me", "its first name is protected"},
+		base + 500: {"", "000000000005", "its first name is protected"},
+		base + 600: {"later", "", ""},
+	}
+	if len(sc.Orphans) != len(want) || sc.AllOrphaned {
+		t.Fatalf("orphans %+v (all orphaned %v)", sc.Orphans, sc.AllOrphaned)
+	}
+	for _, o := range sc.Orphans {
+		if w, ok := want[o.PID]; !ok || [3]string{o.Name, o.FirstName, o.Kept} != w {
+			t.Errorf("pid %d: name %q, first name %q, kept %q, want %q", o.PID, o.Name, o.FirstName, o.Kept, w)
+		}
+	}
+	steps := repair.Repair(context.Background(), in, sc, true)
+	if got := strings.Join(signals, ","); got != fmt.Sprintf("%d 15,%d 15", base+200, base+600) {
+		t.Errorf("signals %s; steps %+v", got, steps)
+	}
+}

@@ -22,14 +22,20 @@ type Broken struct {
 // Orphan is a server that serves no socket file.
 type Orphan struct {
 	PID int
-	// FirstName is the session name on its command line (its first name).
+	// FirstName is the name the session started under: the one on its
+	// server's command line or, for a session zellij keeps by id, the one in
+	// the environment the server started with ("" when that cannot be read).
 	FirstName string
+	// Name is the name the session has now, which zellij's index still has
+	// for a session kept by id after its socket file is gone; "" for a
+	// session from before ids, whose name now nothing says.
+	Name string
 	// Socket is the socket path on its command line; it tells this server
 	// apart from a process that took over its pid.
 	Socket string
 	// Kept says why the server must not be stopped, "" when nothing keeps
-	// it: a protected first name or program, a client connected, a busy
-	// pane, or a fact that could not be read.
+	// it: a protected name or program, a client connected, a busy pane, or
+	// a fact that could not be read.
 	Kept string
 }
 
@@ -119,7 +125,7 @@ func Find(ctx context.Context, in Inputs) (Scan, error) {
 		}
 	}
 
-	sc.Orphans, sc.OrphansKnown = orphans(in, table, servers, dirs)
+	sc.Orphans, sc.OrphansKnown = orphans(in, idx, table, servers, dirs)
 	sc.AllOrphaned = len(servers) > 1 && len(sc.Orphans) == len(servers)
 	// Any orphan may be the protected session's server: keep them all.
 	if protectedBroken != "" {
@@ -147,7 +153,7 @@ func socketDirs(measured string, extra []string, servers []procfs.Server) []stri
 // servers none of whose listening sockets has a file in dirs, each with what
 // keeps it, if anything. known is false when the socket table cannot be read:
 // orphans then cannot be told from renamed sessions, and none are listed.
-func orphans(in Inputs, table *procfs.Table, servers []procfs.Server, dirs []string) (found []Orphan, known bool) {
+func orphans(in Inputs, idx zellij.Index, table *procfs.Table, servers []procfs.Server, dirs []string) (found []Orphan, known bool) {
 	// A server is an orphan when none of its listening sockets has a file in
 	// a socket directory. A renamed session's file has a new name but the
 	// same inode, so it still counts as served.
@@ -190,6 +196,13 @@ func orphans(in Inputs, table *procfs.Table, servers []procfs.Server, dirs []str
 		}
 		if seen && !served {
 			o := Orphan{PID: s.PID, FirstName: s.Session(), Socket: s.Socket}
+			// A session kept by id has the id on its command line. The
+			// index still has its name, and the environment its server
+			// started with the name it started under.
+			if name := idx.Name(o.FirstName); name != o.FirstName {
+				o.Name = name
+				o.FirstName, _ = procfs.EnvVar(table.Root, s.PID, "ZELLIJ_SESSION_NAME")
+			}
 			o.Kept = keep(in, table, socks, o)
 			found = append(found, o)
 		}
@@ -202,10 +215,21 @@ func orphans(in Inputs, table *procfs.Table, servers []procfs.Server, dirs []str
 // file does not mean nobody uses the session, and a fact that cannot be read
 // keeps the server.
 func keep(in Inputs, t *procfs.Table, socks []procfs.UnixSocket, o Orphan) string {
-	// Its name now is unknown (no socket file names it), so the name it
-	// was started with is the one to check.
-	if in.Protected != nil && in.Protected(o.FirstName) {
-		return "its first name is protected"
+	if in.Protected != nil {
+		// No socket file names the session. One kept by id still has its
+		// name in zellij's index.
+		if o.Name != "" && in.Protected(o.Name) {
+			return "its name is protected"
+		}
+		// Any other has only the name it was started with. The server's
+		// environment has that name too, and is asked as well: an id the
+		// index no longer knows reads as a first name that protects nothing.
+		started, _ := procfs.EnvVar(t.Root, o.PID, "ZELLIJ_SESSION_NAME")
+		for _, first := range []string{o.FirstName, started} {
+			if first != "" && in.Protected(first) {
+				return "its first name is protected"
+			}
+		}
 	}
 	if want := inspect.ProtectedProgram(t, o.PID, in.ProtectCommands); want != "" {
 		return "protected program running (" + want + ")"
