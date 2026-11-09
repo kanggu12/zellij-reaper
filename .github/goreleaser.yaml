@@ -48,8 +48,15 @@ nfpms:
     maintainer: J.-G. Kang <kanggu12@gmail.com>
     description: Reap idle and exited zellij sessions, safely.
     license: MIT
+    # Where a Debian package manager files it; without one the field is left
+    # out of the package.
+    section: utils
     formats: [deb, rpm, apk, archlinux]
     bindir: /usr/bin
+    # pacman shows "Unknown Packager" unless the package names one; the deb
+    # and the rpm take theirs from the maintainer above.
+    archlinux:
+      packager: J.-G. Kang <kanggu12@gmail.com>
     contents:
       - src: LICENSE
         dst: /usr/share/licenses/zellij-reaper/LICENSE
