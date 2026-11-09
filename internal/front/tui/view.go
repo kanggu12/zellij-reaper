@@ -251,23 +251,29 @@ func (m model) statusLine() string {
 	if m.report.NoSessions || !m.loaded || m.err != nil {
 		return ""
 	}
-	var line string
+	var line, tail string
 	if m.filter != "" {
 		line = i18n.T("status.filtered", len(m.rows()), len(m.report.Outcomes), m.filter)
 	} else {
 		// "At the next pass": counted at the time it runs, once the timer
 		// has said when.
-		line = ui.Summary(m.report, m.nextPass(), m.now)
+		line, tail = ui.SummaryParts(m.report, m.nextPass(), m.now)
 	}
 	// Rows scrolled out of sight, filtered or not.
+	var scroll string
 	above, below := m.hidden()
 	if above > 0 {
-		line += " · " + i18n.T("status.above", above)
+		scroll += " · " + i18n.T("status.above", above)
 	}
 	if below > 0 {
-		line += " · " + i18n.T("status.below", below)
+		scroll += " · " + i18n.T("status.below", below)
 	}
-	return " " + ui.Fg(t.Muted).Render(line)
+	// The count as of now goes first when the line would not fit: the
+	// yellow rows say it too, and the scroll counts say what is off screen.
+	if tail != "" && lipgloss.Width(" "+line+" · "+tail+scroll) <= m.width {
+		line += " · " + tail
+	}
+	return " " + ui.Fg(t.Muted).Render(line+scroll)
 }
 
 // footer lists the keys, dropping the least used first when space runs out.

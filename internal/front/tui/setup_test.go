@@ -216,3 +216,17 @@ func TestSetupOffersTheHookWhenNamesComeOn(t *testing.T) {
 		t.Errorf("names %v, hook %v: want names on, hook off", m.names, m.hook)
 	}
 }
+
+func TestSetupStartsTheWaitOfASessionNoPassHasRecordedAtTheFirstPass(t *testing.T) {
+	// Without terminal times, a quiet session the book has not recorded
+	// starts its wait at the first pass, which is not due then however
+	// short the wait.
+	s := setupSample("")
+	s.IdleAfter = 5 * time.Minute
+	o := session("quiet-new", false, func(f *policy.Facts) { f.LastActive, f.ActivitySource = time.Now(), "quiet" })
+	o.Session.QuietFromNow = true
+	s.Report.Outcomes = append(s.Report.Outcomes, o)
+	if got := names(newSetup(s, true)); slices.Contains(got, "quiet-new") {
+		t.Errorf("listed %v: a session no pass has recorded is due at the first", got)
+	}
+}

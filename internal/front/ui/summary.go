@@ -13,15 +13,26 @@ import (
 // then, and when sessions are due by then that are not due now, the count as
 // of now follows, since only those rows show as due.
 func Summary(r reaper.Report, next, now time.Time) string {
+	line, tail := SummaryParts(r, next, now)
+	if tail != "" {
+		line += " · " + tail
+	}
+	return line
+}
+
+// SummaryParts is Summary in two: the count at the next pass, and the count
+// as of now when it differs ("" otherwise), which a narrow line can drop
+// first, as the yellow rows say it too.
+func SummaryParts(r reaper.Report, next, now time.Time) (line, tail string) {
 	n := len(r.Outcomes)
 	key := "plan.summary"
 	if r.DryRun {
 		key = "plan.summary.dry"
 	}
 	due, nowDue := r.DueAtNext(next, now), r.Due()
-	line := i18n.TN(key, n, n, due)
+	line = i18n.TN(key, n, n, due)
 	if due != nowDue {
-		line += " " + i18n.T("plan.summary.duenow", nowDue)
+		tail = i18n.T("plan.summary.duenow", nowDue)
 	}
-	return line
+	return line, tail
 }

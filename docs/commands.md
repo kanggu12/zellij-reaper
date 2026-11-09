@@ -10,10 +10,11 @@ prints the plan as a table instead. **`zellij-reaper tui`** always opens the das
 **`plan`** (also `status`, `ls`) shows what the next pass would do, changing nothing: no lock, no log, no deletes.
 Each row is judged as of now, so a session whose wait ends in a few minutes says `reap in 4m`. The count under the
 table is taken at the time the timer runs the next pass, as `install` and the setup screen count, so it includes that
-session, and the count as of now follows when it differs: `2 to reap at the next pass (1 due now)`. That needs a
+session, and the count as of now follows when it differs: `2 to reap at the next pass · 1 due now`. That needs a
 running timer that says when it runs next, which systemd, cron and the Task Scheduler do; launchd on macOS does not, so
-there the count is as of now. The table is sorted by what happens to each session; `sessions` in the JSON keeps
-zellij's order. `--json` prints a shape
+there the count is as of now. A session without terminal times that no pass has found quiet yet (every session on
+Windows, at first) is not in that count: the pass that first finds it quiet starts its wait. The table is sorted by
+what happens to each session; `sessions` in the JSON keeps zellij's order. `--json` prints a shape
 that stays stable for scripts; `reason` is the log's wording:
 
 ```json
@@ -163,8 +164,8 @@ The color of a row says what will happen to it:
 
 | Color | Means |
 |:---:|:---|
-| yellow | deleted at the next pass |
-| grey | idle, waiting out `idle_after` or `exited_after` |
+| yellow | due now: deleted at the next pass |
+| grey | idle, waiting out `idle_after` or `exited_after`; one whose wait ends before the next pass is in that pass's count |
 | blue | a program runs in it |
 | green | a client is attached |
 | violet | protected, by name or by a running program |

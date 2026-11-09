@@ -62,7 +62,14 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 	}
 	// "At the next pass": counted at the time it runs, when the timer says.
 	println(w)
-	println(w, ui.Fg(t.Muted).Render("  "+ui.Summary(r, a.System.Status().NextPass(), time.Now())+" · "+i18n.T("plan.dashboard")))
+	summary, hint := "  "+ui.Summary(r, a.System.Status().NextPass(), time.Now()), i18n.T("plan.dashboard")
+	// A line that would wrap puts the dashboard's hint on its own.
+	if lipgloss.Width(summary+" · "+hint) > width {
+		println(w, ui.Fg(t.Muted).Render(summary))
+		println(w, ui.Fg(t.Muted).Render("  "+hint))
+	} else {
+		println(w, ui.Fg(t.Muted).Render(summary+" · "+hint))
+	}
 	return nil
 }
 

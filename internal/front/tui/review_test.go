@@ -143,7 +143,7 @@ func TestTheDashboardCountsWhatTheNextPassReaps(t *testing.T) {
 	b.report.Outcomes = append(b.report.Outcomes, session("soon", false, func(f *policy.Facts) { f.LastActive = now.Add(-30 * time.Minute) }))
 	m := loaded(t, b, 132, 40)
 	want := b.report.Due() + 1
-	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass (%d due now)", want, want-1)) {
+	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass · %d due now", want, want-1)) {
 		t.Errorf("status line %q, want %d to reap, %d due now", s, want, want-1)
 	}
 	m = pick(t, m, "soon")
@@ -162,5 +162,26 @@ func TestATimerThatDoesNotRunHasNoNextPassToCountAt(t *testing.T) {
 	m = step(t, m, timerMsg{st: timers.TimerStatus{Installed: true, Enabled: true, Active: false, Next: now.Add(42 * time.Minute), Interval: time.Hour}})
 	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass", b.report.Due())) || strings.Contains(s, "due now") {
 		t.Errorf("with the timer off: %q", s)
+	}
+}
+
+func TestANarrowStatusLineDropsTheCountAsOfNowBeforeTheScrollCounts(t *testing.T) {
+	// The count as of now made the line longer, and the scroll counts after
+	// it were cut where they used to fit.
+	b := sample()
+	now := time.Now()
+	b.report.Outcomes = append(b.report.Outcomes, session("soon", false, func(f *policy.Facts) { f.LastActive = now.Add(-30 * time.Minute) }))
+	for i := range 12 {
+		b.report.Outcomes = append(b.report.Outcomes, session(fmt.Sprintf("job-%02d", i), false, nil))
+	}
+	m := press(t, loaded(t, b, 64, 16), "G")
+	s := ansi.Strip(m.statusLine())
+	if !strings.Contains(s, "↑") || strings.Contains(s, "…") || strings.Contains(s, "due now") {
+		t.Errorf("64 columns: %q", s)
+	}
+	// With room, both.
+	m = press(t, loaded(t, b, 132, 16), "G")
+	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, "due now") || !strings.Contains(s, "↑") {
+		t.Errorf("132 columns: %q", s)
 	}
 }

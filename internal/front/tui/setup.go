@@ -142,6 +142,11 @@ func (m setupModel) verdict(o reaper.Outcome) policy.Verdict {
 	if m.keep[f.Name] && !f.Protected {
 		f.Protected, f.ProtectedBy = true, "protected list"
 	}
+	// The quiet book has not recorded it: the first pass is the first to,
+	// and its wait starts there, as plan and install count it.
+	if o.Session.QuietFromNow {
+		f.LastActive = m.start.FirstPass
+	}
 	th := policy.Thresholds{Idle: m.idle[m.idleAt], Exited: m.exited[m.exitedAt]}
 	return policy.Decide(f, th, m.start.FirstPass)
 }

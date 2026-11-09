@@ -24,7 +24,7 @@ func TestTheSummaryCountsAtTheNextPassAndSaysWhatIsDueNow(t *testing.T) {
 		next time.Time
 		want string
 	}{
-		{now.Add(10 * time.Minute), "3 sessions · 2 to reap at the next pass (1 due now)"},
+		{now.Add(10 * time.Minute), "3 sessions · 2 to reap at the next pass · 1 due now"},
 		// Unknown, or a timer that does not run: as of now, nothing more.
 		{time.Time{}, "3 sessions · 1 to reap at the next pass"},
 		{now.Add(-time.Minute), "3 sessions · 1 to reap at the next pass"},
@@ -32,5 +32,11 @@ func TestTheSummaryCountsAtTheNextPassAndSaysWhatIsDueNow(t *testing.T) {
 		if got := Summary(r, c.next, now); got != c.want {
 			t.Errorf("next %v: %q, want %q", c.next, got, c.want)
 		}
+	}
+	// A dry run's line has its own brackets: the count as of now does not
+	// open a second pair.
+	r.DryRun = true
+	if got, want := Summary(r, now.Add(10*time.Minute), now), "3 sessions · 2 would be reaped (dry run) · 1 due now"; got != want {
+		t.Errorf("dry run: %q, want %q", got, want)
 	}
 }
