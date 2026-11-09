@@ -9,7 +9,7 @@
 # or the same one twice, stops.
 set -u
 fuzztime=${1:-30s}
-for pkg in ./internal/core/rename ./internal/machine/zellij; do
+for pkg in ./internal/core/rename ./internal/machine/zellij ./internal/machine/sqlite; do
   for target in $(go test -list '^Fuzz' "$pkg" | grep '^Fuzz'); do
     for try in 1 2; do
       out=$(go test -run '^$' -fuzz "^$target\$" -fuzztime "$fuzztime" "$pkg" 2>&1)

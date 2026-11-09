@@ -208,6 +208,14 @@ func CurrentUID() int { return 0 }
 // readZellijNative is the pass's read: Windows has no lighter one.
 func readZellijNative() (*Table, error) { return readNative(true) }
 
+// envNative reads nothing on Windows: another process's environment there is
+// in its memory, not in a file or a system call, and nothing on Windows needs
+// it: zellij there cannot reach a renamed session, so no session is renamed.
+func envNative(pid int, key string) (string, bool) {
+	_, _ = pid, key
+	return "", false
+}
+
 // fileOwner reads the server's process ID that zellij writes into the socket
 // file, which keeps it through a rename.
 func fileOwner(path string, servers []Server) (Server, bool) {

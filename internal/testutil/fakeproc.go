@@ -35,6 +35,8 @@ type Proc struct {
 	CTTY int
 	// Started is when it started, counted from boot (see FakeProc.Uptime).
 	Started time.Duration
+	// Env is the environment it started with, as KEY=value strings.
+	Env []string
 }
 
 // FakeProc is a directory laid out like /proc.
@@ -76,6 +78,11 @@ func (f *FakeProc) Add(p Proc) {
 		argv = strings.Join(p.Argv, "\x00") + "\x00"
 	}
 	must(f.t, os.WriteFile(filepath.Join(dir, "cmdline"), []byte(argv), 0o644))
+	env := ""
+	if len(p.Env) > 0 {
+		env = strings.Join(p.Env, "\x00") + "\x00"
+	}
+	must(f.t, os.WriteFile(filepath.Join(dir, "environ"), []byte(env), 0o644))
 	if p.Stdin != "" {
 		must(f.t, os.Symlink(p.Stdin, filepath.Join(dir, "fd", "0")))
 	}

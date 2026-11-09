@@ -189,8 +189,11 @@ func (r real) renameByHand(ctx context.Context, name, to string) (string, error)
 	var note string
 	pl := r.a.Protected
 	// A name past the socket path's limit leaves a session no zellij
-	// command can reach: refuse it before zellij renames anything.
-	if limit := r.nameLimit(); limit > 0 && len(to) > limit {
+	// command can reach: refuse it before zellij renames anything. A session
+	// named by id (zellij 0.46 and later) keeps its socket path whatever its
+	// name.
+	idx, _ := zellij.ReadIndex(r.a.InfoDir)
+	if limit := r.nameLimit(); limit > 0 && !idx.ByID(name) && len(to) > limit {
 		return "", errors.New(i18n.T("rename.toolong", limit))
 	}
 	// A file at that name is another session's socket, listed or not.

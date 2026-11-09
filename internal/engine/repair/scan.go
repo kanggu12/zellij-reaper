@@ -68,7 +68,9 @@ func Find(ctx context.Context, in Inputs) (Scan, error) {
 	sc.Budget = zellij.NameRoom(sc.SocketDir)
 
 	// Names come from zellij's list and from the directories it keeps, which
-	// can outlive a session zellij no longer lists.
+	// can outlive a session zellij no longer lists. Since zellij 0.46 those
+	// directories are named by id, and the index has the names.
+	idx := in.index()
 	seen := map[string]bool{}
 	var names []string
 	if listed, err := in.Zellij.ListSessions(ctx); err == nil {
@@ -79,8 +81,12 @@ func Find(ctx context.Context, in Inputs) (Scan, error) {
 			}
 		}
 	}
-	for _, n := range zellij.SessionDirs(in.InfoDir) {
-		if !seen[n] {
+	for _, d := range zellij.SessionDirs(in.InfoDir) {
+		// zellij's own directories are no session's.
+		if zellij.IsAppName(d) {
+			continue
+		}
+		if n := idx.Name(d); !seen[n] {
 			seen[n] = true
 			names = append(names, n)
 		}
@@ -91,6 +97,11 @@ func Find(ctx context.Context, in Inputs) (Scan, error) {
 	// limit: its server is one of the orphans, and which one cannot be told.
 	protectedBroken := ""
 	for _, n := range names {
+		// A session named by id has a socket path of the same length
+		// whatever its name: no name breaks it.
+		if idx.ByID(n) {
+			continue
+		}
 		// A protected name is never touched, broken or not.
 		if in.Protected != nil && in.Protected(n) {
 			if !socketExists(dirs, n) && len(sc.SocketDir)+1+len(n) > zellij.SocketPathLimit {

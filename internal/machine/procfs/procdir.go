@@ -149,3 +149,23 @@ func (t *Table) Cwd(pid int) string {
 	}
 	return p
 }
+
+// envDir reads a variable from root/<pid>/environ: the strings the process
+// started with, each ending in a NUL.
+func envDir(root string, pid int, key string) (string, bool) {
+	b, err := os.ReadFile(filepath.Join(root, strconv.Itoa(pid), "environ"))
+	if err != nil {
+		return "", false
+	}
+	return lookupEnv(strings.Split(string(b), "\x00"), key)
+}
+
+// lookupEnv finds key=value among strings like an environment's.
+func lookupEnv(env []string, key string) (string, bool) {
+	for _, kv := range env {
+		if v, ok := strings.CutPrefix(kv, key+"="); ok {
+			return v, true
+		}
+	}
+	return "", false
+}

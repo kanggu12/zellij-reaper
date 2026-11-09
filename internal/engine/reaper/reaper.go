@@ -117,6 +117,11 @@ type Report struct {
 	// NoRenames says why this pass renames nothing, when something stops it:
 	// the list of kept names could not be read.
 	NoRenames error
+	// IndexErr says why zellij's session index could not be read: sessions
+	// zellij 0.46 and later name by id are then not found, and are kept.
+	IndexErr error
+	// index is the session index the survey judged by.
+	index zellij.Index
 }
 
 // Counts sums a report: reaped, kept and renamed sessions.
@@ -244,6 +249,12 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	if src.Clients == nil {
 		src.Clients = e.Zellij
 	}
+	// The index changes as sessions start and are renamed: read it for each
+	// survey, unless a test set one.
+	if src.Index == nil {
+		r.IndexErr = src.LoadIndex()
+	}
+	r.index = *src.Index
 	// On Linux /proc is read while zellij lists the sessions: listing starts a
 	// zellij process and waits on every server, about half of a pass on its
 	// own. On macOS and Windows a renamed session is matched to its server by

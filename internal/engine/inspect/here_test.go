@@ -8,6 +8,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/testutil"
 )
 
@@ -42,5 +43,21 @@ func TestHereIsTheNameTheSessionHasNow(t *testing.T) {
 	src.Sockets = nil
 	if name, err := inspect.Here(src, 102); !errors.Is(err, inspect.ErrNameUnknown) {
 		t.Errorf("without the table: %q, %v", name, err)
+	}
+}
+
+func TestHereNamesASessionKeptByIDFromTheIndex(t *testing.T) {
+	fp := testutil.NewFakeProc(t)
+	dir := testutil.SocketDir(t)
+	// zellij 0.46 names the socket by an id, which a rename keeps; the index
+	// has the name the session has now.
+	ino, dev, _ := procfs.FileID(testutil.Socket(t, dir, "0a1b2c3d4e5f"))
+	socks := []procfs.UnixSocket{{Inode: 100, State: 10, Name: filepath.Join(dir, "0a1b2c3d4e5f"), VFSIno: ino, VFSDev: dev}}
+	fp.Add(testutil.Proc{PID: 100, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(dir, "0a1b2c3d4e5f")}, Sockets: []uint32{100}})
+	fp.Add(testutil.Proc{PID: 101, PPID: 100, Comm: "bash", Argv: []string{"-bash"}})
+	idx := zellij.NewIndex(map[string]string{"review-the-draft": "0a1b2c3d4e5f"})
+	src := inspect.Sources{ProcRoot: fp.Root, UID: os.Getuid(), Sockets: func() ([]procfs.UnixSocket, error) { return socks, nil }, Index: &idx}
+	if name, err := inspect.Here(src, 101); err != nil || name != "review-the-draft" {
+		t.Errorf("here = %q, %v", name, err)
 	}
 }

@@ -51,8 +51,12 @@ func takenNames(r Report) map[string]bool {
 		}
 	}
 	for dir := range dirs {
-		for _, name := range zellij.Sockets(dir) {
-			taken[name] = true
+		for _, file := range zellij.Sockets(dir) {
+			// zellij's own sockets are no session's; since 0.46 the others
+			// are named by id, which the index turns into a name.
+			if !zellij.IsAppName(file) {
+				taken[r.index.Name(file)] = true
+			}
 		}
 	}
 	return taken
@@ -95,6 +99,11 @@ func (e *Env) replaceable(s inspect.Session) bool {
 	if e.Given.Has(name) {
 		return true
 	}
+	// zellij 0.46 and later name a session by id. No version that stamped
+	// names ever saw such a session, so a stamp on one was put there by hand.
+	if s.ByID {
+		return false
+	}
 	return rename.Stamped(name) && rename.Stamp(e.Config.AutoRenameStamp) != rename.StampTime
 }
 
@@ -110,7 +119,9 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 		return "", ""
 	}
 	budget := rename.MaxBase
-	if s.Socket != "" {
+	// A socket named after the session bounds the name's length; one named
+	// by id does not.
+	if s.Socket != "" && !s.ByID {
 		budget = rename.BaseBudgetFor(zellij.NameRoom(filepath.Dir(s.Socket)), rename.Stamp(e.Config.AutoRenameStamp))
 	}
 	base := rename.Suggest(rename.Input{

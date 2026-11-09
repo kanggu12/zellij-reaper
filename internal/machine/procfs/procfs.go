@@ -235,6 +235,18 @@ func Process(root string, pid int) (*Proc, bool) {
 	return readProc(root, pid)
 }
 
+// EnvVar reads one variable from the environment a process started with,
+// which a program's later changes to its own environment do not touch: zellij
+// gives every pane ZELLIJ_SESSION_NAME, the session's name when the pane
+// starts. ok is false when the process is gone, when its environment cannot be
+// read (another user's process, or Windows), or when it has no such variable.
+func EnvVar(root string, pid int, key string) (string, bool) {
+	if root == Native {
+		return envNative(pid, key)
+	}
+	return envDir(root, pid, key)
+}
+
 // ReadZellij reads only what finds zellij's servers: their command lines and
 // start times, without the directories panes work in. `here` reads this at
 // every prompt.

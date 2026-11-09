@@ -54,6 +54,28 @@ type Sources struct {
 	Sockets func() ([]procfs.UnixSocket, error)
 	// Now is the clock.
 	Now func() time.Time
+	// Index maps session names to the ids zellij 0.46 and later name their
+	// sockets and directories by. Nil reads zellij's own, next to InfoDir;
+	// LoadIndex reads it once for a survey.
+	Index *zellij.Index
+}
+
+// LoadIndex reads zellij's session index into src.Index, once for a whole
+// survey. When it cannot be read, every session is looked for under its name,
+// as before 0.46, and the error says why sessions named by id are not found.
+func (src *Sources) LoadIndex() error {
+	x, err := zellij.ReadIndex(src.InfoDir)
+	src.Index = &x
+	return err
+}
+
+// index is the session index to judge by.
+func (src Sources) index() zellij.Index {
+	if src.Index != nil {
+		return *src.Index
+	}
+	x, _ := zellij.ReadIndex(src.InfoDir)
+	return x
 }
 
 // Rules are the settings that shape the facts.
@@ -88,6 +110,14 @@ type Pane struct {
 type Session struct {
 	// Listed is zellij's own line for it.
 	Listed zellij.Listed
+	// ID is what its socket and its directory under session_info are called:
+	// since zellij 0.46 an id that stays through renames (ByID), before that
+	// its name.
+	ID   string
+	ByID bool
+	// StartName is the name a session named by id started under, from the
+	// environment of its first pane; "" when it cannot be read.
+	StartName string
 	// Files are its directory under session_info.
 	Files zellij.Files
 	// Socket is the socket file of a running session ("" if not found).
@@ -116,8 +146,13 @@ type Session struct {
 func (s Session) Name() string { return s.Listed.Name }
 
 // StartedAs is the name the session's server was started under, which its command
-// line keeps through every rename; "" when its server was not found.
+// line keeps through every rename; "" when its server was not found. A session
+// named by id has the id on its command line instead: its first pane's
+// environment keeps the name.
 func (s Session) StartedAs() string {
+	if s.ByID {
+		return s.StartName
+	}
 	if s.Server == nil || s.Server.Socket == "" {
 		return ""
 	}
@@ -180,6 +215,7 @@ func GatherFrom(ctx context.Context, src Sources, rules Rules, listed []zellij.L
 		socks:  socks,
 		owners: socketOwners(table, servers),
 		shells: shellSet(rules.Shells),
+		idx:    src.index(),
 	}
 	out := make([]Session, len(listed))
 	for i, l := range listed {
@@ -202,19 +238,21 @@ type snapshot struct {
 	socks   []procfs.UnixSocket
 	owners  map[uint32]int
 	shells  map[string]bool
+	idx     zellij.Index
 }
 
 // session gathers the facts of one listed session.
 func (v snapshot) session(l zellij.Listed) Session {
-	s := Session{Listed: l, Clients: -1}
+	s := Session{Listed: l, Clients: -1, ID: v.idx.ID(l.Name)}
+	s.ByID = s.ID != l.Name
 	s.Facts.Name, s.Facts.Exited = l.Name, l.Exited
 	if v.rules.Protected != nil {
 		s.Facts.Protected, s.Facts.ProtectedBy = v.rules.Protected(l.Name)
 	}
-	files, err := zellij.ReadFiles(v.src.InfoDir, l.Name)
+	files, err := zellij.ReadFiles(v.src.InfoDir, s.ID)
 	if err != nil {
 		// An unreadable directory is treated like a missing one: kept.
-		files = zellij.Files{Dir: filepath.Join(v.src.InfoDir, l.Name)}
+		files = zellij.Files{Dir: filepath.Join(v.src.InfoDir, s.ID)}
 	}
 	s.Files = files
 	s.Facts.HasInfo = files.Exists
@@ -232,7 +270,7 @@ func (v snapshot) exited(s *Session) {
 	s.Facts.LastActive, s.Facts.ActivitySource = s.Files.Newest, "session files"
 	// A socket file can outlive a server that was killed; only a server still
 	// listening on it means the session is not gone.
-	if sock := findSocket(v.dirs, s.Name()); sock != "" {
+	if sock := findSocket(v.dirs, s.ID); sock != "" {
 		if srv, _ := findServer(sock, v.servers, v.socks, v.owners); srv != nil {
 			s.Socket, s.Server = sock, srv
 			s.Facts.ServerPID = srv.PID
@@ -243,7 +281,7 @@ func (v snapshot) exited(s *Session) {
 // running fills in a session with a server: its socket, its panes and what
 // runs in them, and when they were last used.
 func (v snapshot) running(s *Session) {
-	s.Socket = findSocket(v.dirs, s.Name())
+	s.Socket = findSocket(v.dirs, s.ID)
 	s.Facts.SocketOK = s.Socket != ""
 	if s.Socket != "" {
 		s.Server, s.ServerMatch = findServer(s.Socket, v.servers, v.socks, v.owners)
@@ -251,6 +289,9 @@ func (v snapshot) running(s *Session) {
 	if s.Server != nil {
 		s.Facts.ServerPID = s.Server.PID
 		s.Panes = panes(v.table, s.Server.PID, v.shells)
+		if s.ByID {
+			s.StartName = startName(v.table, s.Server.PID)
+		}
 	}
 	s.Facts.PaneCount = len(s.Panes)
 	for _, p := range s.Panes {

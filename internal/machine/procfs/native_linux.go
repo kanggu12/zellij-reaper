@@ -16,6 +16,9 @@ func readNative(sessions bool) (*Table, error) {
 // processNative reads one process from the machine's /proc.
 func processNative(pid int) (*Proc, bool) { return readProc(procRoot, pid) }
 
+// envNative reads a variable from a process's environ in the machine's /proc.
+func envNative(pid int, key string) (string, bool) { return envDir(procRoot, pid, key) }
+
 // youngestNative is YoungestServer on the machine's /proc.
 func youngestNative(uid int) (time.Duration, bool) { return youngestDir(procRoot, uid) }
 

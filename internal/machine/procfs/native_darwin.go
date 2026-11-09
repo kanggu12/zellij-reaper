@@ -136,32 +136,55 @@ func ttyNames() map[int32]string {
 // argument count, the executable's path, padding, then the arguments, each
 // ending in a NUL. Another user's process gives nothing.
 func procArgs(pid int) []string {
+	argv, _ := procArgsEnv(pid)
+	return argv
+}
+
+// envNative reads a variable from the environment that kern.procargs2 gives
+// after the arguments.
+func envNative(pid int, key string) (string, bool) {
+	_, env := procArgsEnv(pid)
+	return lookupEnv(env, key)
+}
+
+// procArgsEnv reads kern.procargs2: the arguments, then the environment the
+// process started with, its strings ending in a NUL each up to an empty one.
+func procArgsEnv(pid int) (argv, env []string) {
 	b, err := unix.SysctlRaw("kern.procargs2", pid)
 	if err != nil || len(b) < 4 {
-		return nil
+		return nil, nil
 	}
 	argc := int(binary.LittleEndian.Uint32(b[:4]))
 	rest := b[4:]
 	// Skip the executable's path and the NULs that pad it.
 	i := bytes.IndexByte(rest, 0)
 	if i < 0 {
-		return nil
+		return nil, nil
 	}
 	rest = rest[i:]
 	for len(rest) > 0 && rest[0] == 0 {
 		rest = rest[1:]
 	}
-	var argv []string
 	for len(argv) < argc && len(rest) > 0 {
 		j := bytes.IndexByte(rest, 0)
 		if j < 0 {
 			argv = append(argv, string(rest))
-			break
+			return argv, nil
 		}
 		argv = append(argv, string(rest[:j]))
 		rest = rest[j+1:]
 	}
-	return argv
+	// The environment, up to the first empty string; what follows that is
+	// the system's own.
+	for len(rest) > 0 {
+		j := bytes.IndexByte(rest, 0)
+		if j <= 0 {
+			break
+		}
+		env = append(env, string(rest[:j]))
+		rest = rest[j+1:]
+	}
+	return argv, env
 }
 
 // cwdsOf asks lsof, once, for the directory each process works in. lsof comes

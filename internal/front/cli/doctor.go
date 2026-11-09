@@ -166,6 +166,15 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	} else if a.Zellij.Available() {
 		fail(i18n.T("error.list", err))
 	}
+	// Since 0.46 zellij names a session's files by id, and keeps the names
+	// in an index: one that cannot be read leaves those sessions unjudged.
+	if _, err := os.Stat(zellij.IndexFile(a.InfoDir)); err == nil {
+		if x, err := zellij.ReadIndex(a.InfoDir); err == nil {
+			pass(i18n.TN("doctor.index", x.Len(), x.Len()))
+		} else {
+			fail(i18n.T("doctor.index.bad", err))
+		}
+	}
 	// How a renamed session is matched to its server: the kernel's socket
 	// table on Linux, the socket file itself elsewhere.
 	switch runtime.GOOS {

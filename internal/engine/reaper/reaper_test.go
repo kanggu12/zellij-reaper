@@ -114,6 +114,19 @@ func newWorld(t *testing.T) *world {
 // started under, and whether a pass wrote its name down.
 func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 	t.Helper()
+	return newWorldOf(t, busy, startedAs, given, false)
+}
+
+// busyID is the id zellij 0.46 and later would give the busy session.
+const busyID = "0a1b2c3d4e5f"
+
+// newWorldOf is newWorldWith, with the busy session kept by id when byID is
+// set, as zellij 0.46 keeps it: its socket and its directory are named by the
+// id, the index has its name, and only its pane's environment keeps the name
+// it started under (none when startedAs is ""). The other sessions are named
+// by their names, as sessions from an earlier zellij are next to it.
+func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
+	t.Helper()
 	now := time.Now()
 	fp := testutil.NewFakeProc(t)
 	sockDir := testutil.SocketDir(t)
@@ -122,18 +135,26 @@ func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 	var socks []procfs.UnixSocket
 	servers := map[string]int{}
 	add := func(name string, pid int, comm string, argv []string, used time.Time, title string) {
-		sock := testutil.Socket(t, sockDir, name)
+		file := name
+		if byID && name == busy {
+			file = busyID
+		}
+		sock := testutil.Socket(t, sockDir, file)
 		servers[name] = pid
 		ino, dev, _ := procfs.FileID(sock)
 		socks = append(socks, procfs.UnixSocket{Inode: uint32(pid), State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
 		// zellij keeps a server's command line through a rename.
 		first := sock
-		if name == busy {
+		if name == busy && !byID {
 			first = filepath.Join(sockDir, startedAs)
 		}
+		var env []string
+		if byID && name == busy && startedAs != "" {
+			env = []string{"ZELLIJ=0", "ZELLIJ_SESSION_NAME=" + startedAs}
+		}
 		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}})
-		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used)})
-		testutil.SessionFiles(t, info, name, testutil.Metadata(0, title), "", now)
+		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: env})
+		testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")
 	add(busy, 200, "htop", []string{"htop"}, now.Add(-5*time.Hour), "htop")
@@ -187,6 +208,10 @@ func newWorldWith(t *testing.T, busy, startedAs string, given bool) *world {
 		conn, peer := uint32(pid+60), uint32(pid+61)
 		fp.AddSocket(pid, conn)
 		socks = append(socks, procfs.UnixSocket{Inode: conn, State: 1, Name: filepath.Join(sockDir, name), Peer: peer})
+	}
+	if byID {
+		idx := zellij.NewIndex(map[string]string{busy: busyID})
+		env.Sources.Index = &idx
 	}
 	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach, attachUnseen: attachUnseen}
 }
@@ -830,6 +855,116 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 			}
 			t.Fatal("the session is not in the plan")
 		})
+	}
+}
+
+// TestWhichNamesAPassMayReplaceOnASessionKeptByID is the table above for a
+// session zellij 0.46 keeps by id, whose command line names the id: the name
+// it started under comes from its pane's environment.
+func TestWhichNamesAPassMayReplaceOnASessionKeptByID(t *testing.T) {
+	const fromZellij = "brave-peach"
+	for _, c := range []struct {
+		what, name, startedAs string
+		given, kept           bool
+		want                  string
+	}{
+		{what: "a name zellij made up", name: fromZellij, startedAs: fromZellij, want: "htop"},
+		{what: "a name zellij made up, kept", name: fromZellij, startedAs: fromZellij, kept: true},
+		{what: "a name someone started it under", name: "my-project", startedAs: "my-project"},
+		{what: "a name a pass gave", name: "build-watcher", startedAs: fromZellij, given: true, want: "htop"},
+		{what: "started under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true},
+		{what: "zellij's words given by hand", name: "lucky-duck", startedAs: "my-notes"},
+		// Without the name it started under, a name zellij could have made
+		// up may as well be one someone chose: it stays.
+		{what: "the name it started under cannot be read", name: fromZellij, startedAs: ""},
+		{what: "a name a pass gave, start unknown", name: "build-watcher", startedAs: "", given: true, want: "htop"},
+		// No version that stamped names saw a session kept by id: a stamp on
+		// one was typed.
+		{what: "the shape of an earlier version's stamp", name: "web-app_1104-0931", startedAs: fromZellij},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			w := newWorldOf(t, c.name, c.startedAs, c.given, true)
+			w.env.Config.AutoRename = true
+			if c.kept {
+				if err := w.env.Kept.Set(c.name, true); err != nil {
+					t.Fatal(err)
+				}
+			}
+			plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, o := range plan.Outcomes {
+				if o.Session.Name() != c.name {
+					continue
+				}
+				// The session is found by its id, with its server and panes.
+				if !o.Session.ByID || o.Session.ID != busyID || o.Session.Server == nil || !o.Session.Files.Exists {
+					t.Fatalf("session %+v not found by its id", o.Session)
+				}
+				if o.WouldRename != c.want {
+					t.Errorf("a pass would rename it to %q, want %q", o.WouldRename, c.want)
+				}
+				return
+			}
+			t.Fatal("the session is not in the plan")
+		})
+	}
+}
+
+func TestASessionKeptByIDIsJudgedAndReaped(t *testing.T) {
+	// The busy session runs htop, kept by id: it is busy, not unknown. Its
+	// neighbours, named by their names, are judged as before.
+	w := newWorldOf(t, "work", "work", false, true)
+	r, err := reaper.Run(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range r.Outcomes {
+		if o.Session.Name() == "work" && o.Verdict.Code != policy.Busy {
+			t.Errorf("work: %s %s, want busy", o.Verdict.Code, o.Verdict.Detail)
+		}
+	}
+	if strings.Join(w.zj.deleted, ",") != "idle-old,gone" {
+		t.Errorf("deleted %v", w.zj.deleted)
+	}
+}
+
+func TestAnIndexThatCannotBeReadIsLogged(t *testing.T) {
+	w := newWorld(t)
+	// A file where the index goes, which is no database.
+	if err := os.WriteFile(zellij.IndexFile(w.env.Sources.InfoDir), []byte("not a database"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := reaper.Run(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.IndexErr == nil || !strings.Contains(w.log(t), "session index") {
+		t.Errorf("IndexErr = %v, log:\n%s", r.IndexErr, w.log(t))
+	}
+	// Sessions named by their names are still judged.
+	if strings.Join(w.zj.deleted, ",") != "idle-old,gone" {
+		t.Errorf("deleted %v", w.zj.deleted)
+	}
+}
+
+func TestTheNameOfASessionKeptByIDWhoseSocketIsThereIsAvoided(t *testing.T) {
+	// The same with zellij 0.46: the socket file is named by an id, and the
+	// index says the session is htop.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	testutil.Socket(t, w.sockDir, "ffeeddccbbaa")
+	idx := zellij.NewIndex(map[string]string{"htop": "ffeeddccbbaa"})
+	w.env.Sources.Index = &idx
+	plan, err := reaper.Plan(context.Background(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range plan.Outcomes {
+		if o.Session.Name() == "busy" && o.WouldRename != "htop-2" {
+			t.Errorf("plan: %q", o.WouldRename)
+		}
 	}
 }
 

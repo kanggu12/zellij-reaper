@@ -44,6 +44,18 @@ type Inputs struct {
 	// Signal sends a signal to a process; nil means procfs.Signal. Tests
 	// record the signals instead of sending any.
 	Signal func(pid int, sig syscall.Signal) error
+	// Index maps names to the ids zellij 0.46 and later name sockets and
+	// directories by; nil reads zellij's own, next to InfoDir.
+	Index *zellij.Index
+}
+
+// index is the session index recover goes by.
+func (in Inputs) index() zellij.Index {
+	if in.Index != nil {
+		return *in.Index
+	}
+	x, _ := zellij.ReadIndex(in.InfoDir)
+	return x
 }
 
 // signal is the function that sends signals.

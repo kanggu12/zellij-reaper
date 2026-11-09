@@ -40,6 +40,8 @@ type machine struct {
 	ttys    string
 	socks   []procfs.UnixSocket
 	clients clients
+	// idx is zellij's session index; nil when it has none.
+	idx *zellij.Index
 }
 
 func newMachine(t *testing.T) *machine {
@@ -76,7 +78,7 @@ func (m *machine) pane(t *testing.T, pid, server int, comm string, argv []string
 
 func (m *machine) gather(t *testing.T, withSocks bool, listed ...zellij.Listed) []inspect.Session {
 	t.Helper()
-	src := inspect.Sources{ProcRoot: m.proc.Root, InfoDir: m.info, SocketDirs: []string{m.sockDir}, UID: -1, Clients: m.clients}
+	src := inspect.Sources{ProcRoot: m.proc.Root, InfoDir: m.info, SocketDirs: []string{m.sockDir}, UID: -1, Clients: m.clients, Index: m.idx}
 	src.UID = osUID()
 	if withSocks {
 		src.Sockets = func() ([]procfs.UnixSocket, error) { return m.socks, nil }
@@ -406,5 +408,43 @@ func TestEveryKnownShellSaysNothingAsATitle(t *testing.T) {
 		if got := rename.Suggest(in, rename.MaxBase); got != "web-app" {
 			t.Errorf("%s: got %q", shell, got)
 		}
+	}
+}
+
+func TestASessionKeptByIDIsFoundByItsID(t *testing.T) {
+	m := newMachine(t)
+	// zellij 0.46: socket, directory and command line carry the id.
+	m.server(t, "0a1b2c3d4e5f", "0a1b2c3d4e5f", 100, testutil.Metadata(0, "Pane #1"), "")
+	// The first pane started under the first name; one opened after a rename
+	// has the new name. Linux gives the later one the higher pid.
+	m.proc.Add(testutil.Proc{PID: 101, PPID: 100, Comm: "bash", Argv: []string{"-bash"}, Started: 2 * time.Second,
+		Stdin: testutil.TTY(t, m.ttys, "first", now.Add(-3*time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=quiet-magpie"}})
+	m.proc.Add(testutil.Proc{PID: 102, PPID: 100, Comm: "bash", Argv: []string{"-bash"}, Started: 9 * time.Second,
+		Stdin: testutil.TTY(t, m.ttys, "second", now.Add(-2*time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=notes"}})
+	// An exited session's directory is named by its id too.
+	testutil.SessionFiles(t, m.info, "ffeeddccbbaa", "", "layout {\n}\n", now.Add(-100*time.Hour))
+	// zellij lists this one as exited, and a server still listens on its
+	// socket: the session is not gone.
+	m.server(t, "112233445566", "112233445566", 300, "", "layout {\n}\n")
+	idx := zellij.NewIndex(map[string]string{"notes": "0a1b2c3d4e5f", "old-work": "ffeeddccbbaa", "half-gone": "112233445566"})
+	m.idx = &idx
+	out := m.gather(t, true, running("notes"), zellij.Listed{Name: "old-work", Exited: true}, zellij.Listed{Name: "half-gone", Exited: true})
+	s := out[0]
+	if !s.ByID || s.ID != "0a1b2c3d4e5f" || !s.Files.Exists || s.Server == nil || len(s.Panes) != 2 {
+		t.Fatalf("running session: %+v", s)
+	}
+	if s.StartedAs() != "quiet-magpie" {
+		t.Errorf("started as %q, want the first pane's quiet-magpie", s.StartedAs())
+	}
+	// Judged by its panes: idle for two hours, not unknown.
+	if got := s.Facts.LastActive; !got.Equal(now.Add(-2*time.Hour).Truncate(time.Second)) && got.Before(now.Add(-2*time.Hour-time.Second)) {
+		t.Errorf("last active %v", got)
+	}
+	e := out[1]
+	if !e.ByID || !e.Files.Exists || !e.Files.HasLayout || e.Facts.LastActive.After(now.Add(-99*time.Hour)) {
+		t.Errorf("exited session: %+v", e)
+	}
+	if h := out[2]; h.Server == nil || h.Server.PID != 300 {
+		t.Errorf("an exited session with a live server: %+v", h)
 	}
 }

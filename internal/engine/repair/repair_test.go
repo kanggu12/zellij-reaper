@@ -318,3 +318,43 @@ func TestAProtectedSessionWithoutASocketKeepsEveryOrphan(t *testing.T) {
 		}
 	}
 }
+
+func TestALongNameKeptByIDIsNotBroken(t *testing.T) {
+	fp := testutil.NewFakeProc(t)
+	sockDir := testutil.SocketDir(t)
+	info := filepath.Join(t.TempDir(), "session_info")
+	// zellij 0.46 names the socket and the directory by id, whatever the
+	// session's name: a long name breaks nothing.
+	long := strings.Repeat("x", 120)
+	sock := testutil.Socket(t, sockDir, "0a1b2c3d4e5f")
+	ino, dev, _ := procfs.FileID(sock)
+	fp.Add(testutil.Proc{PID: 100, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", sock}, Sockets: []uint32{1000}})
+	socks := []procfs.UnixSocket{{Inode: 1000, State: 10, VFSIno: ino, VFSDev: dev}}
+	testutil.SessionFiles(t, info, "0a1b2c3d4e5f", testutil.Metadata(0, "x"), "", time.Now())
+	// An exited one, and zellij's own directory, which is no session's.
+	testutil.SessionFiles(t, info, "ffeeddccbbaa", "", "layout {\n}\n", time.Now())
+	testutil.SessionFiles(t, info, ".zj-panel", "", "layout {\n}\n", time.Now())
+	// Long enough to look broken if it were a session's.
+	app := "." + strings.Repeat("z", 120)
+	testutil.SessionFiles(t, info, app, "", "layout {\n}\n", time.Now())
+	idx := zellij.NewIndex(map[string]string{long: "0a1b2c3d4e5f", long + "-2": "ffeeddccbbaa"})
+	zj := &fakeZellij{listed: []zellij.Listed{{Name: long}, {Name: long + "-2", Exited: true}}}
+	in := repair.Inputs{Zellij: zj, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
+		Sockets: func() ([]procfs.UnixSocket, error) { return socks, nil }, Index: &idx}
+	sc, err := repair.Find(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sc.Broken) != 0 || len(sc.Orphans) != 0 {
+		t.Errorf("broken %+v, orphans %+v", sc.Broken, sc.Orphans)
+	}
+	repair.Repair(context.Background(), in, sc, true)
+	if len(zj.deleted) != 0 {
+		t.Errorf("deleted %v", zj.deleted)
+	}
+	for _, d := range []string{"0a1b2c3d4e5f", "ffeeddccbbaa", ".zj-panel", app} {
+		if _, err := os.Stat(filepath.Join(info, d)); err != nil {
+			t.Errorf("%s: %v", d, err)
+		}
+	}
+}

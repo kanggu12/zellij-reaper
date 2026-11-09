@@ -12,6 +12,8 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
+	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
 
 // cmdHere builds `here`: the name the session this shell runs in has now.
@@ -29,7 +31,10 @@ Exits 1, printing nothing, outside zellij or when the name cannot be told.`,
 			// No settings and no zellij process: only the process table, the
 			// kernel's socket table on Linux and the socket directory, read up
 			// from this process (the shell that asked, its pane, the server).
-			src := inspect.Sources{ProcRoot: procfs.Native, UID: procfs.CurrentUID(), Sockets: procfs.UnixSockets}
+			// zellij's session index, which names sessions since 0.46, sits in
+			// its newest data directory: no need to ask zellij its version.
+			info := zellij.SessionInfoDir(config.ZellijCacheDir(config.OSEnv{}), "")
+			src := inspect.Sources{ProcRoot: procfs.Native, UID: procfs.CurrentUID(), Sockets: procfs.UnixSockets, InfoDir: info}
 			name, err := inspect.Here(src, os.Getpid())
 			// Outside zellij, or with no name to give: nothing printed, status 1,
 			// so a prompt hook leaves ZELLIJ_SESSION_NAME as it is.
