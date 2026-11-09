@@ -239,3 +239,40 @@ func TestConfigShowLinesUpTheValues(t *testing.T) {
 		}
 	}
 }
+
+// runRoot runs the command line with args in an isolated home and returns
+// what it printed and its error.
+func runRoot(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	root := newRoot()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(args)
+	err := root.Execute()
+	return out.String(), err
+}
+
+func TestLogsWithNoLinesAskedPrintsNothing(t *testing.T) {
+	home := isolate(t)
+	logPath := filepath.Join(home, ".local", "state", "zellij-reaper", "reaper.log")
+	os.MkdirAll(filepath.Dir(logPath), 0o755)
+	os.WriteFile(logPath, []byte("[2026-11-04 09:00:00] === reaper end ===\n"), 0o644)
+	// -n 0 said "The log is empty", with a line in it.
+	if out, err := runRoot(t, "logs", "-n", "0"); err != nil || out != "" {
+		t.Errorf("logs -n 0: %v, %q", err, out)
+	}
+}
+
+func TestListsAndSettingsSayWhatTheyDid(t *testing.T) {
+	isolate(t)
+	// These printed their message keys, which no catalog had.
+	out, err := runRoot(t, "unprotect", "nosuch")
+	if err != nil || out != i18n.T("protect.notlisted", "nosuch")+"\n" {
+		t.Errorf("unprotect nosuch: %v, %q", err, out)
+	}
+	out, err = runRoot(t, "config", "init")
+	if err != nil || !strings.HasPrefix(out, "Wrote ") || !strings.Contains(out, "config.toml") {
+		t.Errorf("config init: %v, %q", err, out)
+	}
+}

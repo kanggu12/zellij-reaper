@@ -173,8 +173,8 @@ func TestSetupListFollowsTheCursorWhenShort(t *testing.T) {
 func TestSetupShowsTheMarkedSessionOnEveryHeight(t *testing.T) {
 	// At 60x13 the settings and the intro filled the screen and the session
 	// rows fell under the keys, while Space still marked the hidden one.
-	for _, w := range []int{60, 100} {
-		for h := 11; h <= 24; h++ {
+	for _, w := range []int{30, 60, 100} {
+		for h := 8; h <= 24; h++ {
 			for _, k := range [][]string{{"down", "down", "down", "down", "down"}, {"down", "down", "down", "down", "down", "down"}} {
 				m := pressAll(newSetup(setupSample("~/.bashrc"), true), k...)
 				m.width, m.height = w, h

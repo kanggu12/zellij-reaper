@@ -511,7 +511,8 @@ check "a healthy session is untouched" listed keepme
 
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"
-check "the dashboard renders a frame" sh -c "$R tui --snapshot 120x30 | grep -q zellij-reaper"
+# The name is drawn in two colors: look for it with the colors taken out.
+check "the dashboard renders a frame" sh -c "$R tui --snapshot 120x30 | sed 's/\x1b\[[0-9;]*m//g' | grep -q zellij-reaper"
 check "logs prints the log" sh -c "$R logs -n 50 | grep -q 'reaper end'"
 check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after += \"1h\"'"
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -129,8 +130,14 @@ func FitMiddle(s string, w int) string {
 		return Fit(s, w)
 	}
 	tail := (w - 1) * 2 / 5
-	head := ansi.Truncate(s, w-1-tail, "")
 	end := ansi.TruncateLeft(s, sw-tail, "")
+	// A wide letter across the cut stays whole and makes the end a cell
+	// too wide: drop it, and give the start what is left.
+	for lipgloss.Width(end) > tail {
+		_, size := utf8.DecodeRuneInString(end)
+		end = end[size:]
+	}
+	head := ansi.Truncate(s, w-1-lipgloss.Width(end), "")
 	return Fit(head+"…"+end, w)
 }
 

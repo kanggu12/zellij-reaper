@@ -181,8 +181,9 @@ func (m model) helpView() string {
 	// where the project lives.
 	card := t.LogoBlock(t.Brand(version.Short()), ui.Fg(t.Muted).Render(i18n.T("logo.tagline")),
 		ui.Fg(t.Muted).Render("github.com/kanggu12/zellij-reaper"))
-	leftW := blockWidth(lines[2:])
-	if gutter := 6; m.width >= leftW+gutter+blockWidth(card) && len(lines) >= 2+len(card) {
+	// Only the rows the card sits beside need to clear it.
+	if gutter := 4; len(lines) >= 2+len(card) && m.width >= blockWidth(lines[2:2+len(card)])+gutter+blockWidth(card) {
+		leftW := blockWidth(lines[2 : 2+len(card)])
 		for i, c := range card {
 			l := lines[2+i]
 			lines[2+i] = l + strings.Repeat(" ", leftW+gutter-lipgloss.Width(l)) + c

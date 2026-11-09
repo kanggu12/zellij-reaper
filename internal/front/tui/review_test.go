@@ -86,3 +86,48 @@ func TestRenameFailuresAreWordedInTheScreensLanguage(t *testing.T) {
 		t.Errorf("another error lost its words: %q", got)
 	}
 }
+
+func TestTheHelpScreenShowsTheLogoCardWhereItFits(t *testing.T) {
+	// The card measured itself against the widest line of the whole help
+	// screen, so it showed only from 126 columns.
+	for _, w := range []int{100, 132} {
+		if out := ansi.Strip(press(t, loaded(t, sample(), w, 30), "?").View().Content); !strings.Contains(out, "github.com/kanggu12/zellij-reaper") {
+			t.Errorf("no logo card on a %d-column help screen:\n%s", w, out)
+		}
+	}
+}
+
+func TestANarrowSetupScreenKeepsItsTitle(t *testing.T) {
+	m := newSetup(setupSample(""), true)
+	m.width, m.height = 32, 16
+	if first := strings.SplitN(ansi.Strip(m.render()), "\n", 2)[0]; !strings.Contains(first, i18n.T("setup.title")) {
+		t.Errorf("the title is cut: %q", first)
+	}
+}
+
+func TestAShortHelpScreenKeepsEveryColor(t *testing.T) {
+	out := ansi.Strip(press(t, loaded(t, sample(), 80, 24), "?").View().Content)
+	if !strings.Contains(out, i18n.T("help.legend.unknown")) {
+		t.Errorf("the last color is cut on an 80x24 help screen:\n%s", out)
+	}
+}
+
+func TestAnEmptyNameSaysWhyNothingWasRenamed(t *testing.T) {
+	m := pick(t, loaded(t, sample(), 100, 30), "scratch")
+	m = press(t, m, "r")
+	m.input.set("")
+	if m = press(t, m, "enter"); m.toast != i18n.T("rename.empty") {
+		t.Errorf("toast %q after an empty rename", m.toast)
+	}
+}
+
+func TestTheFilterIsTheSameBeforeAndAfterEnter(t *testing.T) {
+	m := press(t, loaded(t, sample(), 100, 30), "/")
+	for _, k := range []string{"s", "c", " "} {
+		m = press(t, m, k)
+	}
+	typing := len(m.rows())
+	if m = press(t, m, "enter"); len(m.rows()) != typing || typing == 0 {
+		t.Errorf("%d rows while typing \"sc \", %d after enter", typing, len(m.rows()))
+	}
+}

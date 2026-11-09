@@ -1,6 +1,10 @@
 package i18n
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -92,5 +96,43 @@ func TestKoreanParticlesAfterNamesAreFixed(t *testing.T) {
 				t.Errorf("%s: %q has %q", k, v, p)
 			}
 		}
+	}
+}
+
+func TestEveryKeyTheCodeUsesIsInTheCatalog(t *testing.T) {
+	// A key missing from both languages passes the parity test, and T then
+	// prints the key itself: five command-line messages shipped that way.
+	use := regexp.MustCompile(`i18n\.TN?\("([a-z0-9._-]+)"`)
+	known := map[string]bool{}
+	for _, k := range Keys(English) {
+		known[k] = true
+	}
+	n := 0
+	err := filepath.WalkDir("../..", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") {
+			return err
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		for _, m := range use.FindAllStringSubmatch(string(b), -1) {
+			// "source." + a value: a family of keys, built at run time.
+			if strings.HasSuffix(m[1], ".") {
+				continue
+			}
+			n++
+			// A key with a ".one" form is asked for by its plain name.
+			if !known[m[1]] && !known[m[1]+".one"] {
+				t.Errorf("%s uses %q, which no catalog has", p, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 100 {
+		t.Errorf("found only %d uses: the search no longer reads the code", n)
 	}
 }

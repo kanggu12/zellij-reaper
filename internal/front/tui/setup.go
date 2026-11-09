@@ -271,7 +271,12 @@ func (m setupModel) render() string {
 	// or beside the logo when the screen has the rows (below).
 	brand := t.Brand(version.Short())
 	title := ui.Fg(t.Ink).Bold(true).Render(i18n.T("setup.title"))
-	lines := []string{" " + brand + ui.Fg(t.Rule).Render("  ·  ") + title, ""}
+	head := " " + brand + ui.Fg(t.Rule).Render("  ·  ") + title
+	// Narrow: the version goes before the screen's title would be cut.
+	if lipgloss.Width(head) > m.width {
+		head = " " + t.Wordmark() + ui.Fg(t.Rule).Render("  ·  ") + title
+	}
+	lines := []string{head, ""}
 	// The intro wraps rather than losing its last words on a narrow screen.
 	intro := len(lines)
 	for _, l := range wrapWords(i18n.T("setup.intro", ui.Clock(m.start.FirstPass)), m.width-2) {
@@ -362,6 +367,14 @@ func (m setupModel) render() string {
 		lines = append(lines[:intro], lines[intro+introRows:]...)
 		if m.height-len(lines)-1 < need && intro > 0 && lines[intro-1] == "" {
 			lines = append(lines[:intro-1], lines[intro:]...)
+		}
+		// Shorter still: the blank line above the sentence on the first
+		// pass, then the sentence, which the marked rows speak for.
+		if n := len(lines); m.height-n-1 < need && n >= 2 && lines[n-2] == "" {
+			lines = append(lines[:n-2], lines[n-1])
+		}
+		if m.height-len(lines)-1 < need {
+			lines = lines[:len(lines)-1]
 		}
 	}
 	// A blank row above the keys when there is room for it.

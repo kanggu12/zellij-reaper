@@ -9,6 +9,7 @@ func TestShortNamesAReleaseAndOtherwiseTheCommit(t *testing.T) {
 		{"v0.9.1-0.20261108003831-1839aebf23d4", "1839aeb", "dev 1839aeb"},
 		{"v0.9.1-0.20261108003831-1839aebf23d4+dirty", "1839aeb", "dev 1839aeb"},
 		{"v0.0.0-20261108003831-1839aebf23d4", "1839aeb", "dev 1839aeb"},
+		{"v0.10.0-rc.1.0.20261108003831-1839aebf23d4", "1839aeb", "dev 1839aeb"},
 		{"dev", "1839aeb", "dev 1839aeb"},
 		{"dev", "", "dev"},
 	} {

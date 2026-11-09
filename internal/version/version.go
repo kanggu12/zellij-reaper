@@ -15,8 +15,9 @@ var (
 )
 
 // pseudo matches a Go pseudo-version, which `go build` stamps on a commit
-// after a tag: v0.9.1-0.20261108003831-1839aebf23d4. It names no release.
-var pseudo = regexp.MustCompile(`-(0\.)?\d{14}-[0-9a-f]{12}(\+dirty)?$`)
+// after a tag: v0.9.1-0.20261108003831-1839aebf23d4, or after a pre-release
+// v0.10.0-rc.1.0.20261108003831-1839aebf23d4. It names no release.
+var pseudo = regexp.MustCompile(`[-.](0\.)?\d{14}-[0-9a-f]{12}(\+dirty)?$`)
 
 // parts returns the version, the short commit and the date, from the release
 // values or, failing those, from the module's build info.
