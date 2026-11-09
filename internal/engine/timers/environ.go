@@ -39,11 +39,32 @@ func CarriedEnv(env config.Env) map[string]string {
 	return out
 }
 
-// checkCarried refuses a value no timer definition can hold safely: a line
-// break would end the line it sits on.
+// checkCarried refuses a value a systemd unit cannot hold inside double
+// quotes (see quotable), in Carried's order so the same value is named each
+// time.
 func checkCarried(env map[string]string) error {
-	for k, v := range env {
-		if err := quotable(k, v); err != nil {
+	for _, k := range Carried {
+		if err := quotable(k, env[k]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// oneLine refuses a value with a line break, for a timer definition that is
+// read by the line: the break would end the line the value sits on.
+func oneLine(what, v string) error {
+	if strings.ContainsAny(v, "\n\r") {
+		return fmt.Errorf("%s %q has a line break, which a timer cannot hold: use a path without one", what, v)
+	}
+	return nil
+}
+
+// carriedOnOneLine is oneLine for every carried variable, in Carried's order
+// so the same value is named each time.
+func carriedOnOneLine(env map[string]string) error {
+	for _, k := range Carried {
+		if err := oneLine(k, env[k]); err != nil {
 			return err
 		}
 	}

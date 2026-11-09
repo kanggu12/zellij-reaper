@@ -14,6 +14,10 @@ import (
 type Result struct {
 	// Wrote and Removed list the files written and deleted.
 	Wrote, Removed []string
+	// Timers is how many of Removed an uninstall took as timers (unit files,
+	// the crontab's jobs, agents, tasks), as against what a purge removed
+	// after them: zero says there were no timers to remove.
+	Timers int
 	// Moved lists "from -> to" for files moved (legacy logs).
 	Moved []string
 	// Migrated is the settings file written from a legacy install, if any.
@@ -62,7 +66,7 @@ func (s Systemd) Install(o InstallOptions) (Result, error) {
 		return r, err
 	}
 	if !s.Available() {
-		return r, errors.New("neither a systemd user instance nor a cron daemon answers: on WSL, set systemd=true in /etc/wsl.conf, or start cron, then run install again")
+		return r, errors.New("neither a systemd user instance nor a cron daemon answers: on WSL, set systemd=true in /etc/wsl.conf, or start cron, then run `zellij-reaper install`")
 	}
 	// The shell version's settings live in its service file, which is about
 	// to be overwritten: read them first.
@@ -171,17 +175,33 @@ func (s Systemd) enableLinger() string {
 // removes the settings, the log and the protected list.
 func (s Systemd) Uninstall(purge bool, logPath string) (Result, error) {
 	var r Result
-	if s.Available() {
+	up := s.Available()
+	if up {
 		// "not loaded" is fine: there may be nothing to disable.
 		s.systemctl("disable", "--now", TimerName, NamesTimerName)
+		// A timer stays loaded when its files went in a shell systemd did
+		// not answer in (see below), and disable goes by the files: stopped
+		// by name as well.
+		s.systemctl("stop", TimerName, NamesTimerName)
 	}
 	for _, p := range []string{s.timerPath(), s.servicePath(), s.namesTimerPath(), s.namesServicePath()} {
 		if err := os.Remove(p); err == nil {
 			r.Removed = append(r.Removed, p)
 		}
 	}
-	if s.Available() {
+	r.Timers = len(r.Removed)
+	switch {
+	case up:
 		s.systemctl("daemon-reload")
+	case r.Timers > 0:
+		// The links `enable` made, which `disable` would have removed.
+		for _, name := range []string{TimerName, NamesTimerName} {
+			os.Remove(filepath.Join(config.UnitDir(s.Env), "timers.target.wants", name))
+		}
+		// A user's systemd that runs without answering here (a shell from
+		// su or sudo has no way to it) keeps a timer it has loaded, and
+		// fires it, with the files gone.
+		r.Warnings = append(r.Warnings, "systemd's user instance does not answer from this shell: if one runs, it keeps the timers it has loaded until it restarts; `zellij-reaper uninstall` from a login shell stops them")
 	}
 	if purge {
 		purgeState(s.Env, logPath, &r)

@@ -67,14 +67,15 @@ func (c Cron) zone() *time.Location {
 	return c.Zone()
 }
 
-// crontab runs the crontab command.
+// crontab runs the crontab command. Its output comes back byte for byte: the
+// blank lines of a crontab are the person's, and are written back as read.
 func crontab(stdin string, args ...string) (string, error) {
 	c := exec.Command("crontab", args...)
 	if stdin != "" {
 		c.Stdin = strings.NewReader(stdin)
 	}
 	out, err := c.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
+	return string(out), err
 }
 
 // cronDaemonRuns looks for a cron daemon among the processes: cron (Debian,
@@ -123,12 +124,24 @@ func (c Cron) FirstPass(now time.Time, interval time.Duration) time.Time {
 	return next.In(now.Location())
 }
 
-// read returns the crontab's lines; a user with none has an empty one.
+// noCrontab reports whether crontab's complaint says the user has no crontab
+// yet, rather than that theirs could not be read. cron and cronie say "no
+// crontab for USER"; busybox, whose crontab is a file it could not open,
+// "can't open 'USER': No such file or directory". Any other failure to open
+// stays a failure: taking it for an empty crontab would write one over lines
+// that could not be read.
+func noCrontab(out string) bool {
+	return strings.Contains(out, "no crontab") ||
+		strings.Contains(out, "can't open") && strings.Contains(out, "No such file or directory")
+}
+
+// read returns the crontab's lines as they are, blank ones too; a user with
+// no crontab has none.
 func (c Cron) read() ([]string, error) {
 	out, err := c.Run("", "-l")
 	if err != nil {
-		// "no crontab for USER" is an empty crontab, not a failure.
-		if strings.Contains(out, "no crontab") {
+		// A user without a crontab has an empty one, which is no failure.
+		if noCrontab(out) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("crontab -l: %s", firstLine(out, err))
@@ -136,7 +149,9 @@ func (c Cron) read() ([]string, error) {
 	if out == "" {
 		return nil, nil
 	}
-	return strings.Split(out, "\n"), nil
+	// The line break that ends the last line is not a line of its own. A
+	// blank line before it is the person's, and stays.
+	return strings.Split(strings.TrimSuffix(out, "\n"), "\n"), nil
 }
 
 // write replaces the crontab with lines.
@@ -144,7 +159,7 @@ func (c Cron) write(lines []string) error {
 	text := strings.Join(lines, "\n") + "\n"
 	if len(lines) == 0 {
 		// An empty crontab is removed rather than left as one blank line.
-		if out, err := c.Run("", "-r"); err != nil && !strings.Contains(out, "no crontab") {
+		if out, err := c.Run("", "-r"); err != nil && !noCrontab(out) {
 			return fmt.Errorf("crontab -r: %s", firstLine(out, err))
 		}
 		return nil
@@ -237,14 +252,26 @@ func shQuote(s string) string {
 // crontab, replacing any it wrote before.
 func (c Cron) Install(o InstallOptions) (Result, error) {
 	var r Result
+	// Refused before anything is written: a line break in one of these would
+	// end the crontab line it sits on and start a line of its own.
+	for _, p := range [][2]string{{"the zellij-reaper binary", o.Exe}, {"the settings file", o.ConfigFile}, {"zellij's directory", o.ZellijDir}} {
+		if err := oneLine(p[0], p[1]); err != nil {
+			return r, err
+		}
+	}
+	if err := carriedOnOneLine(o.Env); err != nil {
+		return r, err
+	}
 	if !c.Available() {
 		return r, errors.New("no cron daemon runs")
 	}
-	if err := ensureSettings(c.Env, o.ConfigFile, &r); err != nil {
-		return r, err
-	}
+	// The crontab is read first: where it cannot be (a crontab command that
+	// is not allowed to, say), the install ends with nothing written.
 	lines, err := c.read()
 	if err != nil {
+		return r, err
+	}
+	if err := ensureSettings(c.Env, o.ConfigFile, &r); err != nil {
 		return r, err
 	}
 	lines = others(lines)
@@ -268,14 +295,18 @@ func (c Cron) Install(o InstallOptions) (Result, error) {
 // settings and the state too.
 func (c Cron) Uninstall(purge bool, logPath string) (Result, error) {
 	var r Result
-	if lines, err := c.read(); err == nil {
-		if rest := others(lines); len(rest) != len(lines) {
-			if err := c.write(rest); err != nil {
-				return r, err
-			}
-			r.Removed = append(r.Removed, "crontab")
+	lines, err := c.read()
+	if err != nil {
+		// Jobs in a crontab that cannot be read stay, which is said; the
+		// rest goes on, so a purge still removes what it can.
+		r.Warnings = append(r.Warnings, fmt.Sprintf("the crontab could not be read, so jobs in it stay (%v)", err))
+	} else if rest := others(lines); len(rest) != len(lines) {
+		if err := c.write(rest); err != nil {
+			return r, err
 		}
+		r.Removed = append(r.Removed, "crontab")
 	}
+	r.Timers = len(r.Removed)
 	if purge {
 		purgeState(c.Env, logPath, &r)
 	}

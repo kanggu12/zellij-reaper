@@ -136,6 +136,7 @@ func (w Tasks) Uninstall(purge bool, logPath string) (Result, error) {
 		}
 	}
 	forgetStatus()
+	r.Timers = len(r.Removed)
 	if purge {
 		purgeState(w.Env, logPath, &r)
 	}

@@ -346,6 +346,58 @@ func TestUninstallPurge(t *testing.T) {
 		left, _ := os.ReadDir(config.StateDir(env))
 		t.Errorf("purge kept the state directory: %v", left)
 	}
+	// The timers were gone before the purge: what it removed is not counted
+	// as timers.
+	if r.Timers != 0 || len(r.Removed) == 0 {
+		t.Errorf("a purge with no timers left: %d timers, removed %v", r.Timers, r.Removed)
+	}
+}
+
+func TestUninstallWithoutAUserInstanceSaysWhatMayStillRun(t *testing.T) {
+	// Installed from a login shell, removed from one systemd does not answer
+	// in (su, sudo). Measured on systemd 249: a timer whose files are removed
+	// fires on until it is stopped by name.
+	s, f, env := newSystem(t)
+	if _, err := s.Install(InstallOptions{Exe: "/x", Config: config.Default(env)}); err != nil {
+		t.Fatal(err)
+	}
+	// What `enable` leaves (a plain file stands in for each link, which a
+	// Windows machine may not let a test make).
+	wants := filepath.Join(config.UnitDir(env), "timers.target.wants")
+	os.MkdirAll(wants, 0o755)
+	for _, name := range []string{TimerName, NamesTimerName} {
+		os.WriteFile(filepath.Join(wants, name), nil, 0o644)
+	}
+	f.noUser, f.calls = true, nil
+	r, err := s.Uninstall(false, "")
+	if err != nil || r.Timers != 4 || len(r.Warnings) != 1 || !strings.Contains(r.Warnings[0], "`zellij-reaper uninstall` from a login shell") {
+		t.Errorf("uninstall without a user instance: %v, %+v", err, r)
+	}
+	if left, _ := os.ReadDir(wants); len(left) != 0 {
+		t.Errorf("%d of the links enable made are left", len(left))
+	}
+	// A systemd that does not answer is asked nothing more.
+	for _, c := range f.calls {
+		if !strings.Contains(c, "show-environment") {
+			t.Errorf("called %q with no user instance", c)
+		}
+	}
+	// Again from a login shell: the files are gone, so there is nothing to
+	// count or to warn of, and the timers still loaded are stopped by name.
+	f.noUser, f.calls = false, nil
+	r, err = s.Uninstall(false, "")
+	if err != nil || r.Timers != 0 || len(r.Warnings) != 0 {
+		t.Errorf("uninstall again: %v, %+v", err, r)
+	}
+	if calls := strings.Join(f.calls, "\n"); !strings.Contains(calls, "systemctl --user stop "+TimerName+" "+NamesTimerName) {
+		t.Errorf("the loaded timers were not stopped:\n%s", calls)
+	}
+	// A machine that never had the timers gets no warning either.
+	fresh, ff, _ := newSystem(t)
+	ff.noUser = true
+	if r, _ := fresh.Uninstall(false, ""); r.Timers != 0 || len(r.Warnings) != 0 {
+		t.Errorf("uninstall where nothing was installed: %+v", r)
+	}
 }
 
 func TestExpandUnitPath(t *testing.T) {

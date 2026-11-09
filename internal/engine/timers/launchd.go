@@ -120,6 +120,11 @@ func Plist(label, exe, zellijDir, configFile string, args []string, interval tim
 // loads them.
 func (l Launchd) Install(o InstallOptions) (Result, error) {
 	var r Result
+	// Refused before anything is written: the status reads an agent's values
+	// back by the line.
+	if err := carriedOnOneLine(o.Env); err != nil {
+		return r, err
+	}
 	if !l.Available() {
 		return r, errors.New("launchctl does not answer for this user")
 	}
@@ -169,6 +174,7 @@ func (l Launchd) Uninstall(purge bool, logPath string) (Result, error) {
 	var r Result
 	l.unload(LaunchdLabel, &r)
 	l.unload(LaunchdNamesLabel, &r)
+	r.Timers = len(r.Removed)
 	if purge {
 		purgeState(l.Env, logPath, &r)
 	}

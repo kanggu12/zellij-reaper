@@ -172,7 +172,7 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 
 	// Sessions and the socket table.
 	if listed, err := a.Zellij.ListSessions(ctx); err == nil {
-		pass(i18n.T("doctor.sessions", len(listed), tilde(a.InfoDir)))
+		pass(i18n.TN("doctor.sessions", len(listed), len(listed), tilde(a.InfoDir)))
 	} else if errors.Is(err, zellij.ErrNoSessions) {
 		pass(i18n.T("doctor.sessions.none", tilde(a.InfoDir)))
 	} else if a.Zellij.Available() {

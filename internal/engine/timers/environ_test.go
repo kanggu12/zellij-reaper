@@ -117,3 +117,25 @@ func TestALaunchAgentRunsWithThePlacesInstallSaw(t *testing.T) {
 		t.Errorf("read back %v, want %v", got, carried)
 	}
 }
+
+func TestALaunchAgentRefusesALineBreak(t *testing.T) {
+	// The status reads an agent's values back by the line: one with a line
+	// break would never read back as install wrote it.
+	env := config.MapEnv{"HOME": t.TempDir()}
+	var calls []string
+	l := Launchd{Env: env, Run: func(name string, args ...string) (string, error) {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return "", nil
+	}}
+	_, err := l.Install(InstallOptions{Exe: "/x/zellij-reaper", Config: config.Default(env), Env: map[string]string{"XDG_CACHE_HOME": "/Users/u/a\nb"}})
+	if err == nil || !strings.Contains(err.Error(), "XDG_CACHE_HOME") || !strings.Contains(err.Error(), "line break") {
+		t.Errorf("install: %v", err)
+	}
+	// Refused before launchd is asked anything or a file is written.
+	if len(calls) != 0 {
+		t.Errorf("launchd was called: %q", calls)
+	}
+	if _, err := os.Stat(config.ConfigFile(env)); err == nil {
+		t.Error("the settings file was written")
+	}
+}

@@ -160,21 +160,32 @@ func cmdUninstall() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := a.System.Uninstall(purge, a.Config.LogPath)
-			printResult(cmd, res)
-			if err != nil {
-				return err
-			}
-			w := cmd.OutOrStdout()
-			println(w, i18n.T("uninstall.done"))
-			if !purge {
-				println(w, ui.Fg(theme().Muted).Render(i18n.T("uninstall.kept")))
-			}
-			return nil
+			return uninstall(cmd, a, purge)
 		},
 	}
 	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list and the lists of given and kept names")
 	return cmd
+}
+
+// uninstall removes the timers and says what it did.
+func uninstall(cmd *cobra.Command, a *app.App, purge bool) error {
+	res, err := a.System.Uninstall(purge, a.Config.LogPath)
+	printResult(cmd, res)
+	if err != nil {
+		return err
+	}
+	w := cmd.OutOrStdout()
+	// The timers are said to be removed only where there were some: a second
+	// uninstall, or one on a machine that never had them, finds none.
+	if res.Timers > 0 {
+		println(w, i18n.T("uninstall.done"))
+	} else {
+		println(w, i18n.T("uninstall.none"))
+	}
+	if !purge {
+		println(w, ui.Fg(theme().Muted).Render(i18n.T("uninstall.kept")))
+	}
+	return nil
 }
 
 // ok, warn and bad prefix a line with a colored mark.

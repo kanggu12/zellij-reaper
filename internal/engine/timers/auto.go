@@ -1,6 +1,7 @@
 package timers
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -36,12 +37,39 @@ func (a auto) chosen() Scheduler {
 	return *a.pick
 }
 
-func (a auto) Kind() string                               { return a.chosen().Kind() }
-func (a auto) Available() bool                            { return a.chosen().Available() }
-func (a auto) Status() TimerStatus                        { return a.chosen().Status() }
-func (a auto) NamesStatus() TimerStatus                   { return a.chosen().NamesStatus() }
-func (a auto) Persists() (on, known bool)                 { return a.chosen().Persists() }
-func (a auto) Uninstall(p bool, l string) (Result, error) { return a.chosen().Uninstall(p, l) }
+func (a auto) Kind() string               { return a.chosen().Kind() }
+func (a auto) Available() bool            { return a.chosen().Available() }
+func (a auto) Status() TimerStatus        { return a.chosen().Status() }
+func (a auto) NamesStatus() TimerStatus   { return a.chosen().NamesStatus() }
+func (a auto) Persists() (on, known bool) { return a.chosen().Persists() }
+
+// Uninstall removes the timers of both schedulers, not the chosen one's
+// alone. A machine moves between the two (systemd turned on under WSL after
+// an install put the jobs in the crontab, or off again), and the timers of
+// the one not chosen today would run on with the uninstall saying they are
+// gone. The chosen one goes last and does the purge.
+func (a auto) Uninstall(purge bool, logPath string) (Result, error) {
+	var other Scheduler = a.cron
+	if a.chosen().Kind() == "cron" {
+		other = a.sys
+	}
+	r, err := other.Uninstall(false, "")
+	switch {
+	case err != nil:
+		// It found its timers and could not remove them, which is said; the
+		// chosen one's still go.
+		r.Warnings = append(r.Warnings, fmt.Sprintf("%s's timers stay: %v", other.Kind(), err))
+	case r.Timers == 0:
+		// With no timers of its own, the other one's troubles are not worth
+		// a line: on most machines it is not there at all.
+		r.Warnings = nil
+	}
+	c, err := a.chosen().Uninstall(purge, logPath)
+	r.Removed = append(r.Removed, c.Removed...)
+	r.Warnings = append(r.Warnings, c.Warnings...)
+	r.Timers += c.Timers
+	return r, err
+}
 
 func (a auto) FirstPass(now time.Time, every time.Duration) time.Time {
 	return a.chosen().FirstPass(now, every)

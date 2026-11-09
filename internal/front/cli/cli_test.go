@@ -188,6 +188,50 @@ func TestDoctorSaysWhenThisShellKeepsItsFilesElsewhere(t *testing.T) {
 	}
 }
 
+func TestUninstallSaysWhetherThereWereTimers(t *testing.T) {
+	home := isolate(t)
+	a := fakeApp(t, config.MapEnv{"HOME": home})
+	if _, err := a.System.Install(timers.InstallOptions{Exe: "/x/zellij-reaper", Config: a.Config}); err != nil {
+		t.Fatal(err)
+	}
+	cmd, out := output()
+	if err := uninstall(cmd, a, false); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := out.String(); !strings.Contains(got, "Removed the timers.") || strings.Contains(got, "Found no timers") {
+		t.Errorf("uninstall with the timers installed:\n%s", got)
+	}
+	// A second uninstall has no timers to remove, and says so. With --purge
+	// the settings still go, and the line about keeping them is left out.
+	cmd, out = output()
+	if err := uninstall(cmd, a, true); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	got := out.String()
+	if !strings.Contains(got, "Found no timers to remove.") || strings.Contains(got, "Removed the timers.") {
+		t.Errorf("uninstall with no timers left:\n%s", got)
+	}
+	if !strings.Contains(got, filepath.Base(config.ConfigFile(a.Env))) || strings.Contains(got, "Kept the settings") {
+		t.Errorf("the purge of an uninstall with no timers left:\n%s", got)
+	}
+}
+
+func TestDoctorCountsOneSessionAsOne(t *testing.T) {
+	z := &fakeSessions{listed: "notes [Created 1m ago]\n"}
+	a := handApp(t, z)
+	cmd, out := output()
+	doctor(context.Background(), a, cmd)
+	if got := out.String(); !strings.Contains(got, "1 session, data in") {
+		t.Errorf("doctor with one session:\n%s", got)
+	}
+	z.listed += "build [Created 2m ago]\n"
+	cmd, out = output()
+	doctor(context.Background(), a, cmd)
+	if got := out.String(); !strings.Contains(got, "2 sessions, data in") {
+		t.Errorf("doctor with two sessions:\n%s", got)
+	}
+}
+
 func TestLogsRefusesANegativeCount(t *testing.T) {
 	home := isolate(t)
 	// A log to read, so a count that slipped through would reach Tail.
