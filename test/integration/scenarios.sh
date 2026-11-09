@@ -28,8 +28,23 @@ check() {
   fi
 }
 
-# The server of a session, found by the name it was started with.
-server_pid() { pgrep -f -- "--server .*/$1\$" | head -1; }
+# The file name zellij keeps a session's socket and data under: the session's
+# name, or since zellij 0.46 the id its session index has for that name. The
+# index is read with sqlite3, a reader that is not the reaper's own. (No name
+# here has a quote in it.)
+file_of() {
+  local id=""
+  [ -f "$INDEX" ] && id=$(sqlite3 -readonly -cmd '.timeout 2000' "$INDEX" "SELECT COALESCE(id, name) FROM sessions WHERE name = '$1'" 2>/dev/null)
+  echo "${id:-$1}"
+}
+# by_id says whether this zellij keeps its sessions by id.
+by_id() { [ -f "$INDEX" ]; }
+
+# The server of a session, found by the name it was started with: its command
+# line ends in the file name the session had then, which start notes in SOCK
+# and no rename changes.
+declare -A SOCK
+server_pid() { pgrep -f -- "--server .*/${SOCK[$1]:-$(file_of "$1")}\$" | head -1; }
 
 # Wait until a session's server has a pane process.
 wait_pane() {
@@ -77,11 +92,13 @@ start() {
   else
     timeout 20 $Z attach --create-background "$1" >/dev/null 2>&1
   fi
-  wait_pane "$1" && wait_reachable "$1"
+  wait_pane "$1" && wait_reachable "$1" && SOCK[$1]=$(file_of "$1")
 }
 
 # How many clients the plan counts on one session.
 clients_are() { [ "$($R plan --json | jq -r --arg n "$1" '.sessions[] | select(.name==$n) | .clients')" = "$2" ]; }
+# How many clients zellij itself lists on one.
+clients_on() { $Z --session "$1" action list-clients 2>/dev/null | tail -n +2 | grep -c .; }
 
 # What the plan says about one session: its code, or "absent".
 code() { $R plan --json | jq -r --arg n "$1" '(.sessions[] | select(.name==$n) | .code) // "absent"'; }
@@ -135,10 +152,21 @@ rename_to() {
 # Wait for a pane's title to reach zellij's metadata file, where a pass reads it.
 wait_title() {
   for _ in $(seq 90); do
-    grep -q "title \"$2\"" "$INFO/$1/session-metadata.kdl" 2>/dev/null && return 0
+    grep -q "title \"$2\"" "$INFO/$(file_of "$1")/session-metadata.kdl" 2>/dev/null && return 0
     sleep 1
   done
   return 1
+}
+# titled waits for the title of each session given: a session, its title, and
+# so on in pairs.
+titled() {
+  while [ $# -ge 2 ]; do
+    wait_title "$1" "$2" || {
+      echo "       no title \"$2\" in the metadata of $1"
+      return 1
+    }
+    shift 2
+  done
 }
 
 ver=$($Z --version | awk '{print $2}')
@@ -149,6 +177,9 @@ case "$ver" in
   *) data=contract_version_1 ;;
 esac
 INFO=~/.cache/zellij/$data/session_info
+# zellij 0.46 and later keep an index of their sessions here; before that
+# there is no such file.
+INDEX=~/.cache/zellij/$data/session_index.sqlite
 
 # Settings for the scenarios: serialize every second so an exited session can
 # be resurrected (and so listed as EXITED) soon after it starts.
@@ -178,7 +209,7 @@ echo "-- sessions in every state"
 # only when no session is running, so this comes first, and it runs something so the
 # forced pass keeps it. The scenarios below start sessions under a few such names of
 # their own, so a pick among those is made again.
-reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak '
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak brave-yak '
 mkdir -p /srv/own-pick
 own=""
 for _ in 1 2 3 4 5; do
@@ -208,8 +239,9 @@ start attached && { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 
 start keepme && age_ptys keepme '-3 hours'
 start first && rename_to first second
 # Age it under its first name: a rename leaves the server's command line
-# alone, so that is the only name server_pid can match. (The reaper itself
-# finds the server through the socket file, which the rename does follow.)
+# alone, so server_pid knows a session by the name start was given. (The
+# reaper itself finds the server through the socket file, which a rename
+# follows, or since zellij 0.46 through the id, which a rename leaves alone.)
 age_ptys first '-3 hours'
 for s in exited-old exited-new; do
   # A second pane makes zellij save the layout, which resurrection needs.
@@ -219,7 +251,7 @@ done
 # longer on a slow machine than any fixed wait here would allow for.
 wait_saved() {
   for _ in $(seq 300); do
-    grep -q 'sleep' "$INFO/$1/session-layout.kdl" 2>/dev/null && return 0
+    grep -q 'sleep' "$INFO/$(file_of "$1")/session-layout.kdl" 2>/dev/null && return 0
     sleep 0.1
   done
   echo "  (zellij saved no layout for $1)"
@@ -236,7 +268,7 @@ wait_exited() {
 for s in exited-old exited-new; do wait_saved "$s"; done
 for s in exited-old exited-new; do kill -9 "$(server_pid "$s")"; done
 for s in exited-old exited-new; do wait_exited "$s"; done
-touch -d '-4 days' "$INFO"/exited-old/*
+touch -d '-4 days' "$INFO/$(file_of exited-old)"/*
 # Busy panes need their programs started before the terminals are aged.
 age_ptys shell-busy '-3 hours'
 age_ptys cmd-pane '-3 hours'
@@ -319,16 +351,61 @@ start yearly /tmp/watcher.kdl && rename_to yearly report_2025-2026
 start started_1104-0931 /tmp/watcher.kdl
 # A name zellij could have made up, which someone kept with r and Enter.
 start kind-panda /tmp/watcher.kdl && printf 'kind-panda\n' >>~/.local/state/zellij-reaper/kept
-check "the titles reach the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-mouse 'build watcher' && wait_title adept-magpie 'same title' && wait_title kind-viola 'same title' && wait_title rusty-pepper 'notes v1.2.md' && wait_title brave-peach 'notes from the long planning meeting about the next release' && wait_title wise-yak 'Déploiement prod 本番' && wait_title my-project 'build watcher' && wait_title old-title_1104-0931 'build watcher' && wait_title lucky-duck 'build watcher' && wait_title report_2025-2026 'build watcher' && wait_title started_1104-0931 'build watcher' && wait_title kind-panda 'build watcher'"
+# zellij's words typed as a name, on a session whose first pane has closed since:
+# a pane opened after the rename has the new name in its environment, so only the
+# server still says what the session started under.
+start hand-later && rename_to hand-later brave-yak
+# Someone is attached while its panes change. With nobody attached, zellij 0.43.1
+# ends a session once the panes it had are closed, whatever `run` has opened in it
+# since, renamed or not.
+{ script -qfec "$Z attach brave-yak" /dev/null >/dev/null 2>&1 & }
+visitor=$!
+for _ in $(seq 100); do
+  [ "$(clients_on brave-yak)" = 1 ] && break
+  sleep 0.1
+done
+$Z --session brave-yak run --name 'build watcher' -- sleep 99994 >/dev/null 2>&1
+hand_later=$(server_pid hand-later)
+for _ in $(seq 50); do
+  [ "$(pgrep -P "$hand_later" | wc -l)" -ge 2 ] && break
+  sleep 0.1
+done
+# The first pane's shell is the server's oldest child.
+kill -9 "$(pgrep -P "$hand_later" | head -1)"
+for _ in $(seq 50); do
+  [ "$(pgrep -P "$hand_later" | wc -l)" = 1 ] && break
+  sleep 0.1
+done
+# Then the visitor's terminal closes, so that only the name can keep the session
+# from a rename.
+kill "$visitor"
+for _ in $(seq 100); do
+  [ "$(clients_on brave-yak)" = 0 ] && break
+  sleep 0.1
+done
+check "its first pane is gone" test "$(pgrep -P "$hand_later" | wc -l)" = 1
+check "and nobody is attached to it" test "$(clients_on brave-yak)" = 0
+check "the titles reach the metadata" titled quiet-mouse 'build watcher' adept-magpie 'same title' kind-viola 'same title' \
+  rusty-pepper 'notes v1.2.md' brave-peach 'notes from the long planning meeting about the next release' \
+  wise-yak 'Déploiement prod 本番' my-project 'build watcher' old-title_1104-0931 'build watcher' \
+  lucky-duck 'build watcher' report_2025-2026 'build watcher' started_1104-0931 'build watcher' \
+  kind-panda 'build watcher' brave-yak 'build watcher'
 check "a pass with auto_rename succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a made-up name goes" gone quiet-mouse
 check "a session is named after its pane" listed build-watcher
 check "a name someone chose stays" listed my-project
 check "zellij's words given by hand stay" listed lucky-duck
+check "and stay once the first pane has closed" listed brave-yak
 check "a name in the shape of a stamp stays" listed report_2025-2026
 check "a stamped name a session started under stays" listed started_1104-0931
 check "a name someone kept stays" listed kind-panda
-check "the stamp of an earlier version goes" gone old-title_1104-0931
+# The versions that stamped names by renaming never saw a session kept by id,
+# so a stamp on one was typed, and stays.
+if by_id; then
+  check "a stamp typed on a session kept by id stays" listed old-title_1104-0931
+else
+  check "the stamp of an earlier version goes" gone old-title_1104-0931
+fi
 check "a dot stays in a word" listed notes-v1.2.md
 check "a name with a dot still reaches its server" $Z --session notes-v1.2.md action list-clients
 check "a shell is named after its directory" listed api
@@ -353,7 +430,7 @@ check "a session a pass named can be deleted" delete_it build-watcher
 check "and that name is free" gone build-watcher
 pane_layout 'my own work' /tmp/own.kdl
 start build-watcher /tmp/own.kdl
-check "the new session's title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title build-watcher 'my own work'"
+check "the new session's title reaches the metadata" titled build-watcher 'my own work'
 check "its name is on the list from the one before" grep -qxF build-watcher ~/.local/state/zellij-reaper/named
 check "a pass after that succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "a session started under a name a pass gave keeps it" listed build-watcher
@@ -381,7 +458,7 @@ pane_layout 'review the draft' /tmp/review.kdl
 start quiet-magpie /tmp/review.kdl
 { script -qfec "$Z attach quiet-magpie" /dev/null >/dev/null 2>&1 & }
 sleep 2
-check "its title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title quiet-magpie 'review the draft'"
+check "its title reaches the metadata" titled quiet-magpie 'review the draft'
 check "a client is attached to it" clients_are quiet-magpie 1
 check "a pass that waits for nobody attached succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_ATTACHED=0 $R run --quiet
 check "and the attached session keeps its name" listed quiet-magpie
@@ -392,7 +469,7 @@ check "and its client is still attached" clients_are review-the-draft 1
 echo "-- the names pass, keep-name, here and the hook"
 pane_layout 'plan the launch' /tmp/launch.kdl
 start wise-panda /tmp/launch.kdl
-check "its title reaches the metadata" sh -c "$(declare -f wait_title); INFO='$INFO'; wait_title wise-panda 'plan the launch'"
+check "its title reaches the metadata" titled wise-panda 'plan the launch'
 names_lines() { grep -c -- '=== names start' "$LOG"; }
 before=$(names_lines)
 check "a names pass without auto_rename succeeds" $R run --names-only --quiet
@@ -431,7 +508,6 @@ attach_typing() { # session fifo
   mkfifo "$2"
   { script -qfec "stty cols 120 rows 40; $Z attach $1" /dev/null <"$2" >/dev/null 2>&1 & }
 }
-clients_on() { $Z --session "$1" action list-clients 2>/dev/null | tail -n +2 | grep -c .; }
 # screen dumps what a session's focused pane shows to /tmp/screen.txt
 # (0.43 takes the path as an argument, later releases as --path).
 screen() { $Z --session "$1" action dump-screen --path /tmp/screen.txt >/dev/null 2>&1 || $Z --session "$1" action dump-screen /tmp/screen.txt >/dev/null 2>&1; }
@@ -494,18 +570,38 @@ check "the renamed session survives" listed second2
 echo "-- recover --aggressive keeps servers somebody uses"
 # Servers whose socket file is gone: zellij can no longer reach them, but a
 # client attached before stays connected, and a pane can still be busy.
-sock_of() { tr '\0' '\n' <"/proc/$(server_pid "$1")/cmdline" | sed -n '/^--server$/{n;p;}'; }
+# sock_of is a session's socket file: in the directory on its server's command
+# line, under the file name the session has now. Before ids a rename moves the
+# file, and the command line keeps the path the server started with.
+sock_of() {
+  local at
+  at=$(tr '\0' '\n' <"/proc/$(server_pid "$1")/cmdline" | sed -n '/^--server$/{n;p;}')
+  echo "$(dirname "$at")/$(file_of "${2:-$1}")"
+}
 running() { [ -n "$(server_pid "$1")" ]; }
 stopped() { sleep 1; [ -z "$(server_pid "$1")" ]; }
 start orph-client && { script -qfec "$Z attach orph-client" /dev/null >/dev/null 2>&1 & }
 start orph-busy && $Z --session orph-busy run -- sleep 99999 >/dev/null
 start orph-idle
+# One renamed since it started, and busy.
+start orph-first && rename_to orph-first orph-now && $Z --session orph-now run -- sleep 99993 >/dev/null
 sleep 3
 for s in orph-client orph-busy orph-idle; do rm -f "$(sock_of "$s")"; done
-check "the dry run says why a server is kept" sh -c "$R recover --aggressive --dry-run | grep -q 'first name: orph-client), kept: client attached'"
+rm -f "$(sock_of orph-first orph-now)"
+check "the dry run sees every server without its file" test "$($R recover --aggressive --dry-run | grep -c 'serves no socket file')" = 4
+if by_id; then
+  # zellij's index still has the name of a session it keeps by id.
+  check "the dry run says why a server is kept" sh -c "$R recover --aggressive --dry-run | grep -q '(name: orph-client), kept: client attached'"
+  check "and knows a renamed session by the name it has now" sh -c "$R recover --aggressive --dry-run | grep -q '(name: orph-now), kept: running in a pane'"
+else
+  # Before ids only the server's command line names it: the name it started under.
+  check "the dry run says why a server is kept" sh -c "$R recover --aggressive --dry-run | grep -q '(first name: orph-client), kept: client attached'"
+  check "and knows a renamed session by the name it started under" sh -c "$R recover --aggressive --dry-run | grep -q '(first name: orph-first), kept: running in a pane'"
+fi
 check "recover --aggressive succeeds" $R recover --aggressive
 check "the server with a client is kept" running orph-client
 check "the server with a busy pane is kept" running orph-busy
+check "the renamed server with a busy pane is kept" running orph-first
 check "the idle orphan is stopped" stopped orph-idle
 check "a healthy session is untouched" listed keepme
 
