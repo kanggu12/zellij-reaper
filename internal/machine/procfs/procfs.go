@@ -237,9 +237,10 @@ func Process(root string, pid int) (*Proc, bool) {
 
 // EnvVar reads one variable from the environment a process started with,
 // which a program's later changes to its own environment do not touch: zellij
-// gives every pane ZELLIJ_SESSION_NAME, the session's name when the pane
-// starts. ok is false when the process is gone, when its environment cannot be
-// read (another user's process, or Windows), or when it has no such variable.
+// starts a session's server with ZELLIJ_SESSION_NAME, the name the session
+// starts under. ok is false when the process is gone, when its environment
+// cannot be read (another user's process, or Windows), or when it has no such
+// variable.
 func EnvVar(root string, pid int, key string) (string, bool) {
 	if root == Native {
 		return envNative(pid, key)

@@ -116,7 +116,7 @@ type Session struct {
 	ID   string
 	ByID bool
 	// StartName is the name a session named by id started under, from the
-	// environment of its first pane; "" when it cannot be read.
+	// environment its server started with; "" when it cannot be read.
 	StartName string
 	// Files are its directory under session_info.
 	Files zellij.Files
@@ -147,8 +147,8 @@ func (s Session) Name() string { return s.Listed.Name }
 
 // StartedAs is the name the session's server was started under, which its command
 // line keeps through every rename; "" when its server was not found. A session
-// named by id has the id on its command line instead: its first pane's
-// environment keeps the name.
+// named by id has the id on its command line instead: the environment its
+// server started with keeps the name.
 func (s Session) StartedAs() string {
 	if s.ByID {
 		return s.StartName

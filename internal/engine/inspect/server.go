@@ -3,7 +3,6 @@ package inspect
 import (
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -98,19 +97,14 @@ func findServer(socket string, servers []procfs.Server, socks []procfs.UnixSocke
 	return nil, ""
 }
 
-// startName is the name a session started under, read from its panes: zellij
-// gives every pane ZELLIJ_SESSION_NAME, the session's name when the pane
-// starts, and a rename changes no pane's environment. The pane that started
-// first is the one from before any rename: by start time where the system
-// gives one, else by pid, which Linux hands out in order. "" when no pane's
-// can be read.
+// startName is the name a session kept by id started under, "" when it cannot
+// be read. zellij sets ZELLIJ_SESSION_NAME before it starts a server, and the
+// environment a process began with stays as it was: a rename changes the
+// variable only for the panes opened after it. A pane's own environment would
+// not do. The pane opened first has the first name, but once it is gone the
+// oldest pane left has a later one, and a session someone renamed would read
+// as never renamed: its name, if zellij could have made it up, would go.
 func startName(t *procfs.Table, server int) string {
-	kids := t.Children(server)
-	sort.SliceStable(kids, func(i, j int) bool { return kids[i].Started().Before(kids[j].Started()) })
-	for _, k := range kids {
-		if name, ok := procfs.EnvVar(t.Root, k.PID, "ZELLIJ_SESSION_NAME"); ok && name != "" {
-			return name
-		}
-	}
-	return ""
+	name, _ := procfs.EnvVar(t.Root, server, "ZELLIJ_SESSION_NAME")
+	return name
 }

@@ -413,28 +413,38 @@ func TestEveryKnownShellSaysNothingAsATitle(t *testing.T) {
 
 func TestASessionKeptByIDIsFoundByItsID(t *testing.T) {
 	m := newMachine(t)
-	// zellij 0.46: socket, directory and command line carry the id.
+	// zellij 0.46: socket, directory and command line carry the id, and the
+	// environment the server started with has the name it started under.
 	m.server(t, "0a1b2c3d4e5f", "0a1b2c3d4e5f", 100, testutil.Metadata(0, "Pane #1"), "")
-	// The first pane started under the first name; one opened after a rename
-	// has the new name. Linux gives the later one the higher pid.
+	m.proc.SetEnv(100, "ZELLIJ=0", "ZELLIJ_SESSION_NAME=quiet-magpie")
+	// Its panes were opened after the rename, so they have the new name: the
+	// first one, which had the first, is gone.
 	m.proc.Add(testutil.Proc{PID: 101, PPID: 100, Comm: "bash", Argv: []string{"-bash"}, Started: 2 * time.Second,
-		Stdin: testutil.TTY(t, m.ttys, "first", now.Add(-3*time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=quiet-magpie"}})
+		Stdin: testutil.TTY(t, m.ttys, "first", now.Add(-3*time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=notes"}})
 	m.proc.Add(testutil.Proc{PID: 102, PPID: 100, Comm: "bash", Argv: []string{"-bash"}, Started: 9 * time.Second,
 		Stdin: testutil.TTY(t, m.ttys, "second", now.Add(-2*time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=notes"}})
+	// A server whose environment cannot say: its pane's name is not taken
+	// for the one the session started under.
+	m.server(t, "aabbccddeeff", "aabbccddeeff", 200, testutil.Metadata(0, "Pane #1"), "")
+	m.proc.Add(testutil.Proc{PID: 201, PPID: 200, Comm: "bash", Argv: []string{"-bash"},
+		Stdin: testutil.TTY(t, m.ttys, "third", now.Add(-time.Hour)), Env: []string{"ZELLIJ_SESSION_NAME=lucky-duck"}})
 	// An exited session's directory is named by its id too.
 	testutil.SessionFiles(t, m.info, "ffeeddccbbaa", "", "layout {\n}\n", now.Add(-100*time.Hour))
 	// zellij lists this one as exited, and a server still listens on its
 	// socket: the session is not gone.
 	m.server(t, "112233445566", "112233445566", 300, "", "layout {\n}\n")
-	idx := zellij.NewIndex(map[string]string{"notes": "0a1b2c3d4e5f", "old-work": "ffeeddccbbaa", "half-gone": "112233445566"})
+	idx := zellij.NewIndex(map[string]string{"notes": "0a1b2c3d4e5f", "old-work": "ffeeddccbbaa", "half-gone": "112233445566", "lucky-duck": "aabbccddeeff"})
 	m.idx = &idx
-	out := m.gather(t, true, running("notes"), zellij.Listed{Name: "old-work", Exited: true}, zellij.Listed{Name: "half-gone", Exited: true})
+	out := m.gather(t, true, running("notes"), zellij.Listed{Name: "old-work", Exited: true}, zellij.Listed{Name: "half-gone", Exited: true}, running("lucky-duck"))
 	s := out[0]
 	if !s.ByID || s.ID != "0a1b2c3d4e5f" || !s.Files.Exists || s.Server == nil || len(s.Panes) != 2 {
 		t.Fatalf("running session: %+v", s)
 	}
 	if s.StartedAs() != "quiet-magpie" {
-		t.Errorf("started as %q, want the first pane's quiet-magpie", s.StartedAs())
+		t.Errorf("started as %q, want the server's quiet-magpie", s.StartedAs())
+	}
+	if u := out[3]; !u.ByID || u.Server == nil || u.StartedAs() != "" {
+		t.Errorf("a server that cannot say: started as %q, want none: %+v", u.StartedAs(), u)
 	}
 	// Judged by its panes: idle for two hours, not unknown.
 	if got := s.Facts.LastActive; !got.Equal(now.Add(-2*time.Hour).Truncate(time.Second)) && got.Before(now.Add(-2*time.Hour-time.Second)) {

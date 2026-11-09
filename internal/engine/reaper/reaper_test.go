@@ -122,9 +122,10 @@ const busyID = "0a1b2c3d4e5f"
 
 // newWorldOf is newWorldWith, with the busy session kept by id when byID is
 // set, as zellij 0.46 keeps it: its socket and its directory are named by the
-// id, the index has its name, and only its pane's environment keeps the name
-// it started under (none when startedAs is ""). The other sessions are named
-// by their names, as sessions from an earlier zellij are next to it.
+// id, the index has its name, and only the environment its server started
+// with keeps the name it started under (none when startedAs is ""), while its
+// pane, opened after any rename, has the name it has now. The other sessions
+// are named by their names, as sessions from an earlier zellij are next to it.
 func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 	t.Helper()
 	now := time.Now()
@@ -148,12 +149,15 @@ func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 		if name == busy && !byID {
 			first = filepath.Join(sockDir, startedAs)
 		}
-		var env []string
-		if byID && name == busy && startedAs != "" {
-			env = []string{"ZELLIJ=0", "ZELLIJ_SESSION_NAME=" + startedAs}
+		var env, paneEnv []string
+		if byID && name == busy {
+			paneEnv = []string{"ZELLIJ=0", "ZELLIJ_SESSION_NAME=" + name}
+			if startedAs != "" {
+				env = []string{"ZELLIJ_SESSION_NAME=" + startedAs}
+			}
 		}
-		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}})
-		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: env})
+		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}, Env: env})
+		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: paneEnv})
 		testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")

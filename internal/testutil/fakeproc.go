@@ -94,6 +94,12 @@ func (f *FakeProc) Add(p Proc) {
 	}
 }
 
+// SetEnv replaces the environment a process already in the tree started with.
+func (f *FakeProc) SetEnv(pid int, env ...string) {
+	f.t.Helper()
+	must(f.t, os.WriteFile(filepath.Join(f.Root, strconv.Itoa(pid), "environ"), []byte(strings.Join(env, "\x00")+"\x00"), 0o644))
+}
+
 // Uptime sets how long the fake machine has been up.
 func (f *FakeProc) Uptime(d time.Duration) {
 	f.t.Helper()
