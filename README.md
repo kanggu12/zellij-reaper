@@ -65,7 +65,7 @@ The setup screen shows what the first pass would reap before anything runs:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/setup-dark.png">
-  <img alt="The setup screen: the waits for idle and exited sessions, the mode, names and the prompt hook, each changed with the arrow keys, then the sessions the first pass would reap, old-experiment marked to keep and scratch, idle 13 hours, still to go" src="docs/assets/setup-light.png">
+  <img alt="The setup screen, under the logo and the version: the waits for idle and exited sessions, the mode, names and the prompt hook, each changed with the arrow keys, then the sessions the first pass would reap, old-experiment marked to keep and scratch, idle 13 hours, still to go" src="docs/assets/setup-light.png">
 </picture>
 
 `zellij-reaper setup` opens it again. Keep a session out of every pass: `zellij-reaper protect NAME`, or `p` in the

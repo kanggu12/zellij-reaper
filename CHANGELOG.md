@@ -6,6 +6,37 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-10
+
+### Added
+
+- The dashboard's top line names the build: the name as the logo writes it, this build's version (`v0.10.0`, or `dev`
+  and the commit for a build from source), then zellij's. The logo's mark, the text cursor whose top became a scythe,
+  stands beside the name on the help screen, on the setup screen when it has the rows, and over an empty dashboard.
+
+### Fixed
+
+- In dry-run mode <kbd>f</kbd> asked whether to reap and then reported sessions as reaped. It runs without asking now
+  and says what it would have reaped, with nothing deleted.
+- A dialog's text was wrapped two cells too wide and then again by the screen library, which left a word alone on a
+  line.
+- On a short setup screen the sessions to keep fell under the keys, while <kbd>Space</kbd> still marked the one under
+  the cursor. The intro gives way first now.
+- With a filter on, the status line left out how many rows were scrolled above.
+- `install` counted the sessions the first pass would reap at the time it ran, not at the time of that pass, so it could
+  disagree with the setup screen just before it.
+- `logs -n 0` said the log was empty; `doctor` said "every 0s" when it could not read the timer's interval; `tui`
+  without a terminal printed the screen library's error about `/dev/tty` rather than pointing at `plan`.
+- A rename zellij refused, or one held up by a pass, was reported in English on a Korean screen; `keep-name` did not
+  say when another pass held the lock.
+- Turning names on in setup left the prompt hook switched off.
+- The question before reaping a protected exited session spoke of closing its panes.
+- A narrow table cut long names at the end, so `release-notes` and `release-notes-2` looked the same; it keeps both ends
+  now. With `NO_COLOR`, the selected row is drawn reversed, as its background no longer shows.
+- On a short terminal the help screen's colors stand in two columns rather than lose their last lines.
+- Wording: dry-run lines say what a dry run logs, setup says "reap" throughout, `protect` and `keep-name` say when
+  their lists are empty, `unprotect` says when a name was not on the list, and `config init` says where it wrote.
+
 ## [0.9.0] - 2026-11-08
 
 ### Added
@@ -415,7 +446,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.0

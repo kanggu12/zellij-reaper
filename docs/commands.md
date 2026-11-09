@@ -62,8 +62,9 @@ writing to the log only when it renames (the names timer's mode); `--quiet` prin
 status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such
 as zellij failing to list its sessions.
 
-**`protect NAME...`** adds sessions to the protected list; with no name it prints the list. **`unprotect NAME...`**
-takes them off. A name the `protect` pattern matches stays protected either way, and `unprotect` says so.
+**`protect NAME...`** adds sessions to the protected list; with no name it prints the list, one name a line (in a
+terminal, an empty list says so). **`unprotect NAME...`** takes them off, and says when a name was not on the list. A
+name the `protect` pattern matches stays protected either way, and `unprotect` says so.
 
 **`keep-name NAME...`** keeps running sessions' names as they are, as `r`, Tab and Enter do in the dashboard: no pass
 renames them. With no name it prints the kept names. **`forget-name NAME...`** takes names off that list, so passes may
@@ -145,7 +146,8 @@ prints the file's path, `init` writes the file with every key at its default, an
   <img alt="The dashboard: the sessions with what the next pass does to each, the checks for the selected one, and the latest decisions" src="assets/screenshot-light.png">
 </picture>
 
-The top bar shows zellij's version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
+The top bar shows the name and this build's version (`v0.10.0`; `dev` and the commit for a build from source), zellij's
+version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
 (`reaps after 12h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it
 has been idle, its clients, and what the next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear,
 attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected session:
@@ -171,13 +173,13 @@ The color of a row says what will happen to it:
 | `d` | reap it now, after asking (the question names what still runs in it); refused while a client is attached or zellij cannot say |
 | `p` | protect it, or lift the protection |
 | `r` | rename it; the field starts with [the name its panes point to](setup.md#naming-sessions-after-what-they-show), and `⇥` swaps it with the name the session has. A name that is taken is refused, and an exited session cannot be renamed |
-| `f` | run a pass now; it asks first when the pass would delete something |
+| `f` | run a pass now; it asks first when the pass would delete something (a dry run deletes nothing, so it does not ask) |
 | `F` | run a pass without the idle and exited waits, after asking |
-| `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` returns |
+| `l` | the decision log: `↑` `↓` scroll, `f` follows new lines, `esc` or `q` returns |
 | `/` | filter by name as you type: `⏎` keeps the filter, `esc` puts back the old one |
 | `esc` | clear the filter; it never quits |
 | `R` | read the sessions again now |
-| `?` | every key and what each color means |
+| `?` | every key and what each color means, beside the logo and the version |
 | `q`, `ctrl+c` | quit |
 
 To keep a running session's current name, press `r`, `⇥` and `⏎`: passes leave it alone from then on.
