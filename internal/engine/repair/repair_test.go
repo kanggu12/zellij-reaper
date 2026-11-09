@@ -391,12 +391,15 @@ func TestAnOrphanKeptByIDIsKnownByItsNames(t *testing.T) {
 	server(base+500, "000000000005", "keep-me", false)
 	// A server whose environment cannot say what it started under.
 	server(base+600, "000000000006", "", false)
-	idx := zellij.NewIndex(map[string]string{"healthy": "000000000001", "notes": "000000000002", "keep-me": "000000000003", "scratch": "000000000004", "later": "000000000006"})
+	// One whose name gets protected after the scan, before the stop.
+	server(base+700, "000000000007", "quiet-swan", false)
+	idx := zellij.NewIndex(map[string]string{"healthy": "000000000001", "notes": "000000000002", "keep-me": "000000000003", "scratch": "000000000004", "later": "000000000006", "reports": "000000000007"})
 	var signals []string
 	gone := map[int]bool{}
+	protected := map[string]bool{"keep-me": true}
 	in := repair.Inputs{Zellij: &fakeZellij{}, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(), Index: &idx,
 		Sockets:   func() ([]procfs.UnixSocket, error) { return socks, nil },
-		Protected: func(n string) bool { return n == "keep-me" },
+		Protected: func(n string) bool { return protected[n] },
 		Signal: func(pid int, sig syscall.Signal) error {
 			if gone[pid] {
 				return syscall.ESRCH
@@ -420,6 +423,7 @@ func TestAnOrphanKeptByIDIsKnownByItsNames(t *testing.T) {
 		base + 400: {"scratch", "keep-me", "its first name is protected"},
 		base + 500: {"", "000000000005", "its first name is protected"},
 		base + 600: {"later", "", ""},
+		base + 700: {"reports", "quiet-swan", ""},
 	}
 	if len(sc.Orphans) != len(want) || sc.AllOrphaned {
 		t.Fatalf("orphans %+v (all orphaned %v)", sc.Orphans, sc.AllOrphaned)
@@ -429,8 +433,20 @@ func TestAnOrphanKeptByIDIsKnownByItsNames(t *testing.T) {
 			t.Errorf("pid %d: name %q, first name %q, kept %q, want %q", o.PID, o.Name, o.FirstName, o.Kept, w)
 		}
 	}
+	// The look before the stop goes by the index too: a name protected since
+	// the scan keeps its server, though the name is on no command line.
+	protected["reports"] = true
 	steps := repair.Repair(context.Background(), in, sc, true)
 	if got := strings.Join(signals, ","); got != fmt.Sprintf("%d 15,%d 15", base+200, base+600) {
 		t.Errorf("signals %s; steps %+v", got, steps)
+	}
+	said := false
+	for _, st := range steps {
+		if st.Target == fmt.Sprintf("pid %d", base+700) && st.What == "kept orphan server: its name is protected" {
+			said = true
+		}
+	}
+	if !said {
+		t.Errorf("no step says the second look kept the protected one: %+v", steps)
 	}
 }

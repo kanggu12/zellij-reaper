@@ -2,11 +2,30 @@ package timers
 
 import (
 	"encoding/base64"
+	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf16"
+
+	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
+
+// sentScript is the PowerShell script in a command line ps built: its last
+// argument, base64 over UTF-16.
+func sentScript(t *testing.T, args []string) string {
+	t.Helper()
+	b, err := base64.StdEncoding.DecodeString(args[len(args)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := make([]uint16, len(b)/2)
+	for i := range u {
+		u[i] = uint16(b[2*i]) | uint16(b[2*i+1])<<8
+	}
+	return string(utf16.Decode(u))
+}
 
 func TestTaskTimesAreLocal(t *testing.T) {
 	// The status script prints UTC, and every message shows a time as it is:
@@ -30,15 +49,7 @@ func TestATaskScriptEndsInExitZero(t *testing.T) {
 	// there failed for that alone.
 	var script string
 	w := Tasks{Run: func(name string, args ...string) (string, error) {
-		b, err := base64.StdEncoding.DecodeString(args[len(args)-1])
-		if err != nil {
-			t.Fatal(err)
-		}
-		u := make([]uint16, len(b)/2)
-		for i := range u {
-			u[i] = uint16(b[2*i]) | uint16(b[2*i+1])<<8
-		}
-		script = string(utf16.Decode(u))
+		script = sentScript(t, args)
 		return "", nil
 	}}
 	if _, err := w.ps("Unregister-ScheduledTask -TaskName 'x' -ErrorAction SilentlyContinue"); err != nil {
@@ -49,5 +60,57 @@ func TestATaskScriptEndsInExitZero(t *testing.T) {
 	}
 	if !strings.HasPrefix(script, "$ErrorActionPreference = 'Stop'") {
 		t.Errorf("script starts:\n%s", script)
+	}
+}
+
+func TestATaskUninstallCountsItsTasks(t *testing.T) {
+	// `uninstall --purge` says whether there were timers by this count: the
+	// settings and the state a purge removes are not timers.
+	env := config.MapEnv{"HOME": t.TempDir()}
+	// The task library: a task registered is there, and removing one that is
+	// not there fails unless the line silences the error, as the scripts run
+	// with $ErrorActionPreference = 'Stop'.
+	have := map[string]bool{}
+	w := Tasks{Env: env, Run: func(name string, args ...string) (string, error) {
+		for _, line := range strings.Split(sentScript(t, args), "\n") {
+			for _, task := range []string{TaskName, NamesTaskName} {
+				switch {
+				case strings.HasPrefix(line, "Register-ScheduledTask -TaskName '"+task+"' "):
+					have[task] = true
+				case strings.HasPrefix(line, "Unregister-ScheduledTask -TaskName '"+task+"' "):
+					if !have[task] && !strings.Contains(line, "-ErrorAction SilentlyContinue") {
+						return "Unregister-ScheduledTask : No MSFT_ScheduledTask objects found with property 'TaskName' equal to '" + task + "'.", errors.New("exit status 1")
+					}
+					delete(have, task)
+				}
+			}
+		}
+		return "", nil
+	}}
+	if _, err := w.Install(InstallOptions{Exe: `C:\Users\u\bin\zellij-reaper.exe`, Config: config.Default(env)}); err != nil {
+		t.Fatal(err)
+	}
+	// Windows gets the one task: no session is renamed there.
+	if !have[TaskName] || have[NamesTaskName] {
+		t.Fatalf("tasks after install: %v", have)
+	}
+	r, err := w.Uninstall(true, config.Default(env).LogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One task went, and with it the settings file: two things, one timer.
+	if r.Timers != 1 || len(r.Removed) != 2 || len(have) != 0 {
+		t.Errorf("timers %d, removed %q, tasks left %v", r.Timers, r.Removed, have)
+	}
+	// With no task there is no timer to count, purge or not.
+	if err := os.MkdirAll(config.ConfigDir(env), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.ConfigFile(env), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err = w.Uninstall(true, config.Default(env).LogPath)
+	if err != nil || r.Timers != 0 || len(r.Removed) != 1 {
+		t.Errorf("a second uninstall: timers %d, removed %q, err %v", r.Timers, r.Removed, err)
 	}
 }
