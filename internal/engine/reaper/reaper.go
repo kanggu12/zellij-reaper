@@ -147,6 +147,29 @@ func (r Report) Due() int {
 	return n
 }
 
+// DueAt is how many sessions a pass at a given time would reap, with the
+// facts as they are now: a session a few minutes short of its wait now is due
+// at a pass later on. What a plan or the dashboard says the next pass reaps,
+// when it knows when that pass runs.
+func (r Report) DueAt(at time.Time) int {
+	n := 0
+	for _, o := range r.Outcomes {
+		if policy.Decide(o.Session.Facts, r.Thresholds, at).Action == policy.Reap {
+			n++
+		}
+	}
+	return n
+}
+
+// DueAtNext is DueAt at the timer's next pass, or Due when that time is
+// unknown (zero) or already past.
+func (r Report) DueAtNext(next, now time.Time) int {
+	if next.After(now) {
+		return r.DueAt(next)
+	}
+	return r.Due()
+}
+
 // gatherError marks a failure to read the facts (as opposed to zellij failing
 // to list its sessions), so the log says which.
 type gatherError struct{ err error }

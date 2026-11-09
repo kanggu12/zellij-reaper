@@ -1023,3 +1023,26 @@ func TestGivenNamesOfGoneSessionsAreForgotten(t *testing.T) {
 		}
 	}
 }
+
+func TestDueAtCountsAtTheTimeOfThePass(t *testing.T) {
+	// Idle 55m with a 1h wait: not due now, due at a pass ten minutes on.
+	// The install message counted that way and the plan's summary did not,
+	// so the two said 1 and 0 about the same pass.
+	now := time.Now()
+	f := policy.Facts{Name: "almost", HasInfo: true, LastActive: now.Add(-55 * time.Minute), ActivitySource: "pane terminals",
+		SocketOK: true, ServerPID: 7, Attached: policy.No, PaneCount: 1}
+	th := policy.Thresholds{Idle: time.Hour, Exited: 72 * time.Hour}
+	r := reaper.Report{Thresholds: th, Outcomes: []reaper.Outcome{{Session: inspect.Session{Facts: f}, Verdict: policy.Decide(f, th, now)}}}
+	if r.Due() != 0 || r.DueAt(now.Add(10*time.Minute)) != 1 {
+		t.Errorf("due now %d, at the pass %d: want 0 and 1", r.Due(), r.DueAt(now.Add(10*time.Minute)))
+	}
+	if got := r.DueAtNext(now.Add(10*time.Minute), now); got != 1 {
+		t.Errorf("at the next pass: %d, want 1", got)
+	}
+	// No next pass known, or one already past: the count as of now.
+	for _, next := range []time.Time{{}, now.Add(-time.Minute)} {
+		if got := r.DueAtNext(next, now); got != 0 {
+			t.Errorf("next %v: %d, want the count now, 0", next, got)
+		}
+	}
+}

@@ -8,7 +8,9 @@
 prints the plan as a table instead. **`zellij-reaper tui`** always opens the dashboard, and needs a terminal.
 
 **`plan`** (also `status`, `ls`) shows what the next pass would do, changing nothing: no lock, no log, no deletes.
-The table is sorted by what happens to each session; `sessions` in the JSON keeps zellij's order. `--json` prints a shape
+Each row is judged as of now, so a session whose wait ends in a few minutes says `reap in 4m`; the count under the
+table is taken at the time the timer runs the next pass, as `install` and the setup screen count, so it includes that
+session. The table is sorted by what happens to each session; `sessions` in the JSON keeps zellij's order. `--json` prints a shape
 that stays stable for scripts; `reason` is the log's wording:
 
 ```json

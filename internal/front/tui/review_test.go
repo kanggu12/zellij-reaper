@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -129,5 +130,24 @@ func TestTheFilterIsTheSameBeforeAndAfterEnter(t *testing.T) {
 	typing := len(m.rows())
 	if m = press(t, m, "enter"); len(m.rows()) != typing || typing == 0 {
 		t.Errorf("%d rows while typing \"sc \", %d after enter", typing, len(m.rows()))
+	}
+}
+
+func TestTheDashboardCountsWhatTheNextPassReaps(t *testing.T) {
+	// The fake timer's next pass is 42 minutes away. A session idle 30m with
+	// a 1h wait is not due now but is by then: the status line counts it, and
+	// its details say the next pass reaps it.
+	b := sample()
+	now := time.Now()
+	b.report.Outcomes = append(b.report.Outcomes, session("soon", false, func(f *policy.Facts) { f.LastActive = now.Add(-30 * time.Minute) }))
+	b.report.Thresholds = policy.Thresholds{Idle: time.Hour, Exited: 72 * time.Hour}
+	m := loaded(t, b, 132, 40)
+	want := b.report.Due() + 1
+	if s := ansi.Strip(m.statusLine()); !strings.Contains(s, fmt.Sprintf("%d to reap at the next pass", want)) {
+		t.Errorf("status line %q, want %d to reap", s, want)
+	}
+	m = pick(t, m, "soon")
+	if out := ansi.Strip(m.View().Content); !strings.Contains(out, "Will be reaped at the next pass, at ") {
+		t.Errorf("the details of soon do not say the next pass reaps it:\n%s", out)
 	}
 }

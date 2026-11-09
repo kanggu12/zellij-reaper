@@ -60,7 +60,8 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 	for _, line := range t.Table(ui.Sorted(ui.RowsFrom(r, time.Now())), width, -1) {
 		println(w, trimRight(line))
 	}
-	reaped := r.Due()
+	// "At the next pass": counted at the time it runs, when the timer says.
+	reaped := r.DueAtNext(a.System.Status().Next, time.Now())
 	key := "plan.summary"
 	if r.DryRun {
 		key = "plan.summary.dry"

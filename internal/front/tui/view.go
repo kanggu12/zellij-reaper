@@ -200,6 +200,15 @@ func (m model) header() string {
 	return left + strings.Repeat(" ", gap) + r
 }
 
+// nextPass is when the timer runs the next pass, or zero while systemd has
+// not said or the time is unknown or past.
+func (m model) nextPass() time.Time {
+	if m.timerKnown && m.timer.Next.After(m.now) {
+		return m.timer.Next
+	}
+	return time.Time{}
+}
+
 // timerWords says when the timer runs next, or that it is not running.
 func (m model) timerWords() string {
 	t, st := m.th, m.timer
@@ -250,7 +259,10 @@ func (m model) statusLine() string {
 		if m.report.DryRun {
 			key = "plan.summary.dry"
 		}
-		line = i18n.TN(key, len(m.report.Outcomes), len(m.report.Outcomes), m.report.Due())
+		// "At the next pass": counted at the time it runs, once the timer
+		// has said when.
+		due := m.report.DueAtNext(m.nextPass(), m.now)
+		line = i18n.TN(key, len(m.report.Outcomes), len(m.report.Outcomes), due)
 	}
 	// Rows scrolled out of sight, filtered or not.
 	above, below := m.hidden()

@@ -6,6 +6,16 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-10
+
+### Fixed
+
+- After 0.10.0, `install` counted the sessions the next pass reaps at the time of that pass, but `plan` and the
+  dashboard counted them as of now under the same words, "to reap at the next pass": right after an install one said 1
+  and the other 0 about a session a minute short of its wait. All three count at the time the timer runs the next pass
+  now, as the setup screen does, and the selected session's details say "Will be reaped at the next pass, at 14:00" when
+  its wait ends before then.
+
 ## [0.10.0] - 2026-11-10
 
 ### Added
@@ -446,7 +456,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.10.1
 [0.10.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.8.1

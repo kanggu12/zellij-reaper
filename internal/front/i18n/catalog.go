@@ -96,6 +96,7 @@ var en = map[string]string{
 	// Detail panel.
 	"detail.verdict.reap":   "Will be reaped at the next pass.",
 	"detail.verdict.in":     "Will be reaped in %s if nothing changes.",
+	"detail.verdict.next":   "Will be reaped at the next pass, at %s, if nothing changes.",
 	"detail.verdict.keep":   "Kept: %s.",
 	"detail.verdict.dry":    "A pass would reap it (dry run is on).",
 	"detail.why":            "Checks",
@@ -460,6 +461,7 @@ var ko = map[string]string{
 
 	"detail.verdict.reap":   "다음 점검에서 정리됩니다.",
 	"detail.verdict.in":     "그대로면 %s 뒤 정리됩니다.",
+	"detail.verdict.next":   "그대로면 다음 점검(%s)에서 정리됩니다.",
 	"detail.verdict.keep":   "유지: %s.",
 	"detail.verdict.dry":    "점검하면 정리 대상입니다. 지금은 기록만 합니다.",
 	"detail.why":            "판정",

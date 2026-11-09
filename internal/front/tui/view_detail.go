@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -32,7 +33,7 @@ func (m model) detail(width, height int) []string {
 	if m.width >= sideBySide {
 		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(t.Ink).Render(s.Name()))
 	}
-	lines = append(lines, ui.Fg(t.Cat[cat]).Bold(true).Render(verdictSentence(v, m.report.DryRun)))
+	lines = append(lines, ui.Fg(t.Cat[cat]).Bold(true).Render(verdictSentence(v, m.report.DryRun, m.nextPass(), m.now)))
 	lines = append(lines, "")
 	lines = append(lines, ui.Fg(t.Muted).Bold(true).Render(i18n.T("detail.why")))
 	for _, c := range v.Checks {
@@ -201,13 +202,18 @@ func (m model) recentLines(n int) []string {
 	return events
 }
 
-// verdictSentence says in a sentence what the next pass does.
-func verdictSentence(v policy.Verdict, dry bool) string {
+// verdictSentence says in a sentence what the next pass does. next is when
+// the timer runs it, zero when that is not known.
+func verdictSentence(v policy.Verdict, dry bool, next, now time.Time) string {
 	switch {
 	case v.Action == policy.Reap && dry:
 		return i18n.T("detail.verdict.dry")
 	case v.Action == policy.Reap:
 		return i18n.T("detail.verdict.reap")
+	// The wait ends before the next pass: that pass reaps it, not the end
+	// of the wait.
+	case v.Wait > 0 && !next.IsZero() && !dry && now.Add(v.Wait).Before(next):
+		return i18n.T("detail.verdict.next", ui.Clock(next))
 	case v.Wait > 0:
 		return i18n.T("detail.verdict.in", duration.Format(v.Wait))
 	}
