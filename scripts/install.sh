@@ -82,6 +82,10 @@ mkdir -p "$bin_dir"
 install -m 0755 "$tmp/zellij-reaper" "$bin_dir/zellij-reaper"
 say "installed $bin_dir/zellij-reaper"
 
+# The binary is in place whatever comes of the timers, so their failing (no
+# scheduler answers on this machine, say) does not end the script on the spot:
+# the status is kept, and what follows still applies.
+status=0
 if [ "${ZELLIJ_REAPER_NO_TIMER:-}" = 1 ]; then
   say "run 'zellij-reaper install' to start the timers"
 elif [ "${ZELLIJ_REAPER_NO_SETUP:-}" != 1 ] && [ -t 1 ] && (: </dev/tty) 2>/dev/null; then
@@ -90,9 +94,9 @@ elif [ "${ZELLIJ_REAPER_NO_SETUP:-}" != 1 ] && [ -t 1 ] && (: </dev/tty) 2>/dev/
   # Piped through sh, this script's own input is the script, so the screen
   # reads the terminal. The check runs in a subshell: a redirection that
   # fails on `:` ends a POSIX shell, not only the test.
-  "$bin_dir/zellij-reaper" setup --installer </dev/tty
+  "$bin_dir/zellij-reaper" setup --installer </dev/tty || status=$?
 else
-  "$bin_dir/zellij-reaper" install
+  "$bin_dir/zellij-reaper" install || status=$?
 fi
 
 # Tell people when the binary is not on their PATH yet.
@@ -100,3 +104,11 @@ case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *) say "add $bin_dir to your PATH to run zellij-reaper by name" ;;
 esac
+
+# The timers did not start, for the reason the binary gave above. The script
+# ends with the binary's status, so whatever ran it sees an install that is
+# not finished.
+if [ "$status" -ne 0 ]; then
+  printf "zellij-reaper install: the binary is in place, the timers are not: run '%s install' to try again\n" "$bin_dir/zellij-reaper" >&2
+  exit "$status"
+fi
