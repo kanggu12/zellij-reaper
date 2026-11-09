@@ -37,6 +37,9 @@ type InstallOptions struct {
 	// ConfigFile is a settings file chosen with --config or
 	// ZELLIJ_REAPER_CONFIG; empty for the default location.
 	ConfigFile string
+	// Env holds the carried variables (see Carried) as the installing shell
+	// has them, for the timer to run with.
+	Env map[string]string
 }
 
 // Install writes the units, moves a legacy install over, writes a settings
@@ -53,6 +56,9 @@ func (s Systemd) Install(o InstallOptions) (Result, error) {
 	}
 	// zellij's directory goes inside the quoted PATH assignment.
 	if err := quotable("zellij's directory", o.ZellijDir); err != nil {
+		return r, err
+	}
+	if err := checkCarried(o.Env); err != nil {
 		return r, err
 	}
 	if !s.Available() {
@@ -96,7 +102,7 @@ func (s Systemd) Install(o InstallOptions) (Result, error) {
 	if err := os.MkdirAll(config.UnitDir(s.Env), 0o755); err != nil {
 		return r, err
 	}
-	if err := writeFile(s.servicePath(), ServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile)); err != nil {
+	if err := writeFile(s.servicePath(), ServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env)); err != nil {
 		return r, err
 	}
 	if err := writeFile(s.timerPath(), TimerUnit(o.Config.Interval)); err != nil {
@@ -134,7 +140,7 @@ func (s Systemd) installNames(o InstallOptions, r *Result) error {
 		s.systemctl("daemon-reload")
 		return nil
 	}
-	if err := writeFile(s.namesServicePath(), NamesServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile)); err != nil {
+	if err := writeFile(s.namesServicePath(), NamesServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env)); err != nil {
 		return err
 	}
 	if err := writeFile(s.namesTimerPath(), NamesTimerUnit(o.Config.RenameInterval)); err != nil {

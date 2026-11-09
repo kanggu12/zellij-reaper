@@ -21,6 +21,11 @@ type TimerStatus struct {
 	Interval time.Duration
 	// ExecStart is the command the service runs, from the unit file.
 	ExecStart string
+	// Env holds the carried variables (see Carried) the timer runs with, as
+	// its definition sets them; EnvKnown is false where they cannot be read
+	// back (the Task Scheduler takes the user's own environment).
+	Env      map[string]string
+	EnvKnown bool
 }
 
 // NextPass is when the timer runs its next pass, or zero when it is not
@@ -62,7 +67,11 @@ func (s Systemd) statusOf(timer, timerPath, servicePath string) TimerStatus {
 	st.Enabled = props["UnitFileState"] == "enabled"
 	st.Active = props["ActiveState"] == "active"
 	st.Last = parseTimestamp(props["LastTriggerUSec"])
-	st.Interval, st.ExecStart = unitFacts(timerPath, servicePath)
+	st.Interval, st.ExecStart, st.Env = unitFacts(timerPath, servicePath)
+	// A service file that is not where this environment says units go (it
+	// was installed under another XDG_CONFIG_HOME) says nothing of what the
+	// timer runs with.
+	st.EnvKnown = st.Installed && st.Env != nil
 	// Only an active timer fires at all.
 	if !st.Active {
 		return st
@@ -143,10 +152,13 @@ func spanSetting(d time.Duration) string {
 	return duration.Setting(d)
 }
 
-// unitFacts reads the interval and the command back from the unit files.
-func unitFacts(timerPath, servicePath string) (time.Duration, string) {
+// unitFacts reads the interval, the command and the carried variables back
+// from the unit files; the variables are nil when the service file cannot be
+// read.
+func unitFacts(timerPath, servicePath string) (time.Duration, string, map[string]string) {
 	var interval time.Duration
 	var execStart string
+	var env map[string]string
 	if b, err := os.ReadFile(timerPath); err == nil {
 		for _, line := range strings.Split(string(b), "\n") {
 			if v, ok := strings.CutPrefix(line, "OnUnitActiveSec="); ok {
@@ -155,13 +167,15 @@ func unitFacts(timerPath, servicePath string) (time.Duration, string) {
 		}
 	}
 	if b, err := os.ReadFile(servicePath); err == nil {
-		for _, line := range strings.Split(string(b), "\n") {
+		lines := strings.Split(string(b), "\n")
+		for _, line := range lines {
 			if v, ok := strings.CutPrefix(line, "ExecStart="); ok {
 				execStart = v
 			}
 		}
+		env = unitCarried(lines)
 	}
-	return interval, execStart
+	return interval, execStart, env
 }
 
 // parseSpan reads a systemd time span as written in unit files ("1h", "30min").

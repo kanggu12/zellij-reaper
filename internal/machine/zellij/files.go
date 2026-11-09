@@ -80,6 +80,21 @@ func SocketDir(lookup func(string) (string, bool), uid int, version string) stri
 	return filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(uid), sub)
 }
 
+// SocketsUnderTemp reports whether SocketDir's rule ends at the temporary
+// directory: neither $ZELLIJ_SOCKET_DIR nor, on Linux, $XDG_RUNTIME_DIR says
+// where the sockets go, so $TMPDIR decides it.
+func SocketsUnderTemp(lookup func(string) (string, bool)) bool {
+	if v, ok := lookup("ZELLIJ_SOCKET_DIR"); ok && v != "" {
+		return false
+	}
+	if GOOS == "linux" {
+		if v, ok := lookup("XDG_RUNTIME_DIR"); ok && v != "" {
+			return false
+		}
+	}
+	return true
+}
+
 // SocketPathLimit is the longest path a session's socket can have: on Linux
 // sizeof(sun_path) is 108 and on macOS 104, one byte going to the terminating
 // NUL. Windows names a pipe after the path and refuses a path of 256 or more.

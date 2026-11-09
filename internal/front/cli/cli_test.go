@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -116,6 +117,74 @@ func TestSettingsFromTheEnvironmentAreNamedAsUnseenByTheTimer(t *testing.T) {
 	_, fewer := doctor(context.Background(), fakeApp(t, config.MapEnv{"HOME": home}), cmd)
 	if strings.Contains(out.String(), "the timer does not see it") || fewer != warnings-2 {
 		t.Errorf("doctor without the variables: %d warnings (with them %d):\n%s", fewer, warnings, out)
+	}
+}
+
+func TestDoctorSaysWhenThisShellKeepsItsFilesElsewhere(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the timer here is systemd's, which Windows does not have")
+	}
+	home := isolate(t)
+	defer func(g string) { zellij.GOOS = g }(zellij.GOOS)
+	zellij.GOOS = "linux"
+	// loaded is an App whose systemd has the timer loaded and running, as
+	// it is once install wrote the units.
+	loaded := func(env config.MapEnv) *app.App {
+		a := fakeApp(t, env)
+		a.System = timers.Systemd{Env: env, User: "u", Run: func(_ string, args ...string) (string, error) {
+			if slices.Contains(args, "show") {
+				return "LoadState=loaded\nUnitFileState=enabled\nActiveState=active\n", nil
+			}
+			return "", nil
+		}}
+		return a
+	}
+	// The installing shell keeps the reaper's state in a place of its own.
+	// Its TMPDIR decides nothing next to a runtime directory.
+	shell := config.MapEnv{"HOME": home, "XDG_RUNTIME_DIR": "/run/user/1000", "XDG_STATE_HOME": filepath.Join(home, "state-a"), "TMPDIR": "/tmp/build-shell"}
+	a := loaded(shell)
+	cmd, out := output()
+	if err := install(cmd, a, func() (*app.App, error) { return a, nil }); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	unit, err := os.ReadFile(filepath.Join(config.UnitDir(shell), timers.ServiceName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{`Environment="XDG_STATE_HOME=` + filepath.Join(home, "state-a") + `"`, "UnsetEnvironment=XDG_CACHE_HOME", "UnsetEnvironment=TMPDIR"} {
+		if !strings.Contains(string(unit), line+"\n") {
+			t.Errorf("the service lacks %s:\n%s", line, unit)
+		}
+	}
+	// From the same shell there is nothing to say.
+	cmd, out = output()
+	_, warnings := doctor(context.Background(), loaded(shell), cmd)
+	if strings.Contains(out.String(), "differs") {
+		t.Errorf("doctor from the installing shell:\n%s", out)
+	}
+	// Another shell keeps its state and zellij's cache elsewhere: the
+	// dashboard there would protect sessions in a list the timer never reads.
+	other := config.MapEnv{"HOME": home, "XDG_RUNTIME_DIR": "/run/user/1000", "XDG_STATE_HOME": filepath.Join(home, "state-b"), "XDG_CACHE_HOME": filepath.Join(home, "cache-b")}
+	cmd, out = output()
+	_, more := doctor(context.Background(), loaded(other), cmd)
+	for _, w := range []string{
+		"XDG_STATE_HOME differs: the timer has ~/state-a, this shell ~/state-b; run `zellij-reaper install` again from this shell",
+		"XDG_CACHE_HOME differs: the timer has none, this shell ~/cache-b; run `zellij-reaper install` again from this shell",
+	} {
+		if !strings.Contains(out.String(), w) {
+			t.Errorf("doctor output lacks %q:\n%s", w, out)
+		}
+	}
+	if more != warnings+2 {
+		t.Errorf("%d warnings from the other shell, %d from the installing one:\n%s", more, warnings, out)
+	}
+	// A shell whose units live elsewhere cannot read this timer's: it says
+	// nothing about what it cannot see.
+	moved := config.MapEnv{"HOME": home, "XDG_RUNTIME_DIR": "/run/user/1000", "XDG_CONFIG_HOME": filepath.Join(home, "config-c")}
+	cmd, out = output()
+	doctor(context.Background(), loaded(moved), cmd)
+	if strings.Contains(out.String(), "the timer has") {
+		t.Errorf("doctor without the unit files:\n%s", out)
 	}
 }
 

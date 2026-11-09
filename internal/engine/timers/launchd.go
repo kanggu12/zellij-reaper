@@ -69,7 +69,7 @@ func (l Launchd) Persists() (on, known bool) { return false, false }
 func (l Launchd) FirstPass(now time.Time, interval time.Duration) time.Time { return now.Add(interval) }
 
 // Plist renders a launch agent that runs args every interval.
-func Plist(label, exe, zellijDir, configFile string, args []string, interval time.Duration) string {
+func Plist(label, exe, zellijDir, configFile string, args []string, interval time.Duration, env map[string]string) string {
 	argv := []string{exe}
 	if configFile != "" {
 		argv = append(argv, "--config", configFile)
@@ -83,6 +83,14 @@ func Plist(label, exe, zellijDir, configFile string, args []string, interval tim
 	if zellijDir != "" {
 		dirs = append([]string{zellijDir}, dirs...)
 	}
+	// Where the reaper and zellij keep their files, as the installing shell
+	// has it (see Carried).
+	var carried strings.Builder
+	for _, k := range Carried {
+		if v, ok := env[k]; ok {
+			fmt.Fprintf(&carried, "\n\t\t<key>%s</key>\n\t\t<string>%s</string>", k, html.EscapeString(v))
+		}
+	}
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -95,7 +103,7 @@ func Plist(label, exe, zellijDir, configFile string, args []string, interval tim
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>%s</string>
+		<string>%s</string>%s
 	</dict>
 	<key>StartInterval</key>
 	<integer>%d</integer>
@@ -105,7 +113,7 @@ func Plist(label, exe, zellijDir, configFile string, args []string, interval tim
 	<integer>10</integer>
 </dict>
 </plist>
-`, label, b.String(), html.EscapeString(strings.Join(dirs, ":")), int(interval.Seconds()))
+`, label, b.String(), html.EscapeString(strings.Join(dirs, ":")), carried.String(), int(interval.Seconds()))
 }
 
 // Install writes a settings file if there is none, then both agents, and
@@ -121,14 +129,14 @@ func (l Launchd) Install(o InstallOptions) (Result, error) {
 	if err := os.MkdirAll(l.agentDir(), 0o755); err != nil {
 		return r, err
 	}
-	if err := l.load(LaunchdLabel, Plist(LaunchdLabel, o.Exe, o.ZellijDir, o.ConfigFile, []string{"run", "--quiet"}, o.Config.Interval), &r); err != nil {
+	if err := l.load(LaunchdLabel, Plist(LaunchdLabel, o.Exe, o.ZellijDir, o.ConfigFile, []string{"run", "--quiet"}, o.Config.Interval, o.Env), &r); err != nil {
 		return r, err
 	}
 	if o.Config.RenameInterval <= 0 {
 		l.unload(LaunchdNamesLabel, &r)
 		return r, nil
 	}
-	err := l.load(LaunchdNamesLabel, Plist(LaunchdNamesLabel, o.Exe, o.ZellijDir, o.ConfigFile, []string{"run", "--names-only", "--quiet"}, o.Config.RenameInterval), &r)
+	err := l.load(LaunchdNamesLabel, Plist(LaunchdNamesLabel, o.Exe, o.ZellijDir, o.ConfigFile, []string{"run", "--names-only", "--quiet"}, o.Config.RenameInterval, o.Env), &r)
 	return r, err
 }
 
@@ -177,6 +185,8 @@ var (
 	plistIntervalRe = regexp.MustCompile(`<key>StartInterval</key>\s*<integer>(\d+)</integer>`)
 	plistArgsRe     = regexp.MustCompile(`(?s)<key>ProgramArguments</key>\s*<array>(.*?)</array>`)
 	plistStringRe   = regexp.MustCompile(`<string>(.*?)</string>`)
+	plistEnvRe      = regexp.MustCompile(`(?s)<key>EnvironmentVariables</key>\s*<dict>(.*?)</dict>`)
+	plistPairRe     = regexp.MustCompile(`<key>(.*?)</key>\s*<string>(.*?)</string>`)
 )
 
 // statusOf reads the agent's file for its interval and command, and launchctl
@@ -200,8 +210,22 @@ func (l Launchd) statusOf(label string) TimerStatus {
 		}
 		st.ExecStart = strings.Join(args, " ")
 	}
+	st.Env, st.EnvKnown = plistCarried(b), true
 	if _, err := l.Run("launchctl", "print", l.domain()+"/"+label); err == nil {
 		st.Enabled, st.Active = true, true
 	}
 	return st
+}
+
+// plistCarried reads the carried variables back from an agent's file.
+func plistCarried(b []byte) map[string]string {
+	env := map[string]string{}
+	if m := plistEnvRe.FindSubmatch(b); m != nil {
+		for _, kv := range plistPairRe.FindAllSubmatch(m[1], -1) {
+			if k := string(kv[1]); isCarried(k) {
+				env[k] = html.UnescapeString(string(kv[2]))
+			}
+		}
+	}
+	return env
 }

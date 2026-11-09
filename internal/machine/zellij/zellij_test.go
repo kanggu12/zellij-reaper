@@ -185,13 +185,22 @@ func TestSocketDir(t *testing.T) {
 	GOOS = "linux"
 	env := map[string]string{}
 	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
+	// underTemp checks SocketsUnderTemp against where SocketDir ends up.
+	underTemp := func(what string, want bool) {
+		t.Helper()
+		if got := SocketsUnderTemp(lookup); got != want {
+			t.Errorf("%s: sockets under the temporary directory %v, want %v", what, got, want)
+		}
+	}
 	if got := SocketDir(lookup, 1000, "0.45.1"); !strings.HasSuffix(got, filepath.Join("zellij-1000", "contract_version_1")) {
 		t.Errorf("no runtime dir: %q", got)
 	}
+	underTemp("no runtime dir", true)
 	env["XDG_RUNTIME_DIR"] = "/run/user/1000"
 	if got := SocketDir(lookup, 1000, "0.45.1"); got != filepath.Join("/run/user/1000", "zellij", "contract_version_1") {
 		t.Errorf("runtime dir: %q", got)
 	}
+	underTemp("runtime dir", false)
 	if got := SocketDir(lookup, 1000, "0.43.1"); got != filepath.Join("/run/user/1000", "zellij", "0.43.1") {
 		t.Errorf("0.43: %q", got)
 	}
@@ -199,6 +208,7 @@ func TestSocketDir(t *testing.T) {
 	if got := SocketDir(lookup, 1000, "0.45.1"); got != filepath.Join("/sock", "contract_version_1") {
 		t.Errorf("socket dir override: %q", got)
 	}
+	underTemp("socket dir override", false)
 	delete(env, "ZELLIJ_SOCKET_DIR")
 	// macOS has no runtime directory for zellij, whatever the variable says;
 	// Windows has no uid in the path.
@@ -206,6 +216,10 @@ func TestSocketDir(t *testing.T) {
 	if got := SocketDir(lookup, 501, "0.45.1"); got != filepath.Join(os.TempDir(), "zellij-501", "contract_version_1") {
 		t.Errorf("macOS: %q", got)
 	}
+	underTemp("macOS", true)
+	env["ZELLIJ_SOCKET_DIR"] = "/sock"
+	underTemp("macOS with a socket dir override", false)
+	delete(env, "ZELLIJ_SOCKET_DIR")
 	GOOS = "windows"
 	if got := SocketDir(lookup, 0, "0.45.1"); got != filepath.Join(os.TempDir(), "zellij", "contract_version_1") {
 		t.Errorf("Windows: %q", got)

@@ -212,6 +212,13 @@ func cronLine(schedule string, o InstallOptions, args ...string) string {
 	if v := os.Getenv("XDG_RUNTIME_DIR"); v != "" {
 		env = append(env, "XDG_RUNTIME_DIR="+shQuote(v))
 	}
+	// Where the reaper and zellij keep their files, as the installing shell
+	// has it (see Carried). cron's own environment has none of them.
+	for _, k := range Carried {
+		if v, ok := o.Env[k]; ok {
+			env = append(env, k+"="+shQuote(v))
+		}
+	}
 	cmd := []string{shQuote(o.Exe)}
 	if o.ConfigFile != "" {
 		cmd = append(cmd, "--config", shQuote(o.ConfigFile))
@@ -302,9 +309,71 @@ func (c Cron) statusOf(names bool) TimerStatus {
 			st.Next = st.Next.Local()
 		}
 		st.ExecStart = strings.Join(f[5:], " ")
+		st.Env, st.EnvKnown = cronCarried(strings.Join(f[5:], " ")), true
 		return st
 	}
 	return st
+}
+
+// cronCarried reads the carried variables back from a job's command, which
+// cronLine starts with env and the variables, each value in shQuote's quotes.
+func cronCarried(command string) map[string]string {
+	env := map[string]string{}
+	words := cronWords(command)
+	if len(words) == 0 || words[0] != "env" {
+		return env
+	}
+	for _, w := range words[1:] {
+		k, v, ok := strings.Cut(w, "=")
+		if !ok || k == "" || strings.ContainsAny(k, "/'") {
+			break
+		}
+		if isCarried(k) {
+			env[k] = v
+		}
+	}
+	return env
+}
+
+// cronWords splits a command the way sh would after cron hands it over:
+// single quotes keep everything up to the next one, a backslash outside them
+// keeps the next character, and cron's own \% stands for a %.
+func cronWords(s string) []string {
+	var words []string
+	var b strings.Builder
+	in, quoted := false, false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\\' && i+1 < len(s) && s[i+1] == '%':
+			b.WriteByte('%')
+			i++
+			in = true
+		case quoted && c == '\'':
+			quoted = false
+		case quoted:
+			b.WriteByte(c)
+		case c == '\'':
+			quoted, in = true, true
+		case c == '\\' && i+1 < len(s):
+			b.WriteByte(s[i+1])
+			i++
+			in = true
+		case c == ' ' || c == '\t':
+			if in {
+				words = append(words, b.String())
+				b.Reset()
+				in = false
+			}
+		default:
+			b.WriteByte(c)
+			in = true
+		}
+	}
+	if in {
+		words = append(words, b.String())
+	}
+	return words
 }
 
 // cronEvery reads back a schedule CronSchedule wrote: how often it runs and

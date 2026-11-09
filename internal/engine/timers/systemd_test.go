@@ -43,8 +43,8 @@ func newSystem(t *testing.T) (Systemd, *fakeRun, config.MapEnv) {
 }
 
 func TestUnits(t *testing.T) {
-	svc := ServiceUnit("/home/u/bin/zellij 100%/zellij-reaper", "/opt/zellij/bin", "")
-	if custom := ServiceUnit("/usr/bin/zellij-reaper", "", "/etc/zr.toml"); !strings.Contains(custom, `ExecStart="/usr/bin/zellij-reaper" --config "/etc/zr.toml" run --quiet`) {
+	svc := ServiceUnit("/home/u/bin/zellij 100%/zellij-reaper", "/opt/zellij/bin", "", nil)
+	if custom := ServiceUnit("/usr/bin/zellij-reaper", "", "/etc/zr.toml", nil); !strings.Contains(custom, `ExecStart="/usr/bin/zellij-reaper" --config "/etc/zr.toml" run --quiet`) {
 		t.Errorf("a chosen settings file is not passed to the timer:\n%s", custom)
 	}
 	for _, want := range []string{
@@ -101,7 +101,7 @@ func TestInstallFresh(t *testing.T) {
 
 func TestUnitPathsAreEscapedOrRefused(t *testing.T) {
 	// ExecStart= expands "$NAME"; "$$" is a plain "$".
-	svc := ServiceUnit("/home/u/$HOME/bin/zellij-reaper", "", "/etc/$x.toml")
+	svc := ServiceUnit("/home/u/$HOME/bin/zellij-reaper", "", "/etc/$x.toml", nil)
 	if want := `ExecStart="/home/u/$$HOME/bin/zellij-reaper" --config "/etc/$$x.toml" run --quiet`; !strings.Contains(svc, want) {
 		t.Errorf("service lacks %q:\n%s", want, svc)
 	}
@@ -246,7 +246,7 @@ func TestStatus(t *testing.T) {
 	f.show = "LoadState=loaded\nActiveState=active\nUnitFileState=enabled\nLastTriggerUSec=Wed 2026-11-04 03:11:47 KST\nNextElapseUSecRealtime="
 	os.MkdirAll(config.UnitDir(env), 0o755)
 	os.WriteFile(filepath.Join(config.UnitDir(env), TimerName), []byte(TimerUnit(time.Hour)), 0o644)
-	os.WriteFile(filepath.Join(config.UnitDir(env), ServiceName), []byte(ServiceUnit("/usr/bin/zellij-reaper", "", "")), 0o644)
+	os.WriteFile(filepath.Join(config.UnitDir(env), ServiceName), []byte(ServiceUnit("/usr/bin/zellij-reaper", "", "", nil)), 0o644)
 	st := s.Status()
 	if !st.Installed || !st.Enabled || !st.Active || st.Interval != time.Hour {
 		t.Errorf("status %+v", st)
@@ -261,7 +261,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestAZellijDirectoryWithASpaceStaysOnePath(t *testing.T) {
-	svc := ServiceUnit("/usr/bin/zellij-reaper", "/opt/my tools/bin", "")
+	svc := ServiceUnit("/usr/bin/zellij-reaper", "/opt/my tools/bin", "", nil)
 	if !strings.Contains(svc, `Environment="PATH=/opt/my tools/bin:`) {
 		t.Errorf("the PATH assignment is not quoted:\n%s", svc)
 	}
@@ -390,7 +390,7 @@ func TestOnlyTheShellVersionsScriptsAreRemoved(t *testing.T) {
 }
 
 func TestTheNamesTimerOnlyRenamesAndGoesWithItsSetting(t *testing.T) {
-	svc := NamesServiceUnit("/usr/bin/zellij-reaper", "", "")
+	svc := NamesServiceUnit("/usr/bin/zellij-reaper", "", "", nil)
 	if !strings.Contains(svc, `ExecStart="/usr/bin/zellij-reaper" run --names-only --quiet`) {
 		t.Errorf("names service:\n%s", svc)
 	}

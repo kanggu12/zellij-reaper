@@ -12,6 +12,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
+	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
@@ -112,6 +113,17 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 		if exe, err := app.Executable(); err == nil && st.ExecStart != "" && !strings.Contains(st.ExecStart, exe) {
 			note(i18n.T("doctor.timer.stale", st.ExecStart))
 		}
+		// The timer runs with the places install saw: one this shell sets
+		// otherwise has the timer read other settings, another protected
+		// list, or look for zellij's sessions elsewhere.
+		if st.Installed && st.EnvKnown {
+			here := timers.CarriedEnv(a.Env)
+			for _, k := range timers.Carried {
+				if st.Env[k] != here[k] {
+					note(i18n.T("doctor.timer.env", k, unsetOr(st.Env[k]), unsetOr(here[k])))
+				}
+			}
+		}
 		if st.Installed && st.Interval != 0 && st.Interval != a.Config.Interval {
 			note(i18n.T("doctor.interval", duration.Format(st.Interval), duration.Format(a.Config.Interval)))
 		}
@@ -211,4 +223,12 @@ func size(n int64) string {
 		return fmt.Sprintf("%d KiB", n>>10)
 	}
 	return fmt.Sprintf("%d B", n)
+}
+
+// unsetOr is a variable's value, or a word for one that is not set.
+func unsetOr(v string) string {
+	if v == "" {
+		return i18n.T("doctor.env.unset")
+	}
+	return tilde(v)
 }

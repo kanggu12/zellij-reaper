@@ -29,17 +29,19 @@ func quotable(what, p string) error {
 // zellijDir, when not empty, goes first in PATH; configFile, when not empty,
 // is passed with --config so the timer reads the same settings as install.
 // Install refuses paths ServiceUnit cannot quote (see quotable).
-func ServiceUnit(exe, zellijDir, configFile string) string {
-	return serviceUnit("Reap idle and exited zellij sessions", "run --quiet", exe, zellijDir, configFile)
+func ServiceUnit(exe, zellijDir, configFile string, env map[string]string) string {
+	return serviceUnit("Reap idle and exited zellij sessions", "run --quiet", exe, zellijDir, configFile, env)
 }
 
 // NamesServiceUnit renders the service of the names timer: a pass that only
 // renames.
-func NamesServiceUnit(exe, zellijDir, configFile string) string {
-	return serviceUnit("Name zellij sessions after what they show", "run --names-only --quiet", exe, zellijDir, configFile)
+func NamesServiceUnit(exe, zellijDir, configFile string, env map[string]string) string {
+	return serviceUnit("Name zellij sessions after what they show", "run --names-only --quiet", exe, zellijDir, configFile, env)
 }
 
-func serviceUnit(description, run, exe, zellijDir, configFile string) string {
+// serviceUnit renders a service; env holds the carried variables install saw
+// (see carriedUnitLines).
+func serviceUnit(description, run, exe, zellijDir, configFile string, env map[string]string) string {
 	dirs := PathDirs
 	if zellijDir != "" {
 		dirs = append([]string{escape(zellijDir)}, dirs...)
@@ -56,11 +58,11 @@ Documentation=https://github.com/kanggu12/zellij-reaper
 Type=oneshot
 ExecStart="%s" %s
 Environment="PATH=%s"
-Nice=10
+%sNice=10
 # A pass takes well under a second. One still running after a minute is
 # stuck (a zellij server that stopped answering), and is stopped.
 TimeoutStartSec=60
-`, escapeExec(exe), args, strings.Join(dirs, ":"))
+`, escapeExec(exe), args, strings.Join(dirs, ":"), carriedUnitLines(env))
 }
 
 // TimerUnit renders the timer for an interval.

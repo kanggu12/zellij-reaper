@@ -53,7 +53,9 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 			zdir = filepath.Dir(abs)
 		}
 	}
-	res, err := a.System.Install(timers.InstallOptions{Exe: exe, ZellijDir: zdir, Config: a.Config, ConfigFile: chosenConfig()})
+	// The timer runs with this shell's places for the settings, the state and
+	// zellij's sessions, so it reads what the dashboard here reads.
+	res, err := a.System.Install(timers.InstallOptions{Exe: exe, ZellijDir: zdir, Config: a.Config, ConfigFile: chosenConfig(), Env: timers.CarriedEnv(a.Env)})
 	printResult(cmd, res)
 	if err != nil {
 		return err
