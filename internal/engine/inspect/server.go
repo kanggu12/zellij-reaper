@@ -3,6 +3,8 @@ package inspect
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
@@ -41,10 +43,30 @@ func findSocket(dirs []string, name string) string {
 }
 
 // socketOwners maps each socket inode held by a server to that server's PID.
+// A server's sockets are read from its fd directory, one readlink per fd:
+// with thirty sessions that was most of a survey's own time, one server after
+// the other. The servers are read side by side now, by up to eight workers,
+// and merged in their order, so an inode two of them hold goes to the later
+// one, as before.
 func socketOwners(t *procfs.Table, servers []procfs.Server) map[uint32]int {
+	held := make([]map[uint32]bool, len(servers))
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for range min(len(servers), runtime.GOMAXPROCS(0), 8) {
+		wg.Go(func() {
+			for i := range next {
+				held[i] = t.SocketInodes(servers[i].PID)
+			}
+		})
+	}
+	for i := range servers {
+		next <- i
+	}
+	close(next)
+	wg.Wait()
 	owners := map[uint32]int{}
-	for _, s := range servers {
-		for ino := range t.SocketInodes(s.PID) {
+	for i, s := range servers {
+		for ino := range held[i] {
 			owners[ino] = s.PID
 		}
 	}

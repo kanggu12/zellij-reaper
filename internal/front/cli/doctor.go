@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -62,131 +63,178 @@ func cmdDoctor() *cobra.Command {
 var errSilentExit = errors.New("problems found")
 
 // doctor prints one line per check and returns how many failed and how many
-// only need attention.
+// only need attention. Each part of the machine is one method below, in the
+// order the lines come out.
 func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
-	w := cmd.OutOrStdout()
-	t := theme()
-	problems, warnings := 0, 0
-	pass := func(s string) { println(w, ok(t)+s) }
-	note := func(s string) { println(w, warn(t)+s); warnings++ }
-	fail := func(s string) { println(w, bad(t)+s); problems++ }
-
-	// zellij, and whether its version is one CI covers.
-	if v, err := a.Zellij.Version(ctx); err != nil {
-		fail(i18n.T("doctor.zellij.none"))
-	} else {
-		tested := false
-		for _, m := range testedMinors {
-			tested = tested || strings.HasPrefix(v, m)
-		}
-		if tested {
-			pass(i18n.T("doctor.zellij", v))
-		} else {
-			note(i18n.T("doctor.zellij.tested", v, TestedZellij))
-		}
+	c := &checkup{w: cmd.OutOrStdout(), t: theme()}
+	c.checkZellij(ctx, a)
+	every := c.checkScheduler(a)
+	c.checkSettings(a)
+	c.checkSessions(ctx, a)
+	c.checkLog(a, every)
+	if n := len(a.Protected.Names()); n > 0 {
+		c.pass(i18n.TN("doctor.protected", n, n))
 	}
+	return c.problems, c.warnings
+}
 
-	// The timer. every is how often it runs a pass, for the last pass to be
-	// measured by; 0 where no timer runs one.
-	var every time.Duration
+// checkup is doctor as it goes: where its lines go, and how many of them
+// were problems and how many only need attention.
+type checkup struct {
+	w                  io.Writer
+	t                  ui.Theme
+	problems, warnings int
+}
+
+// pass prints a check that is fine.
+func (c *checkup) pass(s string) { println(c.w, ok(c.t)+s) }
+
+// note prints a check that needs attention, and counts it.
+func (c *checkup) note(s string) { println(c.w, warn(c.t)+s); c.warnings++ }
+
+// fail prints a check that is broken, and counts it.
+func (c *checkup) fail(s string) { println(c.w, bad(c.t)+s); c.problems++ }
+
+// checkZellij checks zellij, and whether its version is one CI covers.
+func (c *checkup) checkZellij(ctx context.Context, a *app.App) {
+	v, err := a.Zellij.Version(ctx)
+	if err != nil {
+		c.fail(i18n.T("doctor.zellij.none"))
+		return
+	}
+	tested := false
+	for _, m := range testedMinors {
+		tested = tested || strings.HasPrefix(v, m)
+	}
+	if tested {
+		c.pass(i18n.T("doctor.zellij", v))
+	} else {
+		c.note(i18n.T("doctor.zellij.tested", v, TestedZellij))
+	}
+}
+
+// checkScheduler checks the scheduler and the timers it runs, and returns how
+// often a pass runs, for the last pass to be measured by; 0 where no timer
+// runs one.
+func (c *checkup) checkScheduler(a *app.App) time.Duration {
 	switch {
 	case !a.System.Available() && a.System.Kind() == "systemd":
-		fail(i18n.T("doctor.systemd.none"))
+		c.fail(i18n.T("doctor.systemd.none"))
+		return 0
 	case !a.System.Available():
-		fail(i18n.T("doctor.scheduler.none", a.System.Kind()))
+		c.fail(i18n.T("doctor.scheduler.none", a.System.Kind()))
+		return 0
+	}
+	if a.System.Kind() == "systemd" {
+		c.pass(i18n.T("doctor.systemd"))
+	} else {
+		c.pass(i18n.T("doctor.scheduler", a.System.Kind()))
+	}
+	st := a.System.Status()
+	var every time.Duration
+	if st.Installed && st.Enabled && st.Active {
+		// An interval the timer does not tell is the settings' one.
+		every = cmp.Or(st.Interval, a.Config.Interval)
+	}
+	c.checkTimer(a, st)
+	c.checkNamesTimer(a)
+	// Only systemd can be asked whether the timers outlive a login.
+	if on, known := a.System.Persists(); known && on {
+		c.pass(i18n.T("doctor.linger"))
+	} else if known {
+		c.note(i18n.T("doctor.linger.off"))
+	}
+	return every
+}
+
+// checkTimer checks the timer of the passes: that it is installed and runs,
+// the binary it runs, the places it reads, and its interval.
+func (c *checkup) checkTimer(a *app.App, st timers.TimerStatus) {
+	switch {
+	case !st.Installed:
+		c.fail(i18n.T("doctor.timer.none"))
+	case !st.Enabled || !st.Active:
+		c.fail(i18n.T("doctor.timer.off"))
+	// The interval can be unreadable (0): then it is left unsaid rather than
+	// shown as "every 0s".
+	case st.Interval == 0 && st.Next.IsZero():
+		c.pass(i18n.T("doctor.timer.on"))
+	case st.Interval == 0:
+		c.pass(i18n.T("doctor.timer.next", ui.Clock(st.Next)))
+	case st.Next.IsZero():
+		c.pass(i18n.T("doctor.timer.idle", duration.Format(st.Interval)))
 	default:
-		if a.System.Kind() == "systemd" {
-			pass(i18n.T("doctor.systemd"))
-		} else {
-			pass(i18n.T("doctor.scheduler", a.System.Kind()))
-		}
-		st := a.System.Status()
-		if st.Installed && st.Enabled && st.Active {
-			// An interval the timer does not tell is the settings' one.
-			every = cmp.Or(st.Interval, a.Config.Interval)
-		}
-		switch {
-		case !st.Installed:
-			fail(i18n.T("doctor.timer.none"))
-		case !st.Enabled || !st.Active:
-			fail(i18n.T("doctor.timer.off"))
-		// The interval can be unreadable (0): then it is left unsaid
-		// rather than shown as "every 0s".
-		case st.Interval == 0 && st.Next.IsZero():
-			pass(i18n.T("doctor.timer.on"))
-		case st.Interval == 0:
-			pass(i18n.T("doctor.timer.next", ui.Clock(st.Next)))
-		case st.Next.IsZero():
-			pass(i18n.T("doctor.timer.idle", duration.Format(st.Interval)))
-		default:
-			pass(i18n.T("doctor.timer", duration.Format(st.Interval), ui.Clock(st.Next)))
-		}
-		// A unit written by another copy of the binary keeps running that copy.
-		if exe, err := app.Executable(); err == nil && st.ExecStart != "" && !strings.Contains(st.ExecStart, exe) {
-			note(i18n.T("doctor.timer.stale", st.ExecStart))
-		}
-		// The timer runs with the places install saw: one this shell sets
-		// otherwise has the timer read other settings, another protected
-		// list, or look for zellij's sessions elsewhere.
-		if st.Installed && st.EnvKnown {
-			here := timers.CarriedEnv(a.Env)
-			for _, k := range timers.Carried {
-				if st.Env[k] != here[k] {
-					note(i18n.T("doctor.timer.env", k, unsetOr(st.Env[k]), unsetOr(here[k])))
-				}
+		c.pass(i18n.T("doctor.timer", duration.Format(st.Interval), ui.Clock(st.Next)))
+	}
+	// A unit written by another copy of the binary keeps running that copy.
+	if exe, err := app.Executable(); err == nil && st.ExecStart != "" && !strings.Contains(st.ExecStart, exe) {
+		c.note(i18n.T("doctor.timer.stale", st.ExecStart))
+	}
+	// The timer runs with the places install saw: one this shell sets
+	// otherwise has the timer read other settings, another protected list, or
+	// look for zellij's sessions elsewhere.
+	if st.Installed && st.EnvKnown {
+		here := timers.CarriedEnv(a.Env)
+		for _, k := range timers.Carried {
+			if st.Env[k] != here[k] {
+				c.note(i18n.T("doctor.timer.env", k, unsetOr(st.Env[k]), unsetOr(here[k])))
 			}
-		}
-		if st.Installed && st.Interval != 0 && st.Interval != a.Config.Interval {
-			note(i18n.T("doctor.interval", duration.Format(st.Interval), duration.Format(a.Config.Interval)))
-		}
-		// The names timer, which matters only when passes rename; zellij on
-		// Windows cannot reach a renamed session, so nothing is renamed there.
-		if a.Config.AutoRename && !zellij.RenameReachable() {
-			note(i18n.T("doctor.rename.windows"))
-		} else if a.Config.AutoRename && a.Config.RenameInterval > 0 {
-			ns := a.System.NamesStatus()
-			switch {
-			case !ns.Installed || !ns.Enabled || !ns.Active:
-				note(i18n.T("doctor.names.off"))
-			case ns.Interval != a.Config.RenameInterval:
-				note(i18n.T("doctor.names.interval", duration.Format(ns.Interval), duration.Format(a.Config.RenameInterval)))
-			default:
-				pass(i18n.T("doctor.names", duration.Format(ns.Interval)))
-			}
-			if exe, err := app.Executable(); err == nil && ns.ExecStart != "" && !strings.Contains(ns.ExecStart, exe) {
-				note(i18n.T("doctor.timer.stale", ns.ExecStart))
-			}
-		}
-		// Turned off in the settings, but still installed from before.
-		if a.Config.RenameInterval <= 0 {
-			if ns := a.System.NamesStatus(); ns.Installed && ns.Active {
-				note(i18n.T("doctor.names.leftover"))
-			}
-		}
-		// Only systemd can be asked whether the timers outlive a login.
-		if on, known := a.System.Persists(); known && on {
-			pass(i18n.T("doctor.linger"))
-		} else if known {
-			note(i18n.T("doctor.linger.off"))
 		}
 	}
+	if st.Installed && st.Interval != 0 && st.Interval != a.Config.Interval {
+		c.note(i18n.T("doctor.interval", duration.Format(st.Interval), duration.Format(a.Config.Interval)))
+	}
+}
 
-	// The settings.
+// checkNamesTimer checks the timer that names sessions, which matters only
+// when passes rename; zellij on Windows cannot reach a renamed session, so
+// nothing is renamed there.
+func (c *checkup) checkNamesTimer(a *app.App) {
+	if a.Config.AutoRename && !zellij.RenameReachable() {
+		c.note(i18n.T("doctor.rename.windows"))
+	} else if a.Config.AutoRename && a.Config.RenameInterval > 0 {
+		ns := a.System.NamesStatus()
+		switch {
+		case !ns.Installed || !ns.Enabled || !ns.Active:
+			c.note(i18n.T("doctor.names.off"))
+		case ns.Interval != a.Config.RenameInterval:
+			c.note(i18n.T("doctor.names.interval", duration.Format(ns.Interval), duration.Format(a.Config.RenameInterval)))
+		default:
+			c.pass(i18n.T("doctor.names", duration.Format(ns.Interval)))
+		}
+		if exe, err := app.Executable(); err == nil && ns.ExecStart != "" && !strings.Contains(ns.ExecStart, exe) {
+			c.note(i18n.T("doctor.timer.stale", ns.ExecStart))
+		}
+	}
+	// Turned off in the settings, but still installed from before.
+	if a.Config.RenameInterval <= 0 {
+		if ns := a.System.NamesStatus(); ns.Installed && ns.Active {
+			c.note(i18n.T("doctor.names.leftover"))
+		}
+	}
+}
+
+// checkSettings checks the settings file, and the settings only this shell
+// sees.
+func (c *checkup) checkSettings(a *app.App) {
 	if a.Config.File != "" {
-		pass(i18n.T("doctor.config", tilde(a.Config.File)))
+		c.pass(i18n.T("doctor.config", tilde(a.Config.File)))
 	} else {
-		pass(i18n.T("doctor.config.none", tilde(settingsPath())))
+		c.pass(i18n.T("doctor.config.none", tilde(settingsPath())))
 	}
 	// A setting from this shell's environment is not the timer's.
 	for _, m := range envOnly(a.Config, settingsPath()) {
-		note(m)
+		c.note(m)
 	}
+}
 
-	// Sessions and the socket table.
+// checkSessions checks that zellij lists the sessions, its session index, and
+// how a renamed session is matched to its server.
+func (c *checkup) checkSessions(ctx context.Context, a *app.App) {
 	if listed, err := a.Zellij.ListSessions(ctx); err == nil {
-		pass(i18n.TN("doctor.sessions", len(listed), len(listed), tilde(a.InfoDir)))
+		c.pass(i18n.TN("doctor.sessions", len(listed), len(listed), tilde(a.InfoDir)))
 	} else if errors.Is(err, zellij.ErrNoSessions) {
-		pass(i18n.T("doctor.sessions.none", tilde(a.InfoDir)))
+		c.pass(i18n.T("doctor.sessions.none", tilde(a.InfoDir)))
 	} else if a.Zellij.Available() {
 		// A list that gave no answer names the server that held it up, as a
 		// pass's does, where the process table shows one stopped.
@@ -195,60 +243,59 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 			idx, _ := zellij.ReadIndex(a.InfoDir)
 			err = reaper.Stuck(err, table, a.Sources().UID, idx)
 		}
-		fail(i18n.T("error.list", err))
+		c.fail(i18n.T("error.list", err))
 	}
-	// Since 0.46 zellij names a session's files by id, and keeps the names
-	// in an index: one that cannot be read leaves those sessions unjudged.
+	// Since 0.46 zellij names a session's files by id, and keeps the names in
+	// an index: one that cannot be read leaves those sessions unjudged.
 	if _, err := os.Stat(zellij.IndexFile(a.InfoDir)); err == nil {
 		if x, err := zellij.ReadIndex(a.InfoDir); err == nil {
-			pass(i18n.TN("doctor.index", x.Len(), x.Len()))
+			c.pass(i18n.TN("doctor.index", x.Len(), x.Len()))
 		} else {
-			fail(i18n.T("doctor.index.bad", err))
+			c.fail(i18n.T("doctor.index.bad", err))
 		}
 	}
 	// How a renamed session is matched to its server: the kernel's socket
 	// table on Linux, the socket file itself elsewhere.
 	switch runtime.GOOS {
 	case "darwin":
-		pass(i18n.T("doctor.match.darwin"))
+		c.pass(i18n.T("doctor.match.darwin"))
 	case "windows":
-		pass(i18n.T("doctor.match.windows"))
+		c.pass(i18n.T("doctor.match.windows"))
 	default:
 		if _, err := procfs.UnixSockets(); err == nil {
-			pass(i18n.T("doctor.sockdiag"))
+			c.pass(i18n.T("doctor.sockdiag"))
 		} else {
-			note(i18n.T("doctor.sockdiag.none"))
+			c.note(i18n.T("doctor.sockdiag.none"))
 		}
 	}
+}
 
-	// The log.
+// checkLog checks the log, and what it says of the last pass; every is how
+// often the timer runs one.
+func (c *checkup) checkLog(a *app.App, every time.Duration) {
 	if info, err := os.Stat(a.Config.LogPath); err == nil {
-		pass(i18n.T("doctor.log", tilde(a.Config.LogPath), size(info.Size()), size(a.Config.LogMaxBytes)))
+		c.pass(i18n.T("doctor.log", tilde(a.Config.LogPath), size(info.Size()), size(a.Config.LogMaxBytes)))
 	} else {
-		pass(i18n.T("doctor.log.none", tilde(a.Config.LogPath)))
+		c.pass(i18n.T("doctor.log.none", tilde(a.Config.LogPath)))
 	}
 	// A log that cannot be written leaves the passes without a record, and
 	// nothing else says so: they go on, and end with status 0.
 	if err := logfile.Writable(a.Config.LogPath); err != nil {
-		fail(i18n.T("doctor.log.unwritable", err))
+		c.fail(i18n.T("doctor.log.unwritable", err))
 	}
-	// The last pass, as the log tells it. Passes that stop each time, or
-	// that never get the lock, say so nowhere else either: the timer runs
-	// them, and they end with status 0.
+	// The last pass, as the log tells it. Passes that stop each time, or that
+	// never get the lock, say so nowhere else either: the timer runs them,
+	// and they end with status 0.
 	lines, _ := logfile.Tail(a.Config.LogPath, passLines)
 	mark, text := passWords(logfile.LastPass(lines), every, lockHeld(a.Reaper.LockPath), tilde(a.Reaper.LockPath), time.Now())
 	switch mark {
 	case "ok":
-		pass(text)
+		c.pass(text)
 	case "warn":
-		note(text)
+		c.note(text)
 	case "bad":
-		fail(text)
+		c.fail(text)
 	}
-	if n := len(a.Protected.Names()); n > 0 {
-		pass(i18n.TN("doctor.protected", n, n))
-	}
-	return problems, warnings
 }
 
 // passLines is how many of the log's last lines are read for the last pass:
