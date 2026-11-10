@@ -645,8 +645,10 @@ echo "-- a copy zellij leaves under an old name"
 # that writes them every second: a write in between makes the old name's
 # folder again, which zellij lists as an exited session, a second copy for
 # attach to bring back. That happens by chance, about once in some hundreds
-# of renames, so the zellij here writes such a copy after every rename. A
-# zellij that keeps its sessions by id moves no files on a rename.
+# of renames, so the zellij here writes such a copy after every rename, as
+# that job does: the files written anew, half a second after the rename and
+# after the rename has returned, so the copy is as new as zellij's would be.
+# A zellij that keeps its sessions by id moves no files on a rename.
 if by_id; then
   echo "  (not on a zellij that keeps its sessions by id)"
 else
@@ -657,8 +659,11 @@ else
     "info='$INFO'" \
     'zellij "$@" || exit' \
     '[ "$1" = --session ] && [ "$3" = action ] && [ "$4" = rename-session ] || exit 0' \
-    'for _ in $(seq 50); do [ -d "$info/$5" ] && break; sleep 0.02; done' \
-    'cp -a "$info/$5" "$info/$2"' >/usr/local/bin/zellij-leftover
+    '(' \
+    '  for _ in $(seq 50); do [ -d "$info/$5" ] && break; sleep 0.02; done' \
+    '  sleep 0.5' \
+    '  mkdir "$info/$2" && cp "$info/$5"/* "$info/$2"/' \
+    ') </dev/null >/dev/null 2>&1 &' >/usr/local/bin/zellij-leftover
   chmod +x /usr/local/bin/zellij-leftover
   start chatty-cactus /tmp/watcher.kdl && wait_title chatty-cactus 'build watcher'
   # zellij lists an exited session only once its layout is saved, a second or
