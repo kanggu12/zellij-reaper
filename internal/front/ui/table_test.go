@@ -35,6 +35,18 @@ func TestKeptAtTheDeleteReadsInTheReadersLanguage(t *testing.T) {
 	}
 }
 
+func TestARowShowsAControlInANameAsText(t *testing.T) {
+	// plan prints the rows to a pipe as they are made: the name is written
+	// out there, before the columns are measured.
+	r := reaper.Report{Outcomes: []reaper.Outcome{{
+		Session: inspect.Session{Listed: zellij.Listed{Name: "x\x1b]52;c;aGk=\x07y"}},
+		Verdict: policy.Verdict{Action: policy.Reap, Code: policy.IdleOld},
+	}}}
+	if got := RowsFrom(r, time.Now())[0].Name; got != `x\x1b]52;c;aGk=\x07y` {
+		t.Errorf("row name %q", got)
+	}
+}
+
 func TestASessionThePassDidNotComeToSaysSo(t *testing.T) {
 	defer i18n.Set(i18n.English)
 	// Due, but the pass's time was up first: the next pass decides it.

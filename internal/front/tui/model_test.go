@@ -513,17 +513,22 @@ func TestTheScreenRunsNoEscapeFromASessionName(t *testing.T) {
 	// retitle the window, picked up from what runs in the pane.
 	evil := "x\x1b]52;c;aGk=\x07y"
 	b := sample()
-	b.report.Outcomes = append(b.report.Outcomes, session(evil, false, nil, inspect.Pane{PID: 9, Command: "sh\x1b]0;owned\x07", Busy: "sh\x1b]0;owned\x07"}))
+	b.report.Outcomes = append(b.report.Outcomes, session(evil, false, nil, inspect.Pane{PID: 9, Command: "sh\x1b]0;owned\x07"}))
 	m := pick(t, loaded(t, b, 140, 40), evil)
-	v := m.View().Content
-	for _, raw := range []string{"\x1b]52", "\x1b]0;", "\x07"} {
-		if strings.Contains(v, raw) {
-			t.Errorf("the screen holds %q", raw)
+	// The screen, and the question d asks, which floats over it.
+	for name, v := range map[string]string{"the screen": m.View().Content, "the reap question": press(t, m, "d").View().Content} {
+		for _, raw := range []string{"\x1b]52", "\x1b]0;", "\x07"} {
+			if strings.Contains(v, raw) {
+				t.Errorf("%s holds %q", name, raw)
+			}
+		}
+		if !strings.Contains(v, `\x1b]52`) {
+			t.Errorf("%s does not show the name as it is spelt:\n%s", name, ansi.Strip(v))
 		}
 	}
-	if !strings.Contains(v, `\x1b]52`) {
-		t.Errorf("the name is not shown as it is spelt:\n%s", ansi.Strip(v))
-	}
+	// Written out before the lines were measured: none is wider than the
+	// screen.
+	measure(t, "a name with escapes", m.View().Content, 140, 40)
 }
 
 func TestACommandWithANameCanBePastedAsItIs(t *testing.T) {
