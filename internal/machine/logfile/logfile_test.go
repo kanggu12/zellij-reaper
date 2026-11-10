@@ -201,6 +201,17 @@ func TestLastPassSaysHowItEnded(t *testing.T) {
 			"[2026-11-04 08:35:00] === names end (1 renamed) ===",
 			"[2026-11-04 08:36:00] notes :: name kept from the command line",
 		), Pass{Found: true, Started: at("2026-11-04 08:31:00"), Ended: true, Acted: true, Reaped: 2, Kept: 1}},
+		// The deletes zellij refused are counted: they are among the kept.
+		{"one with a failed delete", append(earlier,
+			"[2026-11-04 09:31:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
+			"[2026-11-04 09:31:00] scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 13h since last activity",
+			"[2026-11-04 09:31:01]   -> FAILED: scratch :: zellij delete-session scratch --force: exit status 1",
+			"[2026-11-04 09:31:01] gone [EXITED] panes={} :: REAP EXITED, 4d since it exited",
+			"[2026-11-04 09:31:01]   -> deleted: gone",
+			"[2026-11-04 09:31:01] busy [RUNNING] panes={htop} :: KEEP BUSY, htop",
+			"[2026-11-04 09:31:01]   -> rename FAILED: busy → htop :: the name is taken",
+			"[2026-11-04 09:31:01] === reaper end (1 reaped, 2 kept, 0 renamed) ===",
+		), Pass{Found: true, Started: at("2026-11-04 09:31:00"), Ended: true, Acted: true, Reaped: 1, Kept: 2, Failed: 1}},
 		// A log from before renames ends a pass with two counts.
 		{"two counts", []string{
 			"[2026-11-04 09:31:00] === reaper start (dry_run=false max_age=72h) ===",

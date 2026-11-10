@@ -67,6 +67,7 @@ func (f *fake) KeepName(_ context.Context, name string) error {
 func (f *fake) SetProtected(name string, on bool) error { f.protected[name] = on; return nil }
 func (f *fake) Protected(name string) bool              { return f.protected[name] }
 func (f *fake) PatternProtects(string) bool             { return false }
+func (f *fake) NameKept(name string) bool               { return slices.Contains(f.kept, name) }
 func (f *fake) Timer() timers.TimerStatus {
 	return timers.TimerStatus{Installed: true, Enabled: true, Active: true, Next: time.Now().Add(42 * time.Minute), Interval: time.Hour}
 }
@@ -478,6 +479,20 @@ func TestDetailExplainsTheVerdict(t *testing.T) {
 	m = pick(t, m, "api-server")
 	if v := m.View().Content; !strings.Contains(v, "Kept: running npm run dev.") {
 		t.Errorf("busy session's detail:\n%s", v)
+	}
+	// A kept name says so, with the command that lets it go: the dashboard
+	// has no key for that.
+	kept := []string{"Name kept: no pass renames it. To let go of it:", "zellij-reaper forget-name api-server"}
+	if v := ansi.Strip(m.View().Content); strings.Contains(v, kept[0]) || strings.Contains(v, kept[1]) {
+		t.Error("a name nobody kept is said to be kept")
+	}
+	b := sample()
+	b.kept = []string{"api-server"}
+	m = pick(t, loaded(t, b, 140, 40), "api-server")
+	for _, want := range kept {
+		if v := ansi.Strip(m.View().Content); !strings.Contains(v, want) {
+			t.Errorf("kept name's detail lacks %q:\n%s", want, v)
+		}
 	}
 }
 

@@ -285,6 +285,10 @@ func passWords(p logfile.Pass, every time.Duration, held bool, lockPath string, 
 		return "warn", i18n.T("doctor.pass.late", at, ago, duration.Format(every))
 	case !p.Ended:
 		return "warn", i18n.T("doctor.pass.unfinished", at, ago)
+	// zellij refused a delete: the session is still there, and the log says
+	// why.
+	case p.Acted && p.Failed > 0:
+		return "warn", i18n.T("doctor.pass", at, ago, p.Reaped, p.Kept, p.Renamed) + i18n.TN("doctor.pass.failed", p.Failed, p.Failed)
 	case p.Acted:
 		return "ok", i18n.T("doctor.pass", at, ago, p.Reaped, p.Kept, p.Renamed)
 	// With no sessions there was nothing to do.

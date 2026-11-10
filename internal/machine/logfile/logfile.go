@@ -226,6 +226,9 @@ type Pass struct {
 	Acted bool
 	// Reaped, Kept and Renamed are the end line's counts.
 	Reaped, Kept, Renamed int
+	// Failed is how many of its deletes zellij refused; those sessions are
+	// among the kept.
+	Failed int
 	// Stopped is why a pass that did not act stopped: the line it wrote
 	// before its end.
 	Stopped string
@@ -247,6 +250,10 @@ func LastPass(lines []string) Pass {
 		switch {
 		case strings.HasPrefix(l.Text, "=== reaper start"):
 			p = Pass{Found: true, Started: l.Time}
+		// A delete zellij refused, in the pass that is still open. A rename
+		// it refused is "  -> rename FAILED", and is no failure of the pass.
+		case strings.HasPrefix(l.Text, "  -> FAILED: ") && p.Found && !p.Ended:
+			p.Failed++
 		case strings.HasPrefix(l.Text, "=== reaper end") && p.Found && !p.Ended:
 			p.Ended = true
 			if m := endCounts.FindStringSubmatch(l.Text); m != nil {

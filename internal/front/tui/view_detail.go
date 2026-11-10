@@ -85,6 +85,12 @@ func (m model) detail(width, height int) []string {
 	if o.WouldRename != "" {
 		lines = append(lines, "", ui.Fg(t.Muted).Render(i18n.T("detail.rename", o.WouldRename)))
 	}
+	// A name kept by hand stays through every pass. The dashboard keeps one
+	// with r; the command that lets it go is said here, as it has no key.
+	if m.b.NameKept(s.Name()) {
+		lines = append(lines, "", ui.Fg(t.Muted).Render(i18n.T("detail.namekept")),
+			"  "+ui.Fg(t.Ink).Render("zellij-reaper forget-name "+s.Name()))
+	}
 	// The settings that shaped this verdict, when the panel has room.
 	if settings := m.settingsLines(); len(lines)+len(settings)+1 <= height {
 		lines = append(lines, "")

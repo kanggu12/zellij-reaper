@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -23,7 +24,7 @@ func cmdProtect(on bool) *cobra.Command {
 		Short: short,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if !on && len(args) == 0 {
-				return fmt.Errorf("name a session to unprotect")
+				return errors.New(i18n.T("args.unprotect"))
 			}
 			return nil
 		},

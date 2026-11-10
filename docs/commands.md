@@ -52,13 +52,15 @@ a zellij command run there waits for a session by that name. **`shell-hook bash|
 [setup](setup.md#naming-sessions-after-what-they-show).
 
 **`logs`** prints the last 50 lines of the decision log (`-n` for another number), colored by kind. `-f` keeps
-printing new lines and follows the log across rotations.
+printing new lines and follows the log across rotations. The lines are printed as they were written, in English, so
+they can be searched and quoted; the dashboard's log view says them in its language.
 
 **`doctor`** checks zellij and its version, the timers' service (systemd, launchd or the Task Scheduler), the timer
 (installed, enabled, running this binary, the interval it was installed with), the names timer when `auto_rename` is
 on, lingering on Linux, the settings, settings that only your shell sees, zellij's session directory, how renamed
 sessions are matched to their servers, the log and the last pass. The last pass is read from the log: when it ran and
-what it did, or why it stopped, and whether the passes stopped coming or something holds the pass lock, which makes
+what it did, with how many deletes zellij refused, or why it stopped, and whether the passes stopped coming or
+something holds the pass lock, which makes
 every pass give up. Under a timer, a pass that gives up on the lock ends with status 0, and one that stops says why only
 in the log: this is where both show. It exits with status 1 when something is broken; a warning alone still exits 0.
 
@@ -67,8 +69,10 @@ in the log: this is where both show. It exits with status 1 when something is br
 **`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
 logs; `--force` sets both waits to zero for this pass; `--names-only` renames what a pass would and deletes nothing,
 writing to the log only when it renames (the names timer's mode); `--quiet` prints nothing (the timers' mode). The exit
-status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing; 1 on any other error, such
-as zellij failing to list its sessions.
+status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing. It is 1 when zellij
+refused a delete, with a line saying how many, also under `--quiet`, so the timer's own status shows it; and 1 on any
+other error, such as zellij failing to list its sessions. A session kept at the last moment, or a rename zellij
+refused, is no failure.
 
 **`protect NAME...`** adds sessions to the protected list; with no name it prints the list, one name a line (in a
 terminal, an empty list says so). **`unprotect NAME...`** takes them off, and says when a name was not on the list. A
@@ -97,18 +101,20 @@ Every change the dashboard makes is a command too: <kbd>f</kbd> is `run`, <kbd>F
 table) and `logs` (<kbd>l</kbd>).
 
 **`recover [--dry-run] [--aggressive]`** repairs sessions that no zellij command can reach. A session's name is part
-of its socket path, which Linux caps at 107 bytes and macOS at 103; a session renamed past that keeps a server nobody can talk to, and
-its files come back after every delete. `recover` deletes such sessions and clears their files. `--aggressive` also
-stops servers that serve no socket file at all, unless a client is still connected to one, a pane in it is busy, a
-protected program runs in it, its name is protected, or any of that cannot be read; it looks once more just before
-each stop. A renamed session's server still serves its socket and is left alone. Without `--aggressive`, a run that
-finds servers the flag would stop ends by saying how many there are and which command stops them. A real run takes the
-pass lock and writes each thing it does to the [log](how-it-decides.md#the-log) as it does it; `--dry-run` changes
-nothing and logs nothing.
+of its socket path, which Linux caps at 107 bytes and macOS at 103; a session renamed past that keeps a server nobody
+can talk to, and its files come back after every delete. `recover` deletes such sessions and clears their files.
+`--aggressive` also stops servers that serve no socket file at all, unless a client is still connected to one, a pane
+in it is busy, a protected program runs in it, its name is protected, or any of that cannot be read; it looks once
+more just before each stop. A renamed session's server still serves its socket and is left alone. Without
+`--aggressive`, a run that finds servers the flag would stop ends by saying how many there are and which command stops
+them. A real run takes the pass lock and writes each thing it does to the [log](how-it-decides.md#the-log) as it does
+it; `--dry-run` changes nothing and logs nothing. When zellij's session index cannot be read, no session can be told
+from another, and `recover` changes nothing. The exit status is 1 then, and when a step failed, each said on its
+line.
 
 **`resize [--dry-run] [--shallow]`** (also `refresh`) sends `SIGWINCH` to every zellij client, every server and every
 program in a pane, so each one reads its terminal size again. Use it when a program is stuck at an old size after the
-window changed. `--shallow` signals the clients only.
+window changed. `--shallow` signals the clients only. The exit status is 1 when a process could not be signalled.
 
 ## Setting up
 
@@ -161,13 +167,14 @@ prints the file's path, `init` writes the file with every key at its default, an
   <img alt="The dashboard: the sessions with what the next pass does to each, the checks for the selected one, and the latest decisions" src="assets/screenshot-light.png">
 </picture>
 
-The top bar shows the name and this build's version (`v0.10.0`; `dev` and the commit for a build from source), zellij's
-version, whether passes delete (`reaping on`) or only log (`dry run`), both waits
-(`reaps after 12h idle, 3d exited`) and when the timer runs next. The table has a row per session: its state, how long it
-has been idle, its clients, and what the next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear,
-attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected session:
-the verdict in a sentence, every check with its evidence and where it came from, its panes, and the settings that apply.
-Under a short table, the latest reaps, renames and kept names fill the column.
+The top bar shows the name and this build's version (for a build from source, `dev` and the commit), zellij's version,
+whether passes delete (`reaping on`) or only log (`dry run`), both waits (`reaps after 12h idle, 3d exited`) and when
+the timer runs next. The table has a row per session: its state, how long it has been idle, its clients, and what the
+next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear, attached, busy, protected. The panel beside
+it (below it on terminals under 132 columns) explains the selected session: the verdict in a sentence, every check with
+its evidence and where it came from, its panes, the name the next pass gives it, or that its name is kept, with the
+`forget-name` command that lets it go, and the settings that apply. Under a short table, the latest reaps, renames and
+kept names fill the column.
 
 The color of a row says what will happen to it:
 

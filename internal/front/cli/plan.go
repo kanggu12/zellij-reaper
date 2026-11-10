@@ -47,15 +47,17 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 		return writeJSON(w, r)
 	}
 	t := theme()
-	println(w, headline(ctx, a, t))
+	width := 100
+	if isTerminal(stdoutFile(w)) {
+		width = terminalWidth()
+	}
+	for _, line := range headline(ctx, a, t, width) {
+		println(w, line)
+	}
 	println(w)
 	if r.NoSessions {
 		println(w, ui.Fg(t.Muted).Render("  "+i18n.T("plan.none")))
 		return nil
-	}
-	width := 100
-	if isTerminal(stdoutFile(w)) {
-		width = terminalWidth()
 	}
 	for _, line := range t.Table(ui.Sorted(ui.RowsFrom(r, time.Now())), width, -1) {
 		println(w, trimRight(line))

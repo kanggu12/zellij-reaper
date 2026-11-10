@@ -153,6 +153,13 @@ func fromInstaller(cmd *cobra.Command) error {
 // applying what was chosen.
 var errNoScreen = errors.New("the setup screen did not open")
 
+// noScreenError is errNoScreen with its cause, in the reader's language: the
+// install scripts print it before they install with the settings as they are.
+type noScreenError struct{ err error }
+
+func (e noScreenError) Error() string { return i18n.T("setup.noscreen", e.err) }
+func (e noScreenError) Unwrap() error { return errNoScreen }
+
 // errInterrupted is ctrl+c on the setup screen, which has said what it had to
 // say: the command ends with status 130, as after a shell's interrupt.
 var errInterrupted = errors.New("interrupted")
@@ -174,7 +181,7 @@ func setup(cmd *cobra.Command, a *app.App, installer bool) error {
 	start.Installer = installer
 	choice, how, err := runSetup(start)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errNoScreen, err)
+		return noScreenError{err}
 	}
 	w := cmd.OutOrStdout()
 	switch {

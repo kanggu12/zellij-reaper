@@ -11,7 +11,6 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
-	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -107,7 +106,7 @@ The test before each keeps a shell quiet where zellij-reaper is not on its PATH.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			h, ok := hooks[args[0]]
 			if !ok {
-				return fmt.Errorf("no hook for %q: bash, zsh or fish", args[0])
+				return errors.New(i18n.T("hook.unknown", args[0]))
 			}
 			fmt.Fprint(cmd.OutOrStdout(), h)
 			return nil
@@ -133,7 +132,7 @@ sessions again. A name that is not on the list is said, and left.`
 		Long:  long,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if !on && len(args) == 0 {
-				return fmt.Errorf("name a session to forget")
+				return errors.New(i18n.T("args.forget"))
 			}
 			return nil
 		},
@@ -169,11 +168,8 @@ sessions again. A name that is not on the list is said, and left.`
 					fmt.Fprintln(w, i18n.T("forget.notkept", name))
 					continue
 				}
-				if errors.Is(err, lock.ErrBusy) {
-					return errors.New(i18n.T("toast.busy"))
-				}
 				if err != nil {
-					return err
+					return inWords(err)
 				}
 				if on {
 					fmt.Fprintln(w, i18n.T("toast.kept", name))

@@ -46,6 +46,9 @@ type Backend interface {
 	Protected(name string) bool
 	// PatternProtects reports whether the settings' pattern protects a name.
 	PatternProtects(name string) bool
+	// NameKept reports whether a name is on the list of kept names, which no
+	// pass renames.
+	NameKept(name string) bool
 	// Timer is the systemd timer's state.
 	Timer() timers.TimerStatus
 	// ZellijVersion is the zellij version, or "".
@@ -284,6 +287,7 @@ func (r real) renameListed(ctx context.Context, name, to string) error {
 func (r real) SetProtected(name string, on bool) error { return r.a.Protected.Set(name, on) }
 func (r real) Protected(name string) bool              { return r.a.Protected.Has(name) }
 func (r real) PatternProtects(name string) bool        { return r.a.Config.ProtectMatches(name) }
+func (r real) NameKept(name string) bool               { return r.a.Reaper.Kept != nil && r.a.Reaper.Kept.Has(name) }
 func (r real) Timer() timers.TimerStatus               { return r.a.System.Status() }
 func (r real) Config() *config.Config                  { return r.a.Config }
 

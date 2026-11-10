@@ -44,6 +44,9 @@ func TestPassWordsSayHowTheLastPassWent(t *testing.T) {
 		{"none in the log", logfile.Pass{}, time.Hour, false, "", ""},
 		{"one that acted", logfile.Pass{Found: true, Started: recent, Ended: true, Acted: true, Reaped: 1, Kept: 4, Renamed: 2}, time.Hour, false,
 			"ok", "last pass " + recentAt + " (12m ago): 1 reaped, 4 kept, 2 renamed"},
+		// zellij refused a delete: the session is still there.
+		{"one with a failed delete", logfile.Pass{Found: true, Started: recent, Ended: true, Acted: true, Reaped: 1, Kept: 4, Failed: 1}, time.Hour, false,
+			"warn", "last pass " + recentAt + " (12m ago): 1 reaped, 4 kept, 0 renamed; 1 delete failed (zellij-reaper logs)"},
 		{"one with no sessions", logfile.Pass{Found: true, Started: recent, Ended: true, Stopped: "no sessions"}, time.Hour, false,
 			"ok", "last pass " + recentAt + " (12m ago): no sessions"},
 		// A pass that stops each time keeps every session, and says so only

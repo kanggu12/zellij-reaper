@@ -18,7 +18,6 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
-	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
@@ -38,7 +37,7 @@ needs it.`,
 			// In the words unprotect and forget-name use, not the library's
 			// count of arguments.
 			if len(args) == 0 {
-				return errors.New("name a session to reap")
+				return errors.New(i18n.T("args.reap"))
 			}
 			return nil
 		},
@@ -105,10 +104,7 @@ func reapByHand(cmd *cobra.Command, b tui.Backend, names []string, ask bool) err
 			continue
 		}
 		if err := b.Delete(ctx, name); err != nil {
-			if errors.Is(err, lock.ErrBusy) {
-				err = errors.New(i18n.T("toast.busy"))
-			}
-			println(w, bad(t)+i18n.T("toast.delete.failed", name, err))
+			println(w, bad(t)+i18n.T("toast.delete.failed", name, inWords(err)))
 			failed++
 			continue
 		}
@@ -175,10 +171,7 @@ func renameByHand(cmd *cobra.Command, a *app.App, b tui.Backend, name, to string
 	}
 	if to == name {
 		if err := b.KeepName(ctx, name); err != nil {
-			if errors.Is(err, lock.ErrBusy) {
-				return errors.New(i18n.T("toast.busy"))
-			}
-			return err
+			return inWords(err)
 		}
 		println(w, ok(t)+i18n.T("toast.kept", name))
 		return nil

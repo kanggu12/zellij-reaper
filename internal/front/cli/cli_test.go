@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
+	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/repair"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
@@ -264,10 +266,17 @@ type recoverMachine struct {
 	socks []procfs.UnixSocket
 }
 
-type recoverZellij struct{ deleted []string }
+type recoverZellij struct {
+	deleted []string
+	// fail is what every delete returns, when set.
+	fail error
+}
 
 func (z *recoverZellij) ListSessions(context.Context) ([]zellij.Listed, error) { return nil, nil }
 func (z *recoverZellij) Delete(_ context.Context, name string) error {
+	if z.fail != nil {
+		return z.fail
+	}
 	z.deleted = append(z.deleted, name)
 	return nil
 }
@@ -317,7 +326,8 @@ func TestRecoverWaitsForThePassLock(t *testing.T) {
 	m := newRecoverMachine(t)
 	cmd, out := output()
 	start := time.Now()
-	if err := recoverSessions(cmd, lockPath, m.in, false, true); !errors.Is(err, lock.ErrBusy) {
+	// It says so as the dashboard does, in the reader's language.
+	if err := recoverSessions(cmd, lockPath, m.in, false, true); !errors.Is(err, lock.ErrBusy) || err.Error() != "Another pass is running; try again in a moment" {
 		t.Errorf("recover with the lock held: %v\n%s", err, out)
 	}
 	if time.Since(start) < reaper.LockWait-time.Second {
@@ -399,8 +409,10 @@ func TestRecoverChangesNothingWithoutTheIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd, out := output()
-	if err := recoverSessions(cmd, filepath.Join(t.TempDir(), "lock"), m.in, false, true); err != nil {
-		t.Fatal(err)
+	// Nothing it was asked for could be done: status 1, with nothing more
+	// said than the line on why.
+	if err := recoverSessions(cmd, filepath.Join(t.TempDir(), "lock"), m.in, false, true); err != errSilentExit {
+		t.Errorf("recover without the index: %v", err)
 	}
 	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
 	if len(lines) != 2 || !strings.HasPrefix(lines[1], "  ! zellij's session index cannot be read (") || !strings.HasSuffix(lines[1], "): no session can be told from another, so nothing is changed") {
@@ -408,6 +420,51 @@ func TestRecoverChangesNothingWithoutTheIndex(t *testing.T) {
 	}
 	if len(m.zj.deleted)+len(m.signals)+len(m.logged) != 0 {
 		t.Errorf("deleted %v, signals %v, logged %v", m.zj.deleted, m.signals, m.logged)
+	}
+}
+
+func TestRecoverEndsWithStatus1WhenAStepFailed(t *testing.T) {
+	testutil.SkipOnWindows(t)
+	isolate(t)
+	m := newRecoverMachine(t)
+	m.zj.fail = errors.New("zellij said no")
+	cmd, out := output()
+	// The step says why on its line; the status tells a script.
+	if err := recoverSessions(cmd, filepath.Join(t.TempDir(), "lock"), m.in, false, false); err != errSilentExit {
+		t.Errorf("a step failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "  ✗ "+strings.Repeat("x", 120)+": ") || !strings.Contains(out.String(), "zellij said no") {
+		t.Errorf("recover:\n%s", out)
+	}
+}
+
+func TestAPassWithAFailedDeleteEndsWithStatus1(t *testing.T) {
+	home := isolate(t)
+	a := fakeApp(t, config.MapEnv{"HOME": home})
+	named := func(name string) inspect.Session { return inspect.Session{Listed: zellij.Listed{Name: name}} }
+	r := reaper.Report{Outcomes: []reaper.Outcome{
+		{Session: named("gone"), Deleted: true},
+		{Session: named("stuck"), DeleteErr: errors.New("zellij said no")},
+		{Session: named("busy"), KeptAtDelete: "a client attached since the check"},
+		{Session: named("work"), RenameErr: errors.New("the name is taken")},
+	}}
+	// The timer's pass prints nothing, and its status still says so.
+	for _, quiet := range []bool{true, false} {
+		cmd, out := output()
+		err := showPass(cmd.Context(), out, a, r, false, quiet)
+		if err == nil || err.Error() != "1 delete failed: `zellij-reaper logs` says why" || report(err, io.Discard) != 1 {
+			t.Errorf("quiet %t: %v", quiet, err)
+		}
+		if quiet != (out.Len() == 0) || !quiet && !strings.Contains(out.String(), "  stuck: failed: zellij said no\n") {
+			t.Errorf("quiet %t:\n%s", quiet, out)
+		}
+	}
+	// A session kept at the delete and a rename zellij refused are no
+	// failure: the timer's status stays 0.
+	r.Outcomes[1].DeleteErr = nil
+	cmd, out := output()
+	if err := showPass(cmd.Context(), out, a, r, false, true); err != nil {
+		t.Errorf("no failed delete: %v", err)
 	}
 }
 

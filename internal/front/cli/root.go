@@ -220,7 +220,7 @@ func cmdVersion() *cobra.Command {
 
 // headline is the one-line summary at the top of `plan` and the dashboard:
 // the zellij version, the mode, the waits and the next timer run.
-func headline(ctx context.Context, a *app.App, t ui.Theme) string {
+func headline(ctx context.Context, a *app.App, t ui.Theme, width int) []string {
 	sep := ui.Fg(t.Rule).Render(" · ")
 	parts := []string{lipgloss.NewStyle().Bold(true).Foreground(t.Ink).Render("zellij-reaper")}
 	if v, err := a.Zellij.Version(ctx); err == nil {
@@ -233,7 +233,31 @@ func headline(ctx context.Context, a *app.App, t ui.Theme) string {
 	parts = append(parts, mode,
 		ui.Fg(t.Muted).Render(i18n.T("settings.waits", duration.Format(a.Config.IdleAfter), duration.Format(a.Config.ExitedAfter))))
 	parts = append(parts, timerWords(a.System.Status(), t))
-	return strings.Join(parts, sep)
+	return joinWithin(parts, sep, width)
+}
+
+// joinWithin joins parts with sep on as few lines as stay within width, as the
+// table under them does: a line the terminal wrapped would break a part in
+// two. Lines break between parts only; a part wider than width alone gets a
+// line of its own.
+func joinWithin(parts []string, sep string, width int) []string {
+	var lines []string
+	line := ""
+	for _, p := range parts {
+		switch {
+		case line == "":
+			line = p
+		case lipgloss.Width(line+sep+p) <= width:
+			line += sep + p
+		default:
+			lines = append(lines, line)
+			line = p
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 // timerWords describes the timer: when it runs next, or that it is off.

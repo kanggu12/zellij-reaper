@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"strconv"
 
@@ -20,13 +21,15 @@ func cmdRecover() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "recover",
 		Short: "Repair sessions whose name is too long for their socket path",
-		Long: `A session name is part of its socket path, which Linux caps at 107 bytes. A session
-renamed past that keeps running with no socket: zellij's own commands cannot reach
-it and its files come back after every delete. recover deletes such sessions and
-clears their files. With --aggressive it first stops servers that serve no socket
-file at all; a server whose session was renamed still serves its socket and is
-left alone, and so is one with a client still connected, a busy pane, or a
-protected name or program. --dry-run reports only.`,
+		Long: `A session name is part of its socket path, which Linux caps at 107 bytes and macOS
+at 103. A session renamed past that keeps running with no socket: zellij's own
+commands cannot reach it and its files come back after every delete. recover
+deletes such sessions and clears their files. With --aggressive it first stops
+servers that serve no socket file at all; a server whose session was renamed still
+serves its socket and is left alone, and so is one with a client still connected,
+a busy pane, or a protected name or program. --dry-run reports only. The status is
+1 when a step failed, or when zellij's session index cannot be read, which leaves
+every session as it is.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()
@@ -52,7 +55,7 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 	if !dry {
 		l, err := lock.Acquire(lockPath, reaper.LockWait)
 		if err != nil {
-			return err
+			return inWords(err)
 		}
 		defer l.Release()
 	}
@@ -62,10 +65,11 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 	}
 	println(w, ui.Fg(t.Muted).Render(i18n.T("recover.dir", sc.SocketDir, sc.Budget)))
 	// No session can be told from another without the index: a scan that
-	// went on would take live sessions for broken ones.
+	// went on would take live sessions for broken ones. Nothing asked for
+	// could be done, and the status says so.
 	if sc.IndexErr != nil {
 		println(w, warn(t)+i18n.T("recover.noindex", sc.IndexErr))
-		return nil
+		return errSilentExit
 	}
 	for _, b := range sc.Broken {
 		println(w, warn(t)+i18n.T("recover.broken", b.Name, b.PathBytes))
@@ -111,15 +115,36 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 		hint()
 		return nil
 	}
+	failed := false
 	for _, st := range repair.Repair(cmd.Context(), in, sc, aggressive) {
 		if st.Err != nil {
 			println(w, bad(t)+st.Target+": "+st.What+": "+st.Err.Error())
+			failed = true
 		} else {
 			println(w, ok(t)+st.Target+": "+st.What)
 		}
 	}
 	hint()
+	// Each step that failed has said why above: the status tells a script.
+	if failed {
+		return errSilentExit
+	}
 	return nil
+}
+
+// busyError is lock.ErrBusy in the words the dashboard uses for it, in the
+// reader's language; errors.Is still finds lock.ErrBusy in it.
+type busyError struct{}
+
+func (busyError) Error() string { return i18n.T("toast.busy") }
+func (busyError) Unwrap() error { return lock.ErrBusy }
+
+// inWords is err, with a busy lock said in the reader's language.
+func inWords(err error) error {
+	if errors.Is(err, lock.ErrBusy) {
+		return busyError{}
+	}
+	return err
 }
 
 // orphanName says which session an orphan server is: by the name it has now
@@ -159,13 +184,19 @@ old size after the window changed. --shallow signals the clients only.`,
 			if !dry {
 				targets = resize.Send(targets)
 			}
+			failed := false
 			for _, tg := range targets {
 				line := strconv.Itoa(tg.PID) + "  " + tg.Role + "  " + ui.Fg(t.Muted).Render(tg.Command)
 				if tg.Err != nil {
 					println(w, bad(t)+line+": "+tg.Err.Error())
+					failed = true
 				} else {
 					println(w, ok(t)+line)
 				}
+			}
+			// A process the signal did not reach has said why above.
+			if failed {
+				return errSilentExit
 			}
 			return nil
 		},

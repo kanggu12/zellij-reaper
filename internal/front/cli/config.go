@@ -32,7 +32,7 @@ func cmdConfig() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				p := settingsPath()
 				if _, err := os.Stat(p); err == nil {
-					return fmt.Errorf("%s already exists", p)
+					return errors.New(i18n.T("config.exists", p))
 				}
 				if err := writeDefaults(p); err != nil {
 					return err
@@ -71,7 +71,7 @@ func cmdConfig() *cobra.Command {
 				// Check what was saved, so a typo is caught now, not at the
 				// next timer run.
 				if _, err := config.Load(p, config.OSEnv{}); err != nil {
-					return fmt.Errorf("the settings have a problem: %w", err)
+					return fmt.Errorf("%s: %w", i18n.T("config.problem"), err)
 				}
 				return nil
 			}},

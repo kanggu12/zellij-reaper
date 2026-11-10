@@ -12,6 +12,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
+	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
@@ -42,6 +43,27 @@ func TestCtrlCOnTheSetupScreenEndsAsAnInterrupt(t *testing.T) {
 	for _, p := range []string{config.ConfigFile(env), filepath.Join(config.UnitDir(env), timers.TimerName)} {
 		if _, err := os.Stat(p); err == nil {
 			t.Errorf("%s was written", p)
+		}
+	}
+}
+
+func TestASetupScreenThatDoesNotOpenSaysSoInTheReadersLanguage(t *testing.T) {
+	home := isolate(t)
+	a := fakeApp(t, config.MapEnv{"HOME": home})
+	defer func(f func(tui.SetupStart) (tui.SetupChoice, tui.SetupOutcome, error)) { runSetup = f }(runSetup)
+	runSetup = func(tui.SetupStart) (tui.SetupChoice, tui.SetupOutcome, error) {
+		return tui.SetupChoice{}, 0, errors.New("open /dev/tty: no such device")
+	}
+	defer i18n.Set(i18n.English)
+	for lang, want := range map[i18n.Lang]string{
+		i18n.English: "the setup screen did not open: open /dev/tty: no such device",
+		i18n.Korean:  "설정 화면을 열지 못함: open /dev/tty: no such device",
+	} {
+		i18n.Set(lang)
+		cmd, _ := output()
+		// The install scripts go on with a plain install on this error.
+		if err := setup(cmd, a, true); !errors.Is(err, errNoScreen) || err.Error() != want {
+			t.Errorf("%v: %v", lang, err)
 		}
 	}
 }

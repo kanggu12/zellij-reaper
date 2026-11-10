@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -55,65 +57,7 @@ but keeps every other check.`,
 			case err != nil:
 				return err
 			}
-			if quiet {
-				return nil
-			}
-			t := theme()
-			// A names pass says only what it renamed.
-			if opts.NamesOnly {
-				n := 0
-				for _, o := range r.Outcomes {
-					switch {
-					case o.RenamedTo != "":
-						println(w, "  "+o.Session.Name()+" → "+o.RenamedTo)
-						n++
-					case o.WouldRename != "":
-						println(w, "  "+o.Session.Name()+" → "+o.WouldRename+ui.Fg(t.Muted).Render(" "+i18n.T("run.dry.mark")))
-						n++
-					case o.RenameErr != nil:
-						println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
-					}
-				}
-				switch {
-				case n == 0 && r.NoRenames != nil:
-					println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")+" "+r.NoRenames.Error()))
-				case n == 0:
-					println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")))
-				}
-				return nil
-			}
-			if r.NoSessions {
-				println(w, ui.Fg(t.Muted).Render(i18n.T("plan.none")))
-				return nil
-			}
-			// The settings this pass ran with, then what it did to each session.
-			println(w, headline(cmd.Context(), a, t))
-			println(w)
-			for _, line := range t.TableWith(ui.Sorted(ui.RowsAfterPass(r, time.Now())), terminalWidthFor(w), -1, i18n.T("col.result")) {
-				println(w, trimRight(line))
-			}
-			// Then the details a table cell cannot hold.
-			for _, o := range r.Outcomes {
-				switch {
-				case o.DeleteErr != nil:
-					println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.failed", o.DeleteErr)))
-				case o.RenamedTo != "":
-					println(w, "  "+ui.Fg(t.Muted).Render(o.Session.Name()+": "+i18n.T("run.renamed", o.RenamedTo)))
-				case o.RenameErr != nil:
-					println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
-				case o.KeptName != "":
-					println(w, "  "+ui.Fg(t.Muted).Render(o.Session.Name()+": "+i18n.T("run.keptname", o.KeptName)))
-				}
-			}
-			// The totals, as `plan` ends with them.
-			reaped, kept, _ := r.Counts()
-			summary := i18n.TN("run.summary", len(r.Outcomes), len(r.Outcomes), reaped, kept)
-			if r.DryRun {
-				summary = i18n.TN("plan.summary.dry", len(r.Outcomes), len(r.Outcomes), r.Due())
-			}
-			println(w)
-			println(w, ui.Fg(t.Muted).Render("  "+summary))
-			return nil
+			return showPass(cmd.Context(), w, a, r, opts.NamesOnly, quiet)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "log what would happen, change nothing")
@@ -121,6 +65,92 @@ but keeps every other check.`,
 	cmd.Flags().BoolVar(&opts.NamesOnly, "names-only", false, "only rename, delete nothing (the names timer's mode)")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "print nothing (the timer's mode); the log still gets everything")
 	return cmd
+}
+
+// showPass prints what a pass did, unless quiet, and ends with the error a
+// failed delete makes.
+func showPass(ctx context.Context, w io.Writer, a *app.App, r reaper.Report, namesOnly, quiet bool) error {
+	// The timer's pass says nothing more, but its status says whether a
+	// delete failed: systemd, launchd and the Task Scheduler show it.
+	if quiet {
+		return failedDeletes(r)
+	}
+	t := theme()
+	// A names pass says only what it renamed.
+	if namesOnly {
+		n := 0
+		for _, o := range r.Outcomes {
+			switch {
+			case o.RenamedTo != "":
+				println(w, "  "+o.Session.Name()+" → "+o.RenamedTo)
+				n++
+			case o.WouldRename != "":
+				println(w, "  "+o.Session.Name()+" → "+o.WouldRename+ui.Fg(t.Muted).Render(" "+i18n.T("run.dry.mark")))
+				n++
+			case o.RenameErr != nil:
+				println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
+			}
+		}
+		switch {
+		case n == 0 && r.NoRenames != nil:
+			println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")+" "+r.NoRenames.Error()))
+		case n == 0:
+			println(w, ui.Fg(t.Muted).Render("  "+i18n.T("run.names.none")))
+		}
+		return nil
+	}
+	if r.NoSessions {
+		println(w, ui.Fg(t.Muted).Render(i18n.T("plan.none")))
+		return nil
+	}
+	// The settings this pass ran with, then what it did to each session.
+	width := terminalWidthFor(w)
+	for _, line := range headline(ctx, a, t, width) {
+		println(w, line)
+	}
+	println(w)
+	for _, line := range t.TableWith(ui.Sorted(ui.RowsAfterPass(r, time.Now())), width, -1, i18n.T("col.result")) {
+		println(w, trimRight(line))
+	}
+	// Then the details a table cell cannot hold.
+	for _, o := range r.Outcomes {
+		switch {
+		case o.DeleteErr != nil:
+			println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.failed", o.DeleteErr)))
+		case o.RenamedTo != "":
+			println(w, "  "+ui.Fg(t.Muted).Render(o.Session.Name()+": "+i18n.T("run.renamed", o.RenamedTo)))
+		case o.RenameErr != nil:
+			println(w, "  "+ui.Fg(t.Cat[ui.CatUnknown]).Render(o.Session.Name()+": "+i18n.T("run.rename.failed", o.RenameErr)))
+		case o.KeptName != "":
+			println(w, "  "+ui.Fg(t.Muted).Render(o.Session.Name()+": "+i18n.T("run.keptname", o.KeptName)))
+		}
+	}
+	// The totals, as `plan` ends with them.
+	reaped, kept, _ := r.Counts()
+	summary := i18n.TN("run.summary", len(r.Outcomes), len(r.Outcomes), reaped, kept)
+	if r.DryRun {
+		summary = i18n.TN("plan.summary.dry", len(r.Outcomes), len(r.Outcomes), r.Due())
+	}
+	println(w)
+	println(w, ui.Fg(t.Muted).Render("  "+summary))
+	return failedDeletes(r)
+}
+
+// failedDeletes is the error a pass ends with when zellij refused a delete:
+// the exit status says so to a script, and to the timer. A kept session, or a
+// rename zellij refused, is no failure: a pass keeps sessions as it should,
+// and a refused tail is tried again in an hour.
+func failedDeletes(r reaper.Report) error {
+	n := 0
+	for _, o := range r.Outcomes {
+		if o.DeleteErr != nil {
+			n++
+		}
+	}
+	if n == 0 {
+		return nil
+	}
+	return errors.New(i18n.TN("run.failed.some", n, n))
 }
 
 // terminalWidthFor is the width to render for w: the terminal's, or 100.
@@ -142,7 +172,7 @@ func cmdLogs() *cobra.Command {
 			// A count below zero means nothing sensible; say so before
 			// reading anything.
 			if n < 0 {
-				return fmt.Errorf("--lines must be 0 or more, not %d", n)
+				return errors.New(i18n.T("logs.negative", n))
 			}
 			// Only the settings, for where the log is. A protected list that
 			// cannot be read stops every pass, and the log is where one

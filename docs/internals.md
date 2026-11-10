@@ -217,10 +217,11 @@ dashboard keeps both names on the protected list, since the session may have eit
 
 ### Names and the socket path
 
-A session's name is part of its socket path, and Linux caps a socket path at 107 bytes. Early shell versions cut names
-at 50 characters, which is 150 bytes for a title of three-byte characters; renamed past the limit, a session kept a
-server no command could reach. Names are now cut by bytes, at a character boundary, to what the session's own socket
-directory leaves, with room for a stamp and a collision suffix. `recover` repairs sessions broken the old way.
+A session's name is part of its socket path, and Linux caps a socket path at 107 bytes, macOS at 103. Early shell
+versions cut names at 50 characters, which is 150 bytes for a title of three-byte characters; renamed past the limit, a
+session kept a server no command could reach. Names are now cut by bytes, at a character boundary, to what the session's
+own socket directory leaves, with room for a stamp and a collision suffix. `recover` repairs sessions broken the old
+way.
 
 ### The log
 
