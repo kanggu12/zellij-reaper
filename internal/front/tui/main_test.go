@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 	// it, when a test asks, before the rename returns.
 	reaper.LeftoverSettles = 0
 	// A pass that holds the lock is a test's own, which holds it on purpose.
-	handLockWait = 200 * time.Millisecond
+	handLockWait = 500 * time.Millisecond
 	os.Exit(m.Run())
 }
 

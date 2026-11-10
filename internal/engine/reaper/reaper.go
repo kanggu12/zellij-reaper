@@ -74,8 +74,9 @@ type Options struct {
 	DryRun bool
 	// Force skips both waits; every other rule still applies.
 	Force bool
-	// NamesOnly renames and deletes nothing: the names timer's pass, which
-	// lets a name follow its session sooner than the hourly pass.
+	// NamesOnly renames, and deletes nothing but the copies zellij may leave
+	// under old names (DropLeftovers): the names timer's pass, which lets a
+	// name follow its session sooner than the hourly pass.
 	NamesOnly bool
 }
 

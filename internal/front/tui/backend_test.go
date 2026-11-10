@@ -288,8 +288,8 @@ func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
 		t.Errorf("calls %v, log:\n%s", z.calls, log)
 	}
 
-	// A pass holds the lock: the look waits for it, as every action by hand
-	// does, and gives up when the pass outlasts the wait.
+	// A pass holds the lock past the wait every action by hand has: the
+	// look gives up, and the copy waits like any exited session.
 	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
 	b, a = backendFor(t, z, "")
 	copyOf(t, z, a, "notes")
@@ -305,6 +305,61 @@ func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
 	log, _ = os.ReadFile(a.Reaper.Log.Path)
 	if z.did("delete-session") || !strings.Contains(string(log), "could not look for copies zellij left under old names: ") {
 		t.Errorf("calls %v, log:\n%s", z.calls, log)
+	}
+
+	// A pass lets the lock go within that wait: the look goes on.
+	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	l, err = lock.Acquire(a.Reaper.LockPath, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(handLockWait / 5)
+		l.Release()
+	}()
+	b.DropLeftover(ctx, "notes", "journal")
+	if !z.did("delete-session notes") {
+		t.Errorf("the look did not wait for the lock: calls %v", z.calls)
+	}
+
+	// Brought back and used since the rename: its files are newer than
+	// zellij's moment, and it stays.
+	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
+	left := z.onRename
+	z.onRename = func() {
+		left()
+		testutil.SessionFiles(t, a.Reaper.Sources.InfoDir, "notes", testutil.Metadata(0, "x"), "layout {\n}\n", time.Now().Add(10*time.Second))
+	}
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "notes", "journal")
+	log, _ = os.ReadFile(a.Reaper.Log.Path)
+	if z.did("delete-session") || !strings.Contains(string(log), "  -> kept: notes :: written since the rename") {
+		t.Errorf("calls %v, log:\n%s", z.calls, log)
+	}
+
+	// On the protected list: the rename moves the entry to the new name, so
+	// the copy under the old one is not protected, and goes.
+	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
+	if err := a.Protected.Set("notes", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "notes", "journal")
+	if !z.did("delete-session notes") || !a.Protected.Has("journal") || a.Protected.Has("notes") {
+		t.Errorf("calls %v, list %v", z.calls, a.Protected.Names())
 	}
 
 	// zellij writes the copy a moment after the rename: the look waits for

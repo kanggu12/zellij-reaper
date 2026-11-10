@@ -8,10 +8,11 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ### Fixed
 
-- The copy a rename leaves under the old name (0.13.1) was deleted whatever the name: one the protect pattern or the
-  protected list covers keeps its copy now, as a protected name keeps its session. So does a copy whose files were
-  written more than 1.5 s after the rename, which someone brought back and used meanwhile, since a pass looks only
-  once it has been through its sessions.
+- The copy a rename leaves under the old name (0.13.1) was deleted whatever the name. A copy under a name the protect
+  pattern covers, or the protected list holds when read again, now stays, as a session under it does; a rename by hand
+  moves the list's entry to the new name, so there only the pattern protects the old one. A copy whose files were
+  written more than 1.5 s after the rename stays too: a pass looks only once it has been through its sessions, and
+  someone may have brought the copy back and used it meanwhile.
 - A pass could start that delete past its 40 seconds; it does not look then.
 - After a rename in the dashboard or with `rename`, the look ran outside the pass lock, so it could act at once with a
   pass; it holds the lock now, and an action by hand waits up to 5 s for it, not 2, since a names pass that renamed

@@ -89,9 +89,15 @@ func (e *Env) DropLeftovers(ctx context.Context, renamed map[string]Renamed, dea
 }
 
 // keepsCopy says why a copy under an old name stays, or "" when it goes: a
-// name the protect pattern matches, or the protected list holds when read
-// again now, as before any delete; files that cannot be read, or that were
-// written after zellij's moment (LeftoverSettles); or a deadline past.
+// name the protect pattern in the settings read matches, or the protected
+// list holds when read again now, as before any delete; files that cannot be
+// read, or that were written after zellij's moment (LeftoverSettles); or a
+// deadline past. The files are read by name: zellij 0.43 to 0.45 name their
+// folders so, and 0.46, which names them by id, moves none on a rename and
+// leaves no copy. Their times are the file system's, set as zellij writes
+// them, against this machine's clock: one set back, or a network file
+// system's that is off by more than LeftoverSettles, can make a copy used
+// since look untouched, or the other way round.
 func (e *Env) keepsCopy(name string, rn Renamed, deadline time.Time) string {
 	if e.Config.ProtectMatches(name) {
 		return "protected by protect pattern"

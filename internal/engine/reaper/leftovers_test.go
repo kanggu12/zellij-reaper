@@ -108,7 +108,7 @@ func TestACopyStaysWhenProtectedUsedOrUnread(t *testing.T) {
 		// Someone brought the copy back, used it and quit it before the
 		// pass looked: its files are newer than zellij's moment.
 		"used since": {func(w *world) {
-			later := time.Now().Add(time.Hour)
+			later := time.Now().Add(10 * time.Second)
 			testutil.SessionFiles(t, w.env.Sources.InfoDir, "busy", testutil.Metadata(0, "htop"), "", later)
 		}, "written since the rename, so someone may have used it"},
 		// Files that cannot be read tell nothing.
@@ -128,6 +128,34 @@ func TestACopyStaysWhenProtectedUsedOrUnread(t *testing.T) {
 		}
 		if log := w.log(t); len(w.zj.deleted) != 0 || !strings.Contains(log, "  -> kept: busy :: "+c.why) {
 			t.Errorf("%s: deleted %v:\n%s", name, w.zj.deleted, log)
+		}
+	}
+}
+
+func TestTheFileTimeRuleAtItsBoundary(t *testing.T) {
+	// zellij writes the copy within LeftoverSettles of the rename: it goes.
+	// Written later, someone used it: it stays.
+	defer func(d time.Duration) { reaper.LeftoverSettles = d }(reaper.LeftoverSettles)
+	reaper.LeftoverSettles = 400 * time.Millisecond
+	for after, gone := range map[time.Duration]bool{100 * time.Millisecond: true, 700 * time.Millisecond: false} {
+		w := newWorld(t)
+		w.env.Config.AutoRename = true
+		w.zj.lateCopyAfter = 300 * time.Millisecond
+		w.zj.lateCopy = func() {
+			testutil.SessionFiles(t, w.env.Sources.InfoDir, "busy", testutil.Metadata(0, "htop"), "layout {\n}\n", w.zj.renamedAt.Add(after))
+			w.zj.listed = append(w.zj.listed, zellij.Listed{Name: "busy", Exited: true, Created: "0s ago"})
+			for i, l := range w.zj.listed {
+				if l.Name == "busy" && !l.Exited {
+					w.zj.listed[i].Name = "htop"
+				}
+			}
+		}
+		if _, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true}); err != nil {
+			t.Fatal(err)
+		}
+		log := w.log(t)
+		if gone != (strings.Join(w.zj.deleted, ",") == "busy") || (!gone && !strings.Contains(log, "written since the rename")) {
+			t.Errorf("written %s after the rename: deleted %v:\n%s", after, w.zj.deleted, log)
 		}
 	}
 }
