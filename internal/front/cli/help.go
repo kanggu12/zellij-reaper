@@ -60,7 +60,7 @@ func prose(text string) string {
 		}
 		var lines []string
 		line := ""
-		for _, word := range strings.Fields(p) {
+		for word := range strings.FieldsSeq(p) {
 			switch {
 			case line == "":
 				line = word

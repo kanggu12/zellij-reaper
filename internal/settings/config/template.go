@@ -21,7 +21,7 @@ func Render(c *Config, intro string) string {
 		}
 	}
 	// The intro says why the file exists (first install, migration, ...).
-	for _, l := range strings.Split(strings.TrimSpace(intro), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(intro), "\n") {
 		if l != "" {
 			fmt.Fprintf(&b, "# %s\n", l)
 		}

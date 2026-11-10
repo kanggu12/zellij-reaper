@@ -242,7 +242,7 @@ type lineWriter struct {
 }
 
 func (lw lineWriter) Write(p []byte) (int, error) {
-	for _, line := range strings.Split(strings.TrimRight(string(p), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(string(p), "\n"), "\n") {
 		println(lw.w, colorLine(lw.t, line))
 	}
 	return len(p), nil

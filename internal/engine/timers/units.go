@@ -78,14 +78,8 @@ func NamesTimerUnit(interval time.Duration) string {
 
 func timerUnit(description string, interval, first time.Duration) string {
 	// Waking up to five minutes late is fine and lets systemd batch wakeups;
-	// short intervals get a proportionally short window.
-	accuracy := 5 * time.Minute
-	if interval/12 < accuracy {
-		accuracy = interval / 12
-	}
-	if accuracy < time.Second {
-		accuracy = time.Second
-	}
+	// short intervals get a proportionally short window, never under a second.
+	accuracy := max(min(interval/12, 5*time.Minute), time.Second)
 	return fmt.Sprintf(`[Unit]
 Description=`+description+`
 Documentation=https://github.com/kanggu12/zellij-reaper

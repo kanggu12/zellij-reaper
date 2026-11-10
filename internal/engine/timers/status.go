@@ -58,7 +58,7 @@ func (s Systemd) statusOf(timer, timerPath, servicePath string) TimerStatus {
 		return st
 	}
 	props := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if k, v, ok := strings.Cut(line, "="); ok {
 			props[k] = v
 		}
@@ -160,7 +160,7 @@ func unitFacts(timerPath, servicePath string) (time.Duration, string, map[string
 	var execStart string
 	var env map[string]string
 	if b, err := os.ReadFile(timerPath); err == nil {
-		for _, line := range strings.Split(string(b), "\n") {
+		for line := range strings.SplitSeq(string(b), "\n") {
 			if v, ok := strings.CutPrefix(line, "OnUnitActiveSec="); ok {
 				interval = parseSpan(v)
 			}

@@ -79,7 +79,7 @@ func TestBoundOverManyPasses(t *testing.T) {
 	// twice the limit plus one pass.
 	l := newLog(t, 2000)
 	worst := int64(0)
-	for i := 0; i < 400; i++ {
+	for i := range 400 {
 		l.Rotate()
 		l.Printf("=== reaper start ===")
 		l.Printf("session-%d [RUNNING] panes={Pane #1} :: SKIP IDLE for 2m, reaped after 1h", i)

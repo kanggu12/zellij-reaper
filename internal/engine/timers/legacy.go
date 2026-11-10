@@ -34,7 +34,7 @@ func DetectLegacy(env config.Env) *Legacy {
 // unit file. A line may hold several, and values may be quoted.
 func ParseEnvironment(unit string) map[string]string {
 	vars := map[string]string{}
-	for _, line := range strings.Split(unit, "\n") {
+	for line := range strings.SplitSeq(unit, "\n") {
 		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "Environment=")
 		if !ok {
 			continue

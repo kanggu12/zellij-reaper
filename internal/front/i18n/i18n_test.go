@@ -136,3 +136,12 @@ func TestEveryKeyTheCodeUsesIsInTheCatalog(t *testing.T) {
 		t.Errorf("found only %d uses: the search no longer reads the code", n)
 	}
 }
+
+// Keys returns every key of a language's catalog.
+func Keys(l Lang) []string {
+	var out []string
+	for k := range catalogs[l] {
+		out = append(out, k)
+	}
+	return out
+}

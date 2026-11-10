@@ -692,7 +692,7 @@ func TestHelpLinesFitAnEightyColumnScreen(t *testing.T) {
 	for _, lang := range []i18n.Lang{i18n.English, i18n.Korean} {
 		i18n.Set(lang)
 		screen := ansi.Strip(press(t, loaded(t, sample(), 80, 40), "?").View().Content)
-		for _, l := range strings.Split(screen, "\n") {
+		for l := range strings.SplitSeq(screen, "\n") {
 			if strings.Contains(l, "…") {
 				t.Errorf("%s: a help line is cut: %q", lang, l)
 			}

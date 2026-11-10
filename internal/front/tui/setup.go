@@ -533,7 +533,7 @@ func padCells(s string, w int) string {
 func wrapWords(s string, w int) []string {
 	var out []string
 	line := ""
-	for _, word := range strings.Fields(s) {
+	for word := range strings.FieldsSeq(s) {
 		switch {
 		case line == "":
 			line = word
@@ -610,7 +610,7 @@ func RunSetup(s SetupStart) (SetupChoice, SetupOutcome, error) {
 func SetupSnapshot(s SetupStart, w, h int, dark bool, keys string) string {
 	m := newSetup(s, dark)
 	m.width, m.height = w, h
-	for _, k := range strings.Fields(keys) {
+	for k := range strings.FieldsSeq(keys) {
 		next, _ := m.Update(snapshotKey(k))
 		m = next.(setupModel)
 	}

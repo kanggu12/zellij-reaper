@@ -84,16 +84,6 @@ func Parse(s string) (time.Duration, error) {
 	return total, nil
 }
 
-// MustParse is Parse for values written in the source code, which are known to
-// be valid; it panics on a typo so tests catch it at once.
-func MustParse(s string) time.Duration {
-	d, err := Parse(s)
-	if err != nil {
-		panic(err)
-	}
-	return d
-}
-
 // Format prints a length of time for people, with the two largest units that
 // matter: "45s", "12m", "2h 14m", "3d 2h". Seconds are dropped once the value
 // is a minute or more, because nothing here is decided by the second.

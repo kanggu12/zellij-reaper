@@ -219,7 +219,7 @@ func ParseMetadata(text string) Metadata {
 	var cur *PaneMeta
 	// tabPos is the position of the tab block being read, -1 outside one.
 	tabPos := -1
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		switch {
 		// The client count is a top-level node.
 		case strings.HasPrefix(line, "connected_clients "):
@@ -327,7 +327,7 @@ var quotedRe = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
 // run in this session, which errs on the side of keeping it.
 func ParseLayout(text string) Layout {
 	var l Layout
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		trimmed := strings.TrimSpace(line)
 		// command="..." can sit among other properties on a pane line.
 		for _, m := range commandRe.FindAllStringSubmatch(line, -1) {

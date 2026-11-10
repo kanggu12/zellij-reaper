@@ -417,19 +417,6 @@ func BaseBudgetFor(room int, stamp Stamp) int {
 	return max(0, min(room, MaxBase))
 }
 
-// BaseBudget is the budget for a base name in room bytes, keeping room for the
-// longest stamp and a tail.
-func BaseBudget(room int) int {
-	room -= tailLen
-	if room > MaxBase {
-		return MaxBase
-	}
-	if room < 1 {
-		return 0
-	}
-	return room
-}
-
 // Desired is the full name for a base and a last-use time, in local time,
 // which is how people remember when they last used something.
 func Desired(base string, stamp Stamp, lastActive time.Time) string {

@@ -305,7 +305,7 @@ func TestASecondLookBeforeTheStop(t *testing.T) {
 	fd(base+200, 9, base+210)
 	// The client: a process with a stat file, holding the other end.
 	fd(base+290, 3, base+211)
-	if err := os.WriteFile(filepath.Join(m.in.ProcRoot, fmt.Sprint(base+290), "stat"), []byte(fmt.Sprintf("%d (zellij) S 1 0 0 0 -1 4194560\n", base+290)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(m.in.ProcRoot, fmt.Sprint(base+290), "stat"), fmt.Appendf(nil, "%d (zellij) S 1 0 0 0 -1 4194560\n", base+290), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	steps := repair.Repair(context.Background(), m.in, sc, true)

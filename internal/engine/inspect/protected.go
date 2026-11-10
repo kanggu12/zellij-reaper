@@ -2,6 +2,7 @@ package inspect
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
@@ -41,10 +42,8 @@ func protectedCommand(t *procfs.Table, server *procfs.Server, f zellij.Files, pr
 func ProtectedProgram(t *procfs.Table, server int, protect []string) string {
 	for _, p := range t.Descendants(server, 512) {
 		for _, want := range protect {
-			for _, n := range p.Names() {
-				if n == want {
-					return want
-				}
+			if slices.Contains(p.Names(), want) {
+				return want
 			}
 			// An interpreter running a script from a package named after
 			// the program ("node .../claude-code/cli.js").

@@ -53,9 +53,6 @@ func Set(l Lang) {
 	}
 }
 
-// Current returns the language in use.
-func Current() Lang { return current }
-
 // T returns the text for key in the current language, formatted with args. A
 // key missing from Korean falls back to English; a key missing from both is
 // shown as itself, which the catalog test turns into a failure.
@@ -82,15 +79,6 @@ func TN(key string, n int, args ...any) string {
 		}
 	}
 	return T(key, args...)
-}
-
-// Keys returns every key of a language's catalog (for the parity test).
-func Keys(l Lang) []string {
-	var out []string
-	for k := range catalogs[l] {
-		out = append(out, k)
-	}
-	return out
 }
 
 // catalogs maps language -> key -> text. Texts are short phrases: a status

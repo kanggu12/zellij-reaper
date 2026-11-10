@@ -72,7 +72,7 @@ func TestATaskUninstallCountsItsTasks(t *testing.T) {
 	// with $ErrorActionPreference = 'Stop'.
 	have := map[string]bool{}
 	w := Tasks{Env: env, Run: func(name string, args ...string) (string, error) {
-		for _, line := range strings.Split(sentScript(t, args), "\n") {
+		for line := range strings.SplitSeq(sentScript(t, args), "\n") {
 			for _, task := range []string{TaskName, NamesTaskName} {
 				switch {
 				case strings.HasPrefix(line, "Register-ScheduledTask -TaskName '"+task+"' "):

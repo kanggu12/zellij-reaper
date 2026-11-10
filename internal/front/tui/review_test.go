@@ -37,7 +37,7 @@ func TestDialogTextIsWrappedOnce(t *testing.T) {
 	for _, w := range []int{40, 52, 60, 100} {
 		m := press(t, loaded(t, sample(), w, 30), "F")
 		var got []string
-		for _, l := range strings.Split(ansi.Strip(m.confirmBox()), "\n") {
+		for l := range strings.SplitSeq(ansi.Strip(m.confirmBox()), "\n") {
 			l = strings.Trim(l, "│╭╮╰╯─ ")
 			if l == "" {
 				if len(got) > 0 {

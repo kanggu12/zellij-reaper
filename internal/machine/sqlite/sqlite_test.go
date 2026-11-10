@@ -280,7 +280,7 @@ func TestTwoCellsThatShareOverflowPagesStop(t *testing.T) {
 			continue
 		}
 		cells := int(binary.BigEndian.Uint16(raw[off+3:]))
-		for i := 0; i < cells; i++ {
+		for i := range cells {
 			at := int(binary.BigEndian.Uint16(raw[off+8+2*i:]))
 			size, k := varint(raw[off+at : off+d.usable])
 			if k == 0 || d.localSize(int(size)) == int(size) {

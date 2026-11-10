@@ -416,3 +416,16 @@ func wordsOf(src, list string) []string {
 	}
 	return words
 }
+
+// BaseBudget is the budget for a base name in room bytes, keeping room for the
+// longest stamp and a tail.
+func BaseBudget(room int) int {
+	room -= tailLen
+	if room > MaxBase {
+		return MaxBase
+	}
+	if room < 1 {
+		return 0
+	}
+	return room
+}

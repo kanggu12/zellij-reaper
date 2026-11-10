@@ -69,10 +69,10 @@ func (f *FakeProc) Add(p Proc) {
 	// Of the fields after ppid, only tty_nr and starttime (in 1/100 s) are
 	// read; zeros keep the shape real.
 	must(f.t, os.WriteFile(filepath.Join(dir, "stat"),
-		[]byte(fmt.Sprintf("%d (%s) %s %d 0 0 %d -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 %d\n",
-			p.PID, p.Comm, p.State, p.PPID, p.CTTY, p.Started/(10*time.Millisecond))), 0o644))
+		fmt.Appendf(nil, "%d (%s) %s %d 0 0 %d -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 %d\n",
+			p.PID, p.Comm, p.State, p.PPID, p.CTTY, p.Started/(10*time.Millisecond)), 0o644))
 	must(f.t, os.WriteFile(filepath.Join(dir, "status"),
-		[]byte(fmt.Sprintf("Name:\t%s\nUid:\t%d\t%d\t%d\t%d\n", p.Comm, p.UID, p.UID, p.UID, p.UID)), 0o644))
+		fmt.Appendf(nil, "Name:\t%s\nUid:\t%d\t%d\t%d\t%d\n", p.Comm, p.UID, p.UID, p.UID, p.UID), 0o644))
 	argv := ""
 	if len(p.Argv) > 0 {
 		argv = strings.Join(p.Argv, "\x00") + "\x00"
@@ -103,7 +103,7 @@ func (f *FakeProc) SetEnv(pid int, env ...string) {
 // Uptime sets how long the fake machine has been up.
 func (f *FakeProc) Uptime(d time.Duration) {
 	f.t.Helper()
-	must(f.t, os.WriteFile(filepath.Join(f.Root, "uptime"), []byte(fmt.Sprintf("%.2f 0.00\n", d.Seconds())), 0o644))
+	must(f.t, os.WriteFile(filepath.Join(f.Root, "uptime"), fmt.Appendf(nil, "%.2f 0.00\n", d.Seconds()), 0o644))
 }
 
 // AddSocket gives a process one more socket, which is what a server gets when

@@ -74,11 +74,12 @@ func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, err
 	case len(args) == 4 && args[3] == "list-clients":
 		switch v := f.clients[args[1]].(type) {
 		case int:
-			out := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
+			var out strings.Builder
+			out.WriteString("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n")
 			for i := range v {
-				out += fmt.Sprintf("%d terminal_0 bash\n", i+1)
+				fmt.Fprintf(&out, "%d terminal_0 bash\n", i+1)
 			}
-			return out, "", nil
+			return out.String(), "", nil
 		case error:
 			return "", v.Error(), v
 		}

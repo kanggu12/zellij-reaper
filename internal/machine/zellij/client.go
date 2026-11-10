@@ -160,7 +160,7 @@ var lineRe = regexp.MustCompile(`^(.*?) \[Created ([^\]]*)\](.*)$`)
 // ParseSessions reads the output of `list-sessions --no-formatting`.
 func ParseSessions(out string) []Listed {
 	var res []Listed
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimRight(line, " \r")
 		// Blank lines, including ones of tabs only, carry no session.
 		if strings.TrimSpace(line) == "" {
@@ -369,7 +369,7 @@ type ClientRow struct {
 func ParseClients(out string) ([]ClientRow, error) {
 	var rows []ClientRow
 	header := false
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		f := strings.Fields(line)
 		if len(f) == 0 {
 			continue

@@ -336,7 +336,7 @@ func (m *model) move(delta int) {
 // attach, a pass, a delete) is not run.
 func Snapshot(a *app.App, w, h int, dark bool, selected, keys string) string {
 	m := snapshotModel(NewBackend(a), w, h, dark, selected)
-	for _, k := range strings.Fields(keys) {
+	for k := range strings.FieldsSeq(keys) {
 		next, _ := m.Update(snapshotKey(k))
 		m = next.(model)
 	}
@@ -365,15 +365,6 @@ func snapshotKey(k string) tea.KeyPressMsg {
 	}
 	r := []rune(k)[0]
 	return tea.KeyPressMsg{Code: r, Text: string(r)}
-}
-
-// snapshot is Snapshot for any backend, without keys.
-func snapshot(b Backend, w, h int, dark bool, selected ...string) string {
-	pick := ""
-	if len(selected) > 0 {
-		pick = selected[0]
-	}
-	return snapshotModel(b, w, h, dark, pick).View().Content
 }
 
 // snapshotModel is the dashboard after its first load, with a session selected.

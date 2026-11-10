@@ -52,11 +52,12 @@ func (f *fakeSessions) run(_ context.Context, args ...string) (string, string, e
 		f.listed = strings.Join(kept, "")
 		return "", "", nil
 	case len(args) == 4 && args[3] == "list-clients":
-		out := "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n"
+		var out strings.Builder
+		out.WriteString("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n")
 		for i := range f.clients[args[1]] {
-			out += fmt.Sprintf("%d terminal_0 bash\n", i+1)
+			fmt.Fprintf(&out, "%d terminal_0 bash\n", i+1)
 		}
-		return out, "", nil
+		return out.String(), "", nil
 	case len(args) == 5 && args[3] == "rename-session":
 		// The new name is listed from now on, as zellij would.
 		f.listed += args[4] + " [Created 1m ago]\n"

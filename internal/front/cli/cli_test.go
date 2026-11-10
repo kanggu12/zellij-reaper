@@ -303,10 +303,8 @@ func newRecoverMachine(t *testing.T) *recoverMachine {
 		Log:     func(line string) { m.logged = append(m.logged, line) },
 		Signal: func(pid int, sig syscall.Signal) error {
 			// The process is gone once it got SIGTERM.
-			for _, s := range m.signals {
-				if s == "TERM" {
-					return syscall.ESRCH
-				}
+			if slices.Contains(m.signals, "TERM") {
+				return syscall.ESRCH
 			}
 			if sig == syscall.SIGTERM {
 				m.signals = append(m.signals, "TERM")

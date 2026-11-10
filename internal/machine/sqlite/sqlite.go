@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"strings"
@@ -85,7 +86,7 @@ func (t Table) Text(r Row, col int) (string, bool) {
 func ReadTable(path, name string) (Table, error) {
 	var t Table
 	var err error
-	for try := 0; try < 3; try++ {
+	for try := range 3 {
 		if try > 0 {
 			time.Sleep(20 * time.Millisecond)
 		}
@@ -300,9 +301,7 @@ func (d *db) applyWAL(wal []byte) {
 		// A commit frame carries the database's size after the commit; the
 		// frames up to it are the transaction.
 		if commit := binary.BigEndian.Uint32(h[4:8]); commit != 0 {
-			for k, v := range pending {
-				committed[k] = v
-			}
+			maps.Copy(committed, pending)
 			pending = map[uint32][]byte{}
 			size = commit
 		}
@@ -381,7 +380,7 @@ func (d *db) rows(root uint32, visit func(rowid int64, payload []byte) error) er
 			if ptrs+2*cells > d.usable {
 				return fmt.Errorf("%w: page %d has more cells than room", ErrCorrupt, n)
 			}
-			for i := 0; i < cells; i++ {
+			for i := range cells {
 				rowid, payload, err := d.leafCell(p, int(binary.BigEndian.Uint16(p[ptrs+2*i:])), seen)
 				if err != nil {
 					return err
@@ -398,7 +397,7 @@ func (d *db) rows(root uint32, visit func(rowid int64, payload []byte) error) er
 			if ptrs+2*cells > d.usable {
 				return fmt.Errorf("%w: page %d has more cells than room", ErrCorrupt, n)
 			}
-			for i := 0; i < cells; i++ {
+			for i := range cells {
 				off := int(binary.BigEndian.Uint16(p[ptrs+2*i:]))
 				if off < ptrs || off+4 > d.usable {
 					return fmt.Errorf("%w: a cell of page %d is out of place", ErrCorrupt, n)
@@ -540,7 +539,7 @@ func record(b []byte) ([]Value, error) {
 			}
 			// Big-endian two's complement, sign-extended to 64 bits.
 			var v int64
-			for j := 0; j < w; j++ {
+			for j := range w {
 				v = v<<8 | int64(b[body+j])
 			}
 			shift := uint(64 - 8*w)

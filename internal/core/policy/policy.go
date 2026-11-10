@@ -202,12 +202,9 @@ func Decide(f Facts, th Thresholds, now time.Time) Verdict {
 	if f.LastActive.IsZero() {
 		return keep("last activity", NoActivity, "")
 	}
-	age := now.Sub(f.LastActive)
 	// A clock that moved backwards, or a file touched "in the future", must
 	// not make a session look older than it is.
-	if age < 0 {
-		age = 0
-	}
+	age := max(now.Sub(f.LastActive), 0)
 	checks = append(checks, Check{Name: "last activity", Pass: true, Detail: duration.Format(age) + " ago", Age: age})
 
 	if f.Exited {

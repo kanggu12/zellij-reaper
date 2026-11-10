@@ -38,3 +38,12 @@ func itoa(n int) string {
 	}
 	return s
 }
+
+// snapshot is Snapshot for any backend, without keys.
+func snapshot(b Backend, w, h int, dark bool, selected ...string) string {
+	pick := ""
+	if len(selected) > 0 {
+		pick = selected[0]
+	}
+	return snapshotModel(b, w, h, dark, pick).View().Content
+}

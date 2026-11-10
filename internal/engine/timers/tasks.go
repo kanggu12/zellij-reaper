@@ -208,7 +208,7 @@ $when = { param($d) if ($d -and $d.Year -gt 2000) { $d.ToUniversalTime().ToStrin
 	// around it is not part of it.
 	var ti taskInfo
 	found := false
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if line = strings.TrimSpace(line); strings.HasPrefix(line, "{") && json.Unmarshal([]byte(line), &ti) == nil {
 			found = true
 			break

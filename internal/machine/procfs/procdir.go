@@ -119,7 +119,7 @@ func readDetails(root string, p *Proc) {
 	dir := filepath.Join(root, strconv.Itoa(p.PID))
 	// The real uid is the first number on the Uid: line of status.
 	if status, err := os.ReadFile(filepath.Join(dir, "status")); err == nil {
-		for _, line := range strings.Split(string(status), "\n") {
+		for line := range strings.SplitSeq(string(status), "\n") {
 			if strings.HasPrefix(line, "Uid:") {
 				if f := strings.Fields(line); len(f) > 1 {
 					p.UID, _ = strconv.Atoi(f[1])
