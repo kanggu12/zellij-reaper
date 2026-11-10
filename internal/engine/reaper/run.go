@@ -171,6 +171,14 @@ func (e *Env) reap(ctx context.Context, o *Outcome, dry bool, taken map[string]b
 		return
 	}
 	if err := del(ctx, s.Name()); err != nil {
+		// An exited session someone brought back since the second look is
+		// refused by zellij, which deletes a running one only with --force:
+		// kept, as it should be, and no failure.
+		if s.Listed.Exited && RunningAgain(ctx, e.Zellij, s.Name()) {
+			o.KeptAtDelete = "it is running again"
+			e.Log.Printf("  -> kept: %s :: %s", s.Name(), o.KeptAtDelete)
+			return
+		}
 		o.DeleteErr = err
 		e.Log.Printf("  -> FAILED: %s :: %v", s.Name(), err)
 		return
@@ -273,6 +281,21 @@ func (e *Env) stillDue(ctx context.Context, s inspect.Session) (bool, string) {
 		}
 	}
 	return e.noClientNow(ctx, s.Name())
+}
+
+// RunningAgain reports whether zellij lists name as running: an exited session
+// brought back since it was looked at. A list that cannot be read says no.
+func RunningAgain(ctx context.Context, z Zellij, name string) bool {
+	listed, err := z.ListSessions(ctx)
+	if err != nil {
+		return false
+	}
+	for _, l := range listed {
+		if l.Name == name {
+			return !l.Exited
+		}
+	}
+	return false
 }
 
 // noClientNow asks a running session for its clients once more, right before

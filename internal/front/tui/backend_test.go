@@ -42,7 +42,10 @@ type fakeZellij struct {
 	renameUnseen bool
 	// onRename runs while zellij renames: another process acting meanwhile.
 	onRename func()
-	calls    []string
+	// broughtBack is an exited session someone brings back as zellij is
+	// asked to delete it without --force, which zellij then refuses.
+	broughtBack string
+	calls       []string
 }
 
 func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, error) {
@@ -55,6 +58,9 @@ func (f *fakeZellij) run(_ context.Context, args ...string) (string, string, err
 			return "", f.listErr.Error(), f.listErr
 		}
 		return f.sessions, "", nil
+	case args[0] == "delete-session" && len(args) == 2 && args[1] == f.broughtBack:
+		f.sessions = strings.Replace(f.sessions, args[1]+" [Created 5d ago] (EXITED - attach to resurrect)\n", args[1]+" [Created 5d ago] \n", 1)
+		return "A session by the name \"" + args[1] + "\" exists and is active, use --force to delete it.\n", "", errors.New("exit status 1")
 	case args[0] == "delete-session":
 		// The session leaves the list, as zellij would.
 		var kept []string
@@ -172,6 +178,13 @@ func TestDeleteByHandAsksZellijFirst(t *testing.T) {
 	// since the look, it would be killed with its client attached.
 	if !slices.Contains(z.calls, "delete-session notes --force") || !slices.Contains(z.calls, "delete-session old") || slices.Contains(z.calls, "delete-session old --force") {
 		t.Errorf("calls %q", z.calls)
+	}
+	// Brought back as it is deleted: zellij refuses without --force, and the
+	// dashboard says why rather than that zellij failed.
+	z = &fakeZellij{sessions: listed, clients: map[string]any{"notes": 0}, broughtBack: "old"}
+	b, _ = backendFor(t, z, "")
+	if err := b.Delete(context.Background(), "old"); err == nil || err.Error() != "it is running again: someone brought it back just now" {
+		t.Errorf("brought back: %v", err)
 	}
 }
 

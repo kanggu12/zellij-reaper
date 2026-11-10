@@ -174,7 +174,7 @@ Every line the log can hold:
 | `time is up after 40s: N sessions left for the next pass` | a pass that has run 40 seconds, its wait for the lock included, starts no more deletes and leaves the sessions it has not come to; a names pass says `time is up after 40s: the rest are named at the next pass`. systemd and the Task Scheduler stop a pass at a minute, and one stopped that way writes no end line |
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
-| `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: `...; the server of NAME (pid N) is stopped: kill -CONT N lets it go on` |
+| `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: ``...; the server of NAME (pid N) is stopped: `kill -CONT N` lets it go on``, or ``the servers of NAME (pid N) and NAME (pid M) are stopped: `kill -CONT N M` lets them go on`` |
 | `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |

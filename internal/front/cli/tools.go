@@ -187,7 +187,8 @@ func cmdResize() *cobra.Command {
 		Short:   "Make zellij and the programs in its panes redraw at the right size",
 		Long: `Send SIGWINCH to every zellij client, every server and every program in a pane, so each
 re-reads its terminal size and redraws. Use it when a program in a pane is stuck at an
-old size after the window changed. --shallow signals the clients only.`,
+old size after the window changed. --shallow signals the clients only. The status
+is 1 when a process could not be signalled.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()

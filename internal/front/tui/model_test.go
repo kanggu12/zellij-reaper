@@ -358,6 +358,15 @@ func TestMessagesAndTinyScreensFit(t *testing.T) {
 	measure(t, "multi-line toast", m.View().Content, 100, 30)
 	broken := &fake{cfg: sample().cfg, protected: map[string]bool{}, planErr: errors.New("one\ntwo\nthree")}
 	measure(t, "multi-line error", loaded(t, broken, 80, 24).View().Content, 80, 24)
+	// A long error is wrapped, not cut: its end says what to do.
+	stopped := &fake{cfg: sample().cfg, protected: map[string]bool{}, planErr: errors.New("zellij list-sessions --no-formatting: no answer within 10s; the server of beta (pid 78) is stopped: `kill -CONT 78` lets it go on")}
+	for _, size := range [][2]int{{100, 20}, {80, 24}} {
+		v := loaded(t, stopped, size[0], size[1]).View().Content
+		measure(t, "a long error", v, size[0], size[1])
+		if flat := strings.Join(strings.Fields(ansi.Strip(v)), " "); !strings.Contains(flat, "is stopped: `kill -CONT 78` lets it go on") {
+			t.Errorf("at %dx%d the end of the error is cut:\n%s", size[0], size[1], ansi.Strip(v))
+		}
+	}
 }
 
 func TestLogViewLaysOutLines(t *testing.T) {
@@ -377,7 +386,9 @@ func TestLogViewLaysOutLines(t *testing.T) {
 		"[2026-11-04 09:00:00]   -> FAILED: tmp :: exit status 1":                          "11-04 09:00    → could not delete tmp: exit status 1",
 		"[2026-11-04 09:00:00]   -> renamed: tmp → vim-notes_1104-0900":                    "11-04 09:00    → renamed tmp → vim-notes_1104-0900",
 		"[2026-11-04 09:00:00]   -> DRY_RUN: would run: zellij delete-session tmp --force": "11-04 09:00    → would delete tmp (dry run)",
-		"[2026-11-04 09:00:00]   -> DRY_RUN: would rename 'tmp' → 'vim_1104-0900'":         "11-04 09:00    → would rename tmp → vim_1104-0900 (dry run)",
+		// An exited session goes without --force.
+		"[2026-11-04 09:00:00]   -> DRY_RUN: would run: zellij delete-session old": "11-04 09:00    → would delete old (dry run)",
+		"[2026-11-04 09:00:00]   -> DRY_RUN: would rename 'tmp' → 'vim_1104-0900'": "11-04 09:00    → would rename tmp → vim_1104-0900 (dry run)",
 		// A line the view does not know, such as the shell version's, is
 		// shown as written.
 		"[2026-05-12 10:00:00] === reaper start (dry_run=1 max_age_hours=72) ===": "05-12 10:00  === reaper start (dry_run=1 max_age_hours=72) ===",
@@ -492,6 +503,22 @@ func TestDetailExplainsTheVerdict(t *testing.T) {
 	for _, want := range kept {
 		if v := ansi.Strip(m.View().Content); !strings.Contains(v, want) {
 			t.Errorf("kept name's detail lacks %q:\n%s", want, v)
+		}
+	}
+}
+
+func TestACommandWithANameCanBePastedAsItIs(t *testing.T) {
+	for name, want := range map[string]string{
+		"api-server":    "api-server",
+		"report_2026.1": "report_2026.1",
+		"세션":            "세션",
+		"my notes":      "'my notes'",
+		"it's":          `'it'\''s'`,
+		"a;rm":          "'a;rm'",
+		"":              "''",
+	} {
+		if got := shellWord(name); got != want {
+			t.Errorf("shellWord(%q) = %s, want %s", name, got, want)
 		}
 	}
 }

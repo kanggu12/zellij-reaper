@@ -282,9 +282,12 @@ func (v snapshot) session(l zellij.Listed) Session {
 func (v snapshot) exited(s *Session) {
 	s.Facts.LastActive, s.Facts.ActivitySource = s.Files.Newest, "session files"
 	// A socket file can outlive a server that was killed; only a server still
-	// listening on it means the session is not gone.
+	// listening on it means the session is not gone. A server found by its
+	// command line only keeps the session here, so that match counts after a
+	// rename too: wrong, it keeps one more session, where missing a server
+	// would delete the files of one that still runs.
 	if sock := findSocket(v.dirs, s.ID); sock != "" {
-		if srv, _ := findServer(sock, v.servers, v.socks, v.owners, v.byCmdline); srv != nil {
+		if srv, _ := findServer(sock, v.servers, v.socks, v.owners, true); srv != nil {
 			s.Socket, s.Server = sock, srv
 			s.Facts.ServerPID = srv.PID
 		}

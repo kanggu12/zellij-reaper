@@ -46,6 +46,9 @@ type fakeZellij struct {
 	// session whatever is attached.
 	forced  []string
 	renamed []string
+	// refuseDelete makes zellij refuse a delete without --force, as it does
+	// for a session that runs: onDelete runs first, to bring it back.
+	refuseDelete map[string]bool
 }
 
 func (f *fakeZellij) Available() bool { return true }
@@ -92,6 +95,12 @@ func (f *fakeZellij) Delete(ctx context.Context, name string) error {
 func (f *fakeZellij) DeleteExited(ctx context.Context, name string) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if f.refuseDelete[name] {
+		if f.onDelete != nil {
+			f.onDelete(name)
+		}
+		return errors.New("zellij delete-session " + name + ": exit status 1")
 	}
 	f.deleted = append(f.deleted, name)
 	if f.onDelete != nil {

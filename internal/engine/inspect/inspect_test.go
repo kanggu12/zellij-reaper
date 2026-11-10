@@ -413,6 +413,23 @@ func TestASessionRenamedIntoAnothersFirstNameIsNotJudgedByIt(t *testing.T) {
 	}
 }
 
+func TestAnExitedSessionWithItsServerUpIsKeptAfterARename(t *testing.T) {
+	// Without sock_diag, and with a rename showing, a running session is not
+	// matched by its command line. An exited one still is: zellij lists it as
+	// exited while its server still serves the socket, and a server found
+	// only keeps it, where a server missed would have its files deleted.
+	m := newMachine(t)
+	m.server(t, "renamed", "original", 100, testutil.Metadata(0, "x"), "")
+	m.server(t, "old", "old", 200, testutil.Metadata(0, "x"), "")
+	got := m.gather(t, false, running("renamed"), zellij.Listed{Name: "old", Exited: true})
+	if got[1].Facts.ServerPID != 200 {
+		t.Errorf("the exited session's server: %d", got[1].Facts.ServerPID)
+	}
+	if v := policy.Decide(got[1].Facts, policy.Thresholds{}, now); v.Code != policy.ExitedLive {
+		t.Errorf("verdict: %s", v.Code)
+	}
+}
+
 func TestExitedAndMissing(t *testing.T) {
 	m := newMachine(t)
 	testutil.SessionFiles(t, m.info, "gone", testutil.Metadata(0, "x"), "layout {\n}\n", now.Add(-50*time.Hour))

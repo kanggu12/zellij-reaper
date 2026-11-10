@@ -10,7 +10,7 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 - A zellij server stopped by a signal never answers, and `zellij list-sessions` waits for every server: each pass
   stopped with "no answer within 10s" and nothing more. A list cut short now names the stopped servers and the command
-  that lets them go on (`the server of beta (pid 78) is stopped: kill -CONT 78 lets it go on`), in the log, `plan` and
+  that lets them go on (``the server of beta (pid 78) is stopped: `kill -CONT 78` lets it go on``), in the log, `plan` and
   `doctor`, on macOS too.
 - `doctor` reads the space left where the log is, and fails below 64 KiB: a full file system takes the open and no
   line after it, and went unseen. It also counts the deletes zellij refused in the last pass, and warns.
@@ -33,15 +33,16 @@ that only fixes raises the patch number. Each release's section here is its rele
   rename does not change. After `bar` was renamed `baz` and `foo` was renamed `bar`, the session `bar` was judged by the
   other server's idle panes, and could be reaped while busy. The command line is used only while no rename shows;
   otherwise the running sessions are kept as `no-server`, and `doctor` says why.
-- An exited session was deleted with `--force`, so one brought back between the last look and the delete was killed
-  with its client attached. It is deleted without `--force` now, by passes and by hand, and zellij refuses one running
-  again. Right before a delete, the panes are read again too: a job started in those seconds (`zellij run`, keys sent
-  to a detached session) was ended with the session.
+- An exited session was deleted with `--force`, so one brought back between the last look and the delete was killed with
+  its client attached. It is deleted without `--force` now, by passes and by hand: zellij refuses one running again, and
+  the pass keeps it (`it is running again`), as the dashboard says too. Right before a delete, the panes are read again
+  too: a job started in those seconds (`zellij run`, keys sent to a detached session) was ended with the session.
 - A session protected from another terminal during a pass was still renamed, which left the protection on the old
   name and the session protected by nothing. The rename looks at the list again, and keeps the name.
 - zellij keeps session files under `contract_version_N`, and the highest `N` present was read. A folder another zellij
-  left, with sessions of the same names, had exited sessions judged by stale files. The folder the running servers'
-  sockets name is read now.
+  left, with sessions of the same names, had exited sessions judged by stale files. The newest folder among those the
+  running servers' sockets name is read now: the zellij in use is the newest that runs, and an older one's sessions do
+  not stand for its own.
 - A pass that could not read zellij's index forgot every kept and given name, since zellij then lists ids, and one
   empty list, from a timer looking in another place, forgot every kept name. Kept names now go only after a pass that
   saw sessions and could name them all.
@@ -64,9 +65,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 - Help ran past 80 columns in most commands, and a flag's words to 125; the line above the tables of `plan` and `run`
   was about 94. Help is set in lines of 80 and the line above the tables breaks between its parts, both held by tests.
   `install --help` said Windows gets two tasks; it gets one. `recover --help` gives macOS's 103-byte limit too.
-- A missing zellij, a busy lock in `recover`, `keep-name` and `forget-name`, a setup screen that did not open and the
-  commands' usage errors were said in English on a Korean screen. They are said in the language on screen; a missing
-  zellij also says how to name it in the settings.
+- A missing zellij, a busy lock in `recover`, `keep-name` and `forget-name`, a setup screen that did not open, a missing
+  session name, an unknown shell for `shell-hook`, a negative `--lines`, and `config init` and `config edit` stopping
+  were said in English on a Korean screen. They are said in the language on screen; a missing zellij also says how to
+  name it in the settings.
+- The dashboard cut a long error to one line, and with it the end that says what to do, such as the command that lets
+  a stopped server go on. It is wrapped now.
 - `forget-name` said a name was no longer kept, and logged it, for a name that never was. It says the name was not on
   the list, as `unprotect` does.
 

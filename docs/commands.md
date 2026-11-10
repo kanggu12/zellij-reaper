@@ -56,23 +56,23 @@ printing new lines and follows the log across rotations. The lines are printed a
 they can be searched and quoted; the dashboard's log view says them in its language.
 
 **`doctor`** checks zellij and its version, the timers' service (systemd, launchd or the Task Scheduler), the timer
-(installed, enabled, running this binary, the interval it was installed with), the names timer when `auto_rename` is
-on, lingering on Linux, the settings, settings that only your shell sees, zellij's session directory, how renamed
-sessions are matched to their servers, the log and the last pass. The last pass is read from the log: when it ran and
-what it did, with how many deletes zellij refused, or why it stopped, and whether the passes stopped coming or
-something holds the pass lock, which makes
-every pass give up. Under a timer, a pass that gives up on the lock ends with status 0, and one that stops says why only
-in the log: this is where both show. It exits with status 1 when something is broken; a warning alone still exits 0.
+(installed, enabled, running this binary, the interval it was installed with), the names timer when `auto_rename` is on,
+lingering on Linux, the settings, settings that only your shell sees, zellij's session directory, how renamed sessions
+are matched to their servers, the log and the last pass. The last pass is read from the log: when it ran and what it
+did, with how many deletes zellij refused, or why it stopped, and whether the passes stopped coming or something holds
+the pass lock, which makes every pass give up. Under a timer, a pass that gives up on the lock ends with status 0, and
+one that stops says why only in the log: this is where both show. It exits with status 1 when something is broken; a
+warning alone still exits 0.
 
 ## Acting
 
 **`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
 logs; `--force` sets both waits to zero for this pass; `--names-only` renames what a pass would and deletes nothing,
-writing to the log only when it renames (the names timer's mode); `--quiet` prints nothing (the timers' mode). The exit
-status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing. It is 1 when zellij
-refused a delete, with a line saying how many, also under `--quiet`, so the timer's own status shows it; and 1 on any
-other error, such as zellij failing to list its sessions. A session kept at the last moment, or a rename zellij
-refused, is no failure.
+writing to the log only when it renames (the names timer's mode); `--quiet` (the timers' mode) prints only an error, or
+the line on failed deletes below. The exit status is 0 when the pass ran, when another pass holds the lock, or when
+zellij is missing. It is 1 when zellij refused a delete, with a line saying how many, also under `--quiet`, so the
+timer's own status shows it; and 1 on any other error, such as zellij failing to list its sessions. A session kept at
+the last moment, or a rename zellij refused, is no failure.
 
 **`protect NAME...`** adds sessions to the protected list; with no name it prints the list, one name a line (in a
 terminal, an empty list says so). **`unprotect NAME...`** takes them off, and says when a name was not on the list. A

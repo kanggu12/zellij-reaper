@@ -78,7 +78,14 @@
     if (Test-Path $exe) {
       $aside = "$exe.$([DateTime]::Now.ToString('yyyyMMddHHmmss')).old"
       Move-Item $exe $aside -Force
-      Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') $exe -Force
+      try {
+        Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') $exe -Force
+      } catch {
+        # The new copy did not land: the old one goes back, so the task and
+        # the PATH still find a program.
+        Move-Item $aside $exe -Force
+        throw
+      }
       Remove-Item $aside -Force -ErrorAction SilentlyContinue
     } else {
       Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') $exe -Force

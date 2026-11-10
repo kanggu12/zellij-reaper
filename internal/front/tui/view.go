@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"image/color"
 	"regexp"
 	"strings"
 	"time"
@@ -63,16 +64,16 @@ func (m model) mainView() string {
 	case !m.loaded:
 		lines = append(lines, m.centered(body, ui.Fg(m.th.Muted).Render(i18n.T("loading")))...)
 	case errors.Is(m.err, reaper.ErrNoZellij):
-		lines = append(lines, m.centered(body,
-			ui.Fg(m.th.Cat[ui.CatUnknown]).Render(i18n.T("error.zellij")),
-			ui.Fg(m.th.Muted).Render(ansi.Truncate(i18n.T("error.zellij.hint"), m.width-2, "…")))...)
+		lines = append(lines, m.centered(body, append(
+			[]string{ui.Fg(m.th.Cat[ui.CatUnknown]).Render(i18n.T("error.zellij"))},
+			m.paragraph(i18n.T("error.zellij.hint"), m.th.Muted, body-1)...)...)...)
 	case m.err != nil:
 		// zellij's own error often starts with the command it ran, which
 		// the sentence around it already says.
 		msg := strings.TrimPrefix(oneLine(m.err.Error()), "zellij list-sessions: ")
-		lines = append(lines, m.centered(body,
-			ui.Fg(m.th.Cat[ui.CatUnknown]).Render(ansi.Truncate(i18n.T("error.list", msg), m.width-2, "…")),
-			ui.Fg(m.th.Muted).Render(i18n.T("error.retry")))...)
+		lines = append(lines, m.centered(body, append(
+			m.paragraph(i18n.T("error.list", msg), m.th.Cat[ui.CatUnknown], body-1),
+			ui.Fg(m.th.Muted).Render(i18n.T("error.retry")))...)...)
 	case m.report.NoSessions:
 		msg := []string{
 			lipgloss.NewStyle().Bold(true).Foreground(m.th.Ink).Render(i18n.T("empty.title")),
@@ -115,6 +116,23 @@ func (m model) centered(h int, lines ...string) []string {
 	}
 	for _, l := range lines {
 		out = append(out, lipgloss.PlaceHorizontal(m.width, lipgloss.Center, l))
+	}
+	return out
+}
+
+// paragraph sets s in lines that fit the screen, as many as most allows, as one
+// block that centered puts in the middle. Wrapped, not cut: the end of a
+// message can say what to do, such as the command that lets a stopped server
+// go on.
+func (m model) paragraph(s string, ink color.Color, most int) []string {
+	words := wrapWords(s, min(m.width-4, 96))
+	if most >= 1 && len(words) > most {
+		words = append(words[:most-1], ansi.Truncate(strings.Join(words[most-1:], " "), m.width-4, "…"))
+	}
+	w := blockWidth(words)
+	out := make([]string, len(words))
+	for i, l := range words {
+		out[i] = ui.Fg(ink).Render(padCells(l, w))
 	}
 	return out
 }
@@ -334,7 +352,7 @@ var (
 	decideRe  = regexp.MustCompile(`^(.*?) (\[(?:RUNNING|EXITED)\] panes=\{.*\}) :: (.*)$`)
 	keptRe    = regexp.MustCompile(`^  -> kept: (.*?) :: (.*)$`)
 	failRe    = regexp.MustCompile(`^  -> FAILED: (.*?) :: (.*)$`)
-	dryDelRe  = regexp.MustCompile(`^  -> DRY_RUN: would run: zellij delete-session (.*) --force$`)
+	dryDelRe  = regexp.MustCompile(`^  -> DRY_RUN: would run: zellij delete-session (.*?)(?: --force)?$`)
 	dryRenRe  = regexp.MustCompile(`^  -> DRY_RUN: would rename '(.*)' → '(.*)'$`)
 	renFailRe = regexp.MustCompile(`^  -> rename FAILED: (.*) → (.*?) :: (.*)$`)
 )

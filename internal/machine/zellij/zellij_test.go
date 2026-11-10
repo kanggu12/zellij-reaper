@@ -180,6 +180,19 @@ func TestSessionInfoDir(t *testing.T) {
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1", "/tmp/elsewhere/work"); !strings.Contains(got, "contract_version_2") {
 		t.Errorf("with a socket path that names no contract: %q", got)
 	}
+	// Servers of two zellij versions: the newer one's folder, whoever is
+	// first. Its sessions are the ones the zellij in use lists.
+	older, newer := "/run/user/1000/zellij/contract_version_1/old", "/run/user/1000/zellij/contract_version_2/new"
+	for _, socks := range [][]string{{older, newer}, {newer, older}} {
+		if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1", socks...); got != filepath.Join(cache, "zellij", "contract_version_2", "session_info") {
+			t.Errorf("with servers in both %v: %q", socks, got)
+		}
+	}
+	// here does not know the version: the folder of a zellij before 0.44 is
+	// named after its version, and its server's socket names it.
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "", "/tmp/zellij-1000/0.43.1/work"); got != filepath.Join(cache, "zellij", "0.43.1", "session_info") {
+		t.Errorf("a server of 0.43.1: %q", got)
+	}
 	// Before 0.44, the data directory is named after the version.
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.43.1"); got != filepath.Join(cache, "zellij", "0.43.1", "session_info") {
 		t.Errorf("0.43 = %q", got)

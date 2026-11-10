@@ -118,6 +118,37 @@ func TestAnExitedSessionIsDeletedWithoutForce(t *testing.T) {
 	}
 }
 
+func TestAnExitedSessionBroughtBackAtTheDeleteIsKeptNotFailed(t *testing.T) {
+	// gone is brought back as zellij is asked to delete it, after the second
+	// look: zellij refuses, as it does without --force for a session that
+	// runs. The session is kept, as it should be, and the pass did not fail.
+	w := newWorld(t)
+	w.zj.refuseDelete = map[string]bool{"gone": true}
+	w.zj.onDelete = func(name string) {
+		if name == "gone" {
+			w.zj.listed[3].Exited = false
+		}
+	}
+	r, err := reaper.Run(t.Context(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range r.Outcomes {
+		if o.Session.Name() == "gone" && (o.DeleteErr != nil || o.KeptAtDelete != "it is running again") {
+			t.Errorf("gone: failed %v, kept %q", o.DeleteErr, o.KeptAtDelete)
+		}
+	}
+	if log := w.log(t); !strings.Contains(log, "  -> kept: gone :: it is running again\n") || strings.Contains(log, "FAILED") {
+		t.Errorf("log:\n%s", log)
+	}
+	// Refused while still listed as exited: that is a failure.
+	w = newWorld(t)
+	w.zj.refuseDelete = map[string]bool{"gone": true}
+	if _, err := reaper.Run(t.Context(), w.env, reaper.Options{}); err != nil || !strings.Contains(w.log(t), "  -> FAILED: gone :: ") {
+		t.Errorf("%v, log:\n%s", err, w.log(t))
+	}
+}
+
 func TestAJobStartedBeforeTheDeleteKeepsTheSession(t *testing.T) {
 	w := newWorld(t)
 	// gone goes first. Right after, a job starts in idle-old's pane, with

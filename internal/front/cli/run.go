@@ -30,7 +30,8 @@ func cmdRun() *cobra.Command {
 check are deleted, the rest are named after what they show if auto_rename is on
 and nobody chose their name, and each decision is written to the log. --dry-run
 logs without changing anything; --force skips the waits (idle_after, exited_after)
-but keeps every other check.`,
+but keeps every other check. The status is 1 when zellij refused a delete, or on
+an error.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()
@@ -63,7 +64,7 @@ but keeps every other check.`,
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "log what would happen, change nothing")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "skip the waits; every other check still applies")
 	cmd.Flags().BoolVar(&opts.NamesOnly, "names-only", false, "only rename, delete nothing (the names timer's mode)")
-	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "print nothing (the timer's mode); the log still gets everything")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "print only errors and failed deletes (the timer's mode); the log gets all")
 	return cmd
 }
 

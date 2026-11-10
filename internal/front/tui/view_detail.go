@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -89,7 +90,7 @@ func (m model) detail(width, height int) []string {
 	// with r; the command that lets it go is said here, as it has no key.
 	if m.b.NameKept(s.Name()) {
 		lines = append(lines, "", ui.Fg(t.Muted).Render(i18n.T("detail.namekept")),
-			"  "+ui.Fg(t.Ink).Render("zellij-reaper forget-name "+s.Name()))
+			"  "+ui.Fg(t.Ink).Render("zellij-reaper forget-name "+shellWord(s.Name())))
 	}
 	// The settings that shaped this verdict, when the panel has room.
 	if settings := m.settingsLines(); len(lines)+len(settings)+1 <= height {
@@ -108,6 +109,18 @@ func (m model) detail(width, height int) []string {
 		lines = append(lines, ui.Fg(t.Muted).Render("  …"))
 	}
 	return lines
+}
+
+// shellWord is name as one word of a shell command, to paste as it is: bare
+// when it holds nothing a shell reads, else in single quotes.
+func shellWord(name string) string {
+	plain := func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune("-_./@%+=:,", r)
+	}
+	if name != "" && strings.IndexFunc(name, func(r rune) bool { return !plain(r) }) < 0 {
+		return name
+	}
+	return "'" + strings.ReplaceAll(name, "'", `'\''`) + "'"
 }
 
 // join adds a fact to a check's evidence with a dot between.

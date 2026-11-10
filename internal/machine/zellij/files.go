@@ -16,6 +16,10 @@ import (
 // contractRe matches zellij's versioned data directories ("contract_version_1").
 var contractRe = regexp.MustCompile(`^contract_version_(\d+)$`)
 
+// versionDirRe is the data folder of a zellij before 0.44, named after its
+// version ("0.43.1").
+var versionDirRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
 // DataDirName is the directory zellij names its sockets and session data
 // after: "contract_version_1" since 0.44, the version itself ("0.43.1") before.
 // An unknown version is taken to be a current one.
@@ -30,20 +34,35 @@ func DataDirName(version string) string {
 // SessionInfoDir finds the directory with one subdirectory per session, under
 // zellij's cache directory (config.ZellijCacheDir). Before 0.44 it is
 // <cache>/<version>/session_info; since then <cache>/contract_version_N/
-// session_info, where zellij bumps N when the format changes. The N in the
-// socket paths of running servers (sockets) is the one the zellij in use
-// writes, and wins: a folder another zellij left, with a higher N and maybe
-// sessions of the same names, would judge those sessions by stale files.
-// Without a server to say, the highest N present wins.
+// session_info, where zellij bumps N when the format changes. The socket
+// paths of running servers (sockets) name the folders of the zellij versions
+// that run, and the highest N among them wins: the zellij in use is the
+// newest that runs, and a folder another zellij left, with a higher N and
+// maybe sessions of the same names, would judge those sessions by stale
+// files. Without a server to say, the highest N present wins. A socket in a
+// folder named after a version, from a zellij before 0.44, names that folder
+// when no socket names a contract.
 func SessionInfoDir(zellijCache, version string, sockets ...string) string {
 	base := zellijCache
 	if d := DataDirName(version); !strings.HasPrefix(d, "contract_version_") {
 		return filepath.Join(base, d, "session_info")
 	}
+	running, runningN, older := "", -1, ""
 	for _, s := range sockets {
-		if d := filepath.Base(filepath.Dir(s)); contractRe.MatchString(d) {
-			return filepath.Join(base, d, "session_info")
+		d := filepath.Base(filepath.Dir(s))
+		if m := contractRe.FindStringSubmatch(d); m != nil {
+			if n, _ := strconv.Atoi(m[1]); n > runningN {
+				running, runningN = d, n
+			}
+		} else if versionDirRe.MatchString(d) {
+			older = d
 		}
+	}
+	switch {
+	case running != "":
+		return filepath.Join(base, running, "session_info")
+	case older != "":
+		return filepath.Join(base, older, "session_info")
 	}
 	best, bestN := "", -1
 	entries, _ := os.ReadDir(base)

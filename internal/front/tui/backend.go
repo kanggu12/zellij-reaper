@@ -124,7 +124,11 @@ func (r real) Delete(ctx context.Context, name string) error {
 		// An exited one without --force: brought back since this look, it
 		// is running again, and zellij refuses rather than kills it.
 		if exited {
-			return r.a.Zellij.DeleteExited(ctx, name)
+			err := r.a.Zellij.DeleteExited(ctx, name)
+			if err != nil && reaper.RunningAgain(ctx, r.a.Zellij, name) {
+				return errors.New(i18n.T("delete.running"))
+			}
+			return err
 		}
 		return r.a.Zellij.Delete(ctx, name)
 	}, "%s :: deleted from %s", name, r.from)
