@@ -58,14 +58,19 @@ type Sources struct {
 	// sockets and directories by. Nil reads zellij's own, next to InfoDir;
 	// LoadIndex reads it once for a survey.
 	Index *zellij.Index
+	// IndexErr is why LoadIndex could not read the index, nil when it could
+	// or when there is none.
+	IndexErr error
 }
 
 // LoadIndex reads zellij's session index into src.Index, once for a whole
-// survey. When it cannot be read, every session is looked for under its name,
-// as before 0.46, and the error says why sessions named by id are not found.
+// survey. When it cannot be read, no session's name can be told for sure:
+// zellij, which cannot read it either, lists the sessions it keeps by id under
+// their ids. Every session is then kept (policy.NameUnknown), and the error
+// says why.
 func (src *Sources) LoadIndex() error {
 	x, err := zellij.ReadIndex(src.InfoDir)
-	src.Index = &x
+	src.Index, src.IndexErr = &x, err
 	return err
 }
 
@@ -249,6 +254,10 @@ func (v snapshot) session(l zellij.Listed) Session {
 	if v.rules.Protected != nil {
 		s.Facts.Protected, s.Facts.ProtectedBy = v.rules.Protected(l.Name)
 	}
+	// Measured on zellij's main branch with its index broken: zellij listed
+	// the sessions by their ids, and a session protected by name would have
+	// been judged as one nobody protects.
+	s.Facts.NameUnknown = v.src.IndexErr != nil
 	files, err := zellij.ReadFiles(v.src.InfoDir, s.ID)
 	if err != nil {
 		// An unreadable directory is treated like a missing one: kept.

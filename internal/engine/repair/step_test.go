@@ -34,6 +34,10 @@ func TestStopSaysWhatCameOfIt(t *testing.T) {
 			what: "stopped orphan server (SIGKILL)", sent: []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL}},
 		{name: "SIGKILL refused", kill: syscall.EPERM,
 			what: "could not stop orphan server (SIGKILL)", err: syscall.EPERM, sent: []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL}},
+		// It ended after its last look and before SIGKILL: SIGTERM stopped it,
+		// and a step saying it could not be stopped would be wrong.
+		{name: "gone just before SIGKILL", kill: syscall.ESRCH,
+			what: "stopped orphan server", sent: []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			var sent []syscall.Signal

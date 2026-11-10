@@ -565,7 +565,8 @@ check "zellij lists the broken session" listed "$long"
 check "recover --aggressive --dry-run finds no orphan" sh -c "$R recover --aggressive --dry-run | grep -q 'every server serves a socket file'"
 check "recover repairs the long name" $R recover
 check "its directory is gone" test ! -d "$INFO/$long"
-check "and the log says so" grep -qF "] $long :: recover: removed $INFO/$long" "$LOG"
+# zellij deletes it when it can; what it leaves behind is removed after.
+check "and the log says so" grep -Eq "\] $long :: recover: (deleted with zellij|removed $INFO/$long)\$" "$LOG"
 check "the renamed session survives" listed second2
 
 echo "-- recover --aggressive keeps servers somebody uses"

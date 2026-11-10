@@ -402,6 +402,17 @@ func TestACommandCutShortIsLetGoOfAndNamedOnce(t *testing.T) {
 	if err == nil || err.Error() != "zellij list-sessions --no-formatting: no answer within 200ms" {
 		t.Errorf("cut short: %v", err)
 	}
+	// One that answers and exits with status 0 while a child of it keeps the
+	// output open: the answer counts, a second after it, not as a failure.
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 5 &\necho 'work [Created 1h ago]'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c = &CLI{Bin: bin, Timeout: 10 * time.Second}
+	start = time.Now()
+	listed, err := c.ListSessions(context.Background())
+	if took := time.Since(start); err != nil || len(listed) != 1 || listed[0].Name != "work" || took > 3*time.Second {
+		t.Errorf("answered, child holding the output: %v, %v in %s", listed, err, took)
+	}
 	// A command that answered with an error is named, then its words follow.
 	c = &CLI{Bin: "zellij", Timeout: time.Second, Run: func(context.Context, ...string) (string, string, error) {
 		return "", "boom\n", errors.New("exit status 1")

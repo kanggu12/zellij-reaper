@@ -66,6 +66,7 @@ dashboard's detail panel marks with ✗.
 | Code | Matches when | Log line |
 |:---:|:---|:---|
 | `protected-name` | the name matches `protect`, or is on the protected list | `SKIP protected by protect pattern`, `SKIP protected by protected list` |
+| `name-unknown` | zellij's session index is there but cannot be read, so the name, and whether it is protected, cannot be told: zellij then lists the sessions it keeps by id under their ids | `SKIP name unknown (zellij's session index cannot be read)` |
 | `no-info` | zellij has written nothing about the session yet | `SKIP no session_info dir (unknown state)` |
 | `exited-live` | listed as exited, but a server still listens on its socket | `SKIP EXITED, but a server still serves it (pid 123)` |
 | `protected-command` | a program from `protect_commands` runs in it, or its layout starts one | `SKIP protected command running (claude)` |
@@ -86,6 +87,7 @@ dashboard's detail panel marks with ✗.
 | Code | In `plan` |
 |:---:|:---|
 | `protected-name` | `protected (list)` or `protected (pattern)` |
+| `name-unknown` | `name unknown` |
 | `no-info` | `no session data yet` |
 | `exited-live` | `exited, server still up` |
 | `protected-command` | `protected: claude` |
@@ -153,7 +155,7 @@ Every line the log can hold:
 | `could not rotate PATH (N bytes) to PATH.1: ERROR` | the log could not move aside; the pass goes on |
 | `could not read the list of kept names: ERROR, so no session is renamed` | with `auto_rename` on, the list of kept names could not be read; the pass goes on and renames nothing |
 | `zellij on Windows cannot reach a session after a rename: its pipe keeps the first name, so no session is renamed` | with `auto_rename` on, on Windows; the pass goes on and renames nothing |
-| `read zellij's session index PATH: ERROR, so sessions zellij keeps by id are kept`, `zellij's session index PATH has no name column, so sessions zellij keeps by id are kept` | the index a zellij newer than 0.45 keeps its sessions' names in could not be read; the pass goes on and keeps every session it cannot find without it |
+| `read zellij's session index PATH: ERROR, so every session is kept`, `zellij's session index PATH has no name column, so every session is kept` | the index a zellij newer than 0.45 keeps its sessions' names in is there but could not be read; no session's name can be told for sure, so each is kept as `name-unknown` |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
@@ -177,7 +179,7 @@ Every line the log can hold:
 | `pid N (first name: NAME) :: recover: stopped orphan server`, `... :: recover: stopped orphan server (SIGKILL)` | `recover --aggressive` stopped a server that serves no socket file, with `SIGKILL` when it was still there a second after `SIGTERM`; the brackets hold `name: NAME` where zellij's index still names the session, `first name: NAME` for the name it started under, or `name unknown` |
 | `pid N (...) :: recover: kept orphan server: REASON` | the look right before the stop found a reason to keep the server |
 | `pid N (...) :: recover: could not stop orphan server: ERROR`, `... :: recover: could not stop orphan server (SIGKILL): ERROR` | the signal was refused |
-| `servers :: recover: not stopped: every server looked orphaned, which points at the socket table` | `recover --aggressive` stopped none: with more than one server and not one of them serving a socket file, the socket table is what looks wrong |
+| `servers :: recover: not stopped: every server looked orphaned, which points at the socket table` | `recover --aggressive` repaired a broken session and stopped no server: with more than one server and not one of them serving a socket file, the socket table is what looks wrong. With no broken session either, recover changes nothing and writes no line |
 
 The words stay the same across releases, so months of the log can be grepped. New kinds of lines may be added.
 `zellij-reaper logs -f` follows it across rotations; with `tail`, use `tail -F`.

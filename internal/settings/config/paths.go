@@ -31,6 +31,22 @@ func (OSEnv) Home() string {
 	return h
 }
 
+// Override is an environment with some variables set otherwise, as a flag
+// sets them for one command: `--config FILE` is ZELLIJ_REAPER_CONFIG.
+type Override struct {
+	Env
+	// Vars are the variables set otherwise, by name.
+	Vars map[string]string
+}
+
+// Lookup implements Env: a variable set otherwise first, then the rest.
+func (o Override) Lookup(key string) (string, bool) {
+	if v, ok := o.Vars[key]; ok {
+		return v, true
+	}
+	return o.Env.Lookup(key)
+}
+
 // MapEnv is a fixed environment for tests. HOME comes from the map too.
 type MapEnv map[string]string
 

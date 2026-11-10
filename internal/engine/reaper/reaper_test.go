@@ -944,12 +944,23 @@ func TestAnIndexThatCannotBeReadIsLogged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.IndexErr == nil || !strings.Contains(w.log(t), "session index") {
+	if r.IndexErr == nil || !strings.Contains(w.log(t), ": not an SQLite database, so every session is kept\n") {
 		t.Errorf("IndexErr = %v, log:\n%s", r.IndexErr, w.log(t))
 	}
-	// Sessions named by their names are still judged.
-	if strings.Join(w.zj.deleted, ",") != "idle-old,gone" {
+	// No name can be told for sure: zellij, which cannot read its index
+	// either, lists the sessions it keeps by id under their ids, which no
+	// protection names. Every session is kept, the ones a pass would reap
+	// otherwise too, and none is renamed.
+	if len(w.zj.deleted) != 0 {
 		t.Errorf("deleted %v", w.zj.deleted)
+	}
+	for _, o := range r.Outcomes {
+		if o.Verdict.Code != policy.NameUnknown || o.RenamedTo != "" {
+			t.Errorf("%s: %s, renamed to %q", o.Session.Name(), o.Verdict.Code, o.RenamedTo)
+		}
+	}
+	if !strings.Contains(w.log(t), "idle-old [RUNNING] panes={") || !strings.Contains(w.log(t), ":: SKIP name unknown (zellij's session index cannot be read)\n") {
+		t.Errorf("log:\n%s", w.log(t))
 	}
 }
 

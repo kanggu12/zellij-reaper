@@ -29,6 +29,9 @@ type Code string
 const (
 	// ProtectedName: the name matches `protect` or the protected list.
 	ProtectedName Code = "protected-name"
+	// NameUnknown: the session's name cannot be told, and so neither can
+	// whether it is protected: zellij's session index cannot be read.
+	NameUnknown Code = "name-unknown"
 	// NoInfo: zellij keeps no directory for the session (yet).
 	NoInfo Code = "no-info"
 	// ProtectedCommand: a program from protect_commands is running in it.
@@ -80,6 +83,10 @@ type Facts struct {
 	// ("protect pattern" or "protected list").
 	Protected   bool
 	ProtectedBy string
+	// NameUnknown is set when zellij's session index, which holds the names
+	// of the sessions it keeps by id, cannot be read: zellij then lists such
+	// a session by its id, which no protection names.
+	NameUnknown bool
 	// HasInfo is true when zellij keeps a directory for the session.
 	HasInfo bool
 	// ProtectedCommand names the protected program found running (or
@@ -161,6 +168,11 @@ func Decide(f Facts, th Thresholds, now time.Time) Verdict {
 
 	if f.Protected {
 		return keep("name not protected", ProtectedName, f.ProtectedBy)
+	}
+	// A name that cannot be read cannot be checked against the protected
+	// ones: the session may be one of them.
+	if f.NameUnknown {
+		return keep("name not protected", NameUnknown, "")
 	}
 	pass("name not protected", "")
 
@@ -252,6 +264,8 @@ func (v Verdict) LogText() string {
 	switch v.Code {
 	case ProtectedName:
 		return "SKIP protected by " + v.Detail
+	case NameUnknown:
+		return "SKIP name unknown (zellij's session index cannot be read)"
 	case NoInfo:
 		return "SKIP no session_info dir (unknown state)"
 	case ProtectedCommand:
@@ -293,7 +307,7 @@ func (v Verdict) MayRename() bool {
 		return false
 	}
 	switch v.Code {
-	case Attached, AttachUnknown, ProtectedName, NoInfo, NoSocket, NoServer:
+	case Attached, AttachUnknown, ProtectedName, NameUnknown, NoInfo, NoSocket, NoServer:
 		return false
 	}
 	return true

@@ -12,8 +12,9 @@ that only fixes raises the patch number. Each release's section here is its rele
   and keeps the names in an SQLite index. zellij-reaper reads that index, without a database driver, so passes, the
   dashboard, `recover` and `doctor` find the sessions there; until now every one of them read as unknown and was kept.
   A session's first name comes from its server's environment, which keeps it through every rename, and an orphan server
-  of a session kept by id is named, and protected, by the name the index gives. The integration scenarios run on
-  zellij's main branch as well as on 0.43, 0.44 and 0.45.
+  of a session kept by id is named, and protected, by the name the index gives. An index that is there but cannot be
+  read keeps every session, as `name-unknown`: zellij then lists the sessions it keeps by id under their ids, which no
+  protection names. The integration scenarios run on zellij's main branch as well as on 0.43, 0.44 and 0.45.
 - `install` writes the places the installing shell keeps its files into the timer: `XDG_CONFIG_HOME`,
   `XDG_STATE_HOME`, `XDG_CACHE_HOME`, `ZELLIJ_SOCKET_DIR`, and `TMPDIR` where it decides zellij's socket directory. With
   one of them set, the dashboard protected a session in one list while the timer read another, or zellij listed the
@@ -42,7 +43,7 @@ that only fixes raises the patch number. Each release's section here is its rele
   the other one's timers ran on while `uninstall` said they were gone; it removes both now, the systemd units and the
   reaper's lines in the crontab. A timer whose unit files are removed from a shell where the user's systemd does not
   answer (`su`, `sudo`) stays loaded and keeps firing: `uninstall` says so there, and from a shell where systemd answers
-  it also stops the timers by name.
+  it also stops the timers by name. A crontab that cannot be read while a cron daemon runs is said to keep its jobs.
 - `uninstall` stopped at a settings file that does not parse, the state in which one reaches for it. It removes the
   timers on the default settings now, and a purge says that a log `log.path` put elsewhere stays.
 - With the prompt hook in fish's startup file, every fish printed six lines of error once the program was gone: the
@@ -74,6 +75,9 @@ that only fixes raises the patch number. Each release's section here is its rele
   for why. It reads only the settings now.
 - An error from a zellij command stopped at its time limit named the command twice: "zellij list-sessions: zellij
   list-sessions --no-formatting: no answer within 10s".
+- `uninstall --purge` with `--config FILE` removed the default settings file and kept the one named.
+- `recover --aggressive` reported a server that ended after `SIGTERM`, just before the `SIGKILL` that was to follow, as
+  one it could not stop: "no such process". It says the server was stopped.
 - The `.deb` package had no section, and pacman showed "Unknown Packager".
 
 ## [0.10.1] - 2026-11-10

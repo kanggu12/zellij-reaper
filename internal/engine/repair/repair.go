@@ -11,6 +11,7 @@ package repair
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -255,6 +256,10 @@ func stop(kill func(int, syscall.Signal) error, pid int, wait time.Duration) Ste
 		time.Sleep(100 * time.Millisecond)
 	}
 	if err := kill(pid, syscall.SIGKILL); err != nil {
+		// Gone after the last look and before SIGKILL: SIGTERM ended it.
+		if errors.Is(err, syscall.ESRCH) || errors.Is(err, os.ErrProcessDone) {
+			return st
+		}
 		st.What, st.Err = "could not stop orphan server (SIGKILL)", err
 		return st
 	}

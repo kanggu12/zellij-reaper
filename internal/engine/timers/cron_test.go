@@ -279,6 +279,20 @@ func TestUninstallRemovesTheTimersOfBothSchedulers(t *testing.T) {
 	if f.text != stuck {
 		t.Errorf("the crontab now holds %q", f.text)
 	}
+	// A cron daemon that runs and a crontab that cannot be read: the
+	// reaper's lines may be in it, so that is said too, with systemd's
+	// timers gone. Before, a crontab not read counted as one with no jobs.
+	run = &fakeRun{linger: "no"}
+	sys = Systemd{Env: env, Run: run.run, User: "u"}
+	if _, err := sys.Install(InstallOptions{Exe: "/x/zellij-reaper", Config: config.Default(env)}); err != nil {
+		t.Fatal(err)
+	}
+	f = &rawCrontab{text: stuck, exists: true, refuse: "crontab: you (u) are not allowed to use this program\n"}
+	a = auto{sys: sys, cron: Cron{Env: env, Run: f.run, Running: func() bool { return true }}, once: &sync.Once{}, pick: new(Scheduler)}
+	r, err = a.Uninstall(false, "")
+	if err != nil || r.Timers != 4 || len(r.Warnings) != 1 || !strings.Contains(r.Warnings[0], "not allowed to use this program") {
+		t.Errorf("uninstall with a crontab that cannot be read: %v, %+v", err, r)
+	}
 }
 
 func TestCronUninstallSaysWhenTheCrontabCannotBeRead(t *testing.T) {

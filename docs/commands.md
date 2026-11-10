@@ -59,8 +59,8 @@ printing new lines and follows the log across rotations.
 on, lingering on Linux, the settings, settings that only your shell sees, zellij's session directory, how renamed
 sessions are matched to their servers, the log and the last pass. The last pass is read from the log: when it ran and
 what it did, or why it stopped, and whether the passes stopped coming or something holds the pass lock, which makes
-every pass give up. A timer goes on running such passes, each ending with status 0, so this is where they show. It
-exits with status 1 when something is broken; a warning alone still exits 0.
+every pass give up. Under a timer, a pass that gives up on the lock ends with status 0, and one that stops says why only
+in the log: this is where both show. It exits with status 1 when something is broken; a warning alone still exits 0.
 
 ## Acting
 

@@ -59,9 +59,11 @@ func (a auto) Uninstall(purge bool, logPath string) (Result, error) {
 		// It found its timers and could not remove them, which is said; the
 		// chosen one's still go.
 		r.Warnings = append(r.Warnings, fmt.Sprintf("%s's timers stay: %v", other.Kind(), err))
-	case r.Timers == 0:
-		// With no timers of its own, the other one's troubles are not worth
-		// a line: on most machines it is not there at all.
+	case r.Timers == 0 && !other.Available():
+		// With no timers of its own and nothing running, the other one's
+		// troubles are not worth a line: on most machines it is not there at
+		// all. A cron daemon that runs and a crontab that cannot be read are
+		// another matter: the reaper's lines may be in it, and stay.
 		r.Warnings = nil
 	}
 	c, err := a.chosen().Uninstall(purge, logPath)

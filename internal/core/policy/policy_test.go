@@ -33,6 +33,16 @@ func TestDecideTable(t *testing.T) {
 	}{
 		{"idle long enough", idle, th, Reap, IdleOld},
 		{"protected name", func() Facts { f := idle(); f.Protected, f.ProtectedBy = true, "protect pattern"; return f }, th, Keep, ProtectedName},
+		// A name that cannot be read may be a protected one: kept, and an
+		// exited session too.
+		{"name unknown", func() Facts { f := idle(); f.NameUnknown = true; return f }, th, Keep, NameUnknown},
+		{"name unknown, exited", func() Facts { f := exited(); f.NameUnknown = true; return f }, th, Keep, NameUnknown},
+		// A protection that matches is the reason given.
+		{"protected, name unknown", func() Facts {
+			f := idle()
+			f.Protected, f.ProtectedBy, f.NameUnknown = true, "protected list", true
+			return f
+		}, th, Keep, ProtectedName},
 		{"no session data", func() Facts { f := idle(); f.HasInfo = false; return f }, th, Keep, NoInfo},
 		{"protected command", func() Facts { f := idle(); f.ProtectedCommand = "claude"; return f }, th, Keep, ProtectedCommand},
 		{"unknown activity", func() Facts { f := idle(); f.LastActive = time.Time{}; return f }, th, Keep, NoActivity},
@@ -110,7 +120,7 @@ func TestLogText(t *testing.T) {
 		t.Errorf("busy: %q", got)
 	}
 	// Every code has its own text, none falls through to the generic one.
-	for _, c := range []Code{ProtectedName, NoInfo, ProtectedCommand, NoActivity, ExitedRecent, ExitedOld, ExitedLive, NoSocket, NoServer, Attached, AttachUnknown, NoPanes, Busy, IdleRecent, IdleOld} {
+	for _, c := range []Code{ProtectedName, NameUnknown, NoInfo, ProtectedCommand, NoActivity, ExitedRecent, ExitedOld, ExitedLive, NoSocket, NoServer, Attached, AttachUnknown, NoPanes, Busy, IdleRecent, IdleOld} {
 		if text := (Verdict{Code: c}).LogText(); text == "SKIP "+string(c) || !(strings.HasPrefix(text, "SKIP ") || strings.HasPrefix(text, "REAP ")) {
 			t.Errorf("%s: %q", c, text)
 		}
@@ -118,7 +128,7 @@ func TestLogText(t *testing.T) {
 }
 
 func TestMayRename(t *testing.T) {
-	for code, want := range map[Code]bool{Busy: true, IdleRecent: true, ProtectedCommand: true, Attached: false, AttachUnknown: false, ProtectedName: false, NoServer: false} {
+	for code, want := range map[Code]bool{Busy: true, IdleRecent: true, ProtectedCommand: true, Attached: false, AttachUnknown: false, ProtectedName: false, NameUnknown: false, NoServer: false} {
 		if got := (Verdict{Action: Keep, Code: code}).MayRename(); got != want {
 			t.Errorf("%s: MayRename = %v", code, got)
 		}

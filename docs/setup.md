@@ -216,8 +216,8 @@ zellij-reaper uninstall          # the timers; the settings, the log and the lis
 zellij-reaper uninstall --purge  # those too, and the prompt hook
 ```
 
-`uninstall` stops and removes the timers: on Linux the systemd units and the reaper's lines in your crontab, whichever
-of the two runs the passes today, on macOS the launch agents, on Windows the scheduled task. It lists what it removed,
+`uninstall` stops and removes the timers: on Linux both the systemd units and the reaper's lines in your crontab, not
+only the one that runs the passes today; on macOS the launch agents; on Windows the scheduled task. It lists what it removed,
 and run again it says there was nothing left. It does not need the settings file to load, so a file that no longer
 parses does not keep the timers on.
 

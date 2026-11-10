@@ -80,7 +80,8 @@ or `zellij action rename-session`, and passes leave that name alone. To keep the
 A pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`, so after a rename a `zellij` command run
 there without `--session` waits for a session by the old name while any other session is running. Press Ctrl+C, then
 `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)`. The prompt hook does that at every prompt:
-`command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"` in `~/.bashrc` (also `zsh` and `fish`).
+`command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"` in `~/.bashrc`, the same with `zsh` in
+`~/.zshrc`, and `type -q zellij-reaper; and zellij-reaper shell-hook fish | source` in fish's `config.fish`.
 
 ## A name is slow to change
 

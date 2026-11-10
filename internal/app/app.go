@@ -81,7 +81,13 @@ func Load(configPath string) (*App, error) {
 // timers from being removed, so the settings are the defaults where they do
 // not load, and the error says why they did not.
 func ForUninstall(configPath string) (*App, error) {
-	env := config.OSEnv{}
+	var env config.Env = config.OSEnv{}
+	// The settings file --config names is the one a purge removes. A purge
+	// finds it where ZELLIJ_REAPER_CONFIG would name it, and without this it
+	// removed the default file and kept the one named.
+	if configPath != "" {
+		env = config.Override{Env: env, Vars: map[string]string{"ZELLIJ_REAPER_CONFIG": configPath}}
+	}
 	cfg, err := config.Load(configPath, env)
 	if err != nil {
 		cfg = config.Default(env)

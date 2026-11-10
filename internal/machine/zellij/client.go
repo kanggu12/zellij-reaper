@@ -85,6 +85,11 @@ func (c *CLI) call(parent context.Context, args ...string) (string, string, erro
 	// the pass lock held. A second after the kill, the output is let go.
 	cmd.WaitDelay = time.Second
 	err := cmd.Run()
+	// zellij answered and exited with status 0, and only something it started
+	// kept the output open past that second: the answer stands.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
+	}
 	// Name a timeout plainly ("signal: killed" says nothing to a reader), and
 	// tell this call's limit apart from the caller giving up.
 	switch {

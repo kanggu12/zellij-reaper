@@ -285,13 +285,18 @@ func passWords(p logfile.Pass, every time.Duration, held bool, lockPath string, 
 	return "bad", i18n.T("doctor.pass.stopped", at, ago, p.Stopped)
 }
 
+// lockLook is how long doctor waits for the pass lock before it says the lock
+// is held: a names pass, a dashboard action, keep-name or recover hold it for
+// a moment, and that is not worth a failure.
+var lockLook = 3 * time.Second
+
 // lockHeld reports whether something holds the pass lock at path now. A lock
 // file that is not there is held by nobody, and is not made here.
 func lockHeld(path string) bool {
 	if _, err := os.Stat(path); err != nil {
 		return false
 	}
-	l, err := lock.Acquire(path, 0)
+	l, err := lock.Acquire(path, lockLook)
 	if err != nil {
 		return errors.Is(err, lock.ErrBusy)
 	}

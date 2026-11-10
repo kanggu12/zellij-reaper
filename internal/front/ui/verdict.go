@@ -108,6 +108,10 @@ func CheckDetail(c policy.Check) string {
 		if c.Detail == "protected list" {
 			return i18n.T("protected.list")
 		}
+		// Failed with nothing to name: the name itself could not be read.
+		if !c.Pass && c.Detail == "" {
+			return i18n.T("check.detail.noname")
+		}
 	}
 	return c.Detail
 }
@@ -121,6 +125,7 @@ var logVerdicts = []struct {
 	reap bool
 }{
 	{regexp.MustCompile(`^SKIP protected by (.+)$`), policy.ProtectedName, false},
+	{regexp.MustCompile(`^SKIP name unknown \(zellij's session index cannot be read\)$`), policy.NameUnknown, false},
 	{regexp.MustCompile(`^SKIP no session_info dir \(unknown state\)$`), policy.NoInfo, false},
 	{regexp.MustCompile(`^SKIP protected command running \((.+)\)$`), policy.ProtectedCommand, false},
 	{regexp.MustCompile(`^SKIP cannot read activity time$`), policy.NoActivity, false},

@@ -76,6 +76,27 @@ func TestForUninstallGoesOnWhereLoadStops(t *testing.T) {
 			t.Errorf("log path %q, error %v", a.Config.LogPath, err)
 		}
 	})
+	t.Run("a settings file named with --config", func(t *testing.T) {
+		env := home(t)
+		// The default file is there too, and is not the one named.
+		def, named := config.ConfigFile(env), filepath.Join(t.TempDir(), "other.toml")
+		for _, p := range []string{def, named} {
+			os.MkdirAll(filepath.Dir(p), 0o755)
+			if err := os.WriteFile(p, []byte("idle_after = \"4h\"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The settings file of the uninstall's environment is the one a purge
+		// removes: the one named, not the default one.
+		a, err := ForUninstall(named)
+		if err != nil || config.ConfigFile(a.Env) != named {
+			t.Errorf("settings file %q, error %v", config.ConfigFile(a.Env), err)
+		}
+		// The rest of the environment is the process's.
+		if a.Env.Home() != env.Home() || config.StateDir(a.Env) != config.StateDir(env) {
+			t.Errorf("home %q, state %q", a.Env.Home(), config.StateDir(a.Env))
+		}
+	})
 }
 
 func TestRecoverWritesItsStepsToTheDecisionLog(t *testing.T) {

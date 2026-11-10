@@ -52,9 +52,10 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if r.NoRenames != nil && e.Config.AutoRename {
 		e.Log.Printf("%v, so no session is renamed", r.NoRenames)
 	}
-	// Sessions zellij keeps by id are then not found, and kept: the log says why.
+	// No session's name can be told then, so every session is kept: the log
+	// says why, once, above the sessions.
 	if r.IndexErr != nil {
-		e.Log.Printf("%v, so sessions zellij keeps by id are kept", r.IndexErr)
+		e.Log.Printf("%v, so every session is kept", r.IndexErr)
 	}
 	taken := takenNames(r)
 	for i := range r.Outcomes {

@@ -212,7 +212,7 @@ func cmdUninstall() *cobra.Command {
 		Use:   "uninstall",
 		Short: "Remove the timers",
 		Long: `Stop the timers and remove them. On Linux that is both the systemd user units and
-the reaper's lines in the crontab, whichever of the two runs the passes today. The
+the reaper's lines in the crontab, not only the one that runs the passes today. The
 settings, the log and the lists stay, for an install later to go on with, and so
 does lingering, which other services of yours may rely on.
 

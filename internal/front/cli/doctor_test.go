@@ -113,6 +113,21 @@ func TestDoctorSaysWhatCameOfTheLastPass(t *testing.T) {
 		t.Fatalf("the lock after doctor: %v", err)
 	}
 	defer l.Release()
+	// A lock let go of while doctor waits for it is no failure: a names
+	// pass holds it for a moment.
+	time.AfterFunc(300*time.Millisecond, l.Release)
+	cmd, out = output()
+	if problems, _ := doctor(context.Background(), a, cmd); problems != before || strings.Contains(out.String(), "holds the pass lock") {
+		t.Errorf("doctor with the lock held for a moment: %d problems (before %d):\n%s", problems, before, out)
+	}
+	// One held all along is. The wait is cut short here, to keep the test
+	// quick.
+	defer func(d time.Duration) { lockLook = d }(lockLook)
+	lockLook = 200 * time.Millisecond
+	if l, err = lock.Acquire(a.Reaper.LockPath, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer l.Release()
 	cmd, out = output()
 	held, _ := doctor(context.Background(), a, cmd)
 	// The lock's line takes the place of the stopped pass's: one problem, as
