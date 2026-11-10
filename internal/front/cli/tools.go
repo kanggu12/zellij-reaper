@@ -61,6 +61,12 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 		return err
 	}
 	println(w, ui.Fg(t.Muted).Render(i18n.T("recover.dir", sc.SocketDir, sc.Budget)))
+	// No session can be told from another without the index: a scan that
+	// went on would take live sessions for broken ones.
+	if sc.IndexErr != nil {
+		println(w, warn(t)+i18n.T("recover.noindex", sc.IndexErr))
+		return nil
+	}
 	for _, b := range sc.Broken {
 		println(w, warn(t)+i18n.T("recover.broken", b.Name, b.PathBytes))
 	}

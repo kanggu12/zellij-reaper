@@ -389,6 +389,28 @@ func TestRecoverSaysWhichSessionAnOrphanIs(t *testing.T) {
 	}
 }
 
+func TestRecoverChangesNothingWithoutTheIndex(t *testing.T) {
+	testutil.SkipOnWindows(t)
+	isolate(t)
+	m := newRecoverMachine(t)
+	// zellij's index is there and cannot be read: a long name and a server
+	// without its socket file are no longer told from live ones.
+	if err := os.WriteFile(zellij.IndexFile(m.in.InfoDir), []byte("not a database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd, out := output()
+	if err := recoverSessions(cmd, filepath.Join(t.TempDir(), "lock"), m.in, false, true); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
+	if len(lines) != 2 || !strings.HasPrefix(lines[1], "  ! zellij's session index cannot be read (") || !strings.HasSuffix(lines[1], "): no session can be told from another, so nothing is changed") {
+		t.Errorf("recover without the index:\n%s", out)
+	}
+	if len(m.zj.deleted)+len(m.signals)+len(m.logged) != 0 {
+		t.Errorf("deleted %v, signals %v, logged %v", m.zj.deleted, m.signals, m.logged)
+	}
+}
+
 func TestRecoverNamesTheCommandForTheServersItLeaves(t *testing.T) {
 	testutil.SkipOnWindows(t)
 	isolate(t)

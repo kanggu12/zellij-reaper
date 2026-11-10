@@ -86,6 +86,40 @@ func TestFindAndRepair(t *testing.T) {
 	}
 }
 
+func TestAnIndexThatCannotBeReadRepairsNothing(t *testing.T) {
+	fp := testutil.NewFakeProc(t)
+	sockDir := testutil.SocketDir(t)
+	info := filepath.Join(t.TempDir(), "session_info")
+	// zellij lists a session with a long name: it reads its index, and the
+	// session's socket is named by its id. This reader cannot read the
+	// index, so no socket by that name is found, and the name is too long
+	// for one: without the index it reads as broken, and was deleted with
+	// --force, a client attached or not.
+	long := strings.Repeat("w", 90)
+	testutil.Socket(t, sockDir, "0a1b2c3d4e5f")
+	testutil.SessionFiles(t, info, "0a1b2c3d4e5f", testutil.Metadata(1, "x"), "", time.Now())
+	if err := os.WriteFile(zellij.IndexFile(info), []byte("not a database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// And a server whose socket file is gone, which would be an orphan.
+	fp.Add(testutil.Proc{PID: 200, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(sockDir, "gone")}, Sockets: []uint32{2000}})
+	socks := []procfs.UnixSocket{{Inode: 2000, State: 10, VFSIno: 99999999, VFSDev: 1}}
+	zj := &fakeZellij{listed: []zellij.Listed{{Name: long}}}
+	in := repair.Inputs{Zellij: zj, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
+		Sockets: func() ([]procfs.UnixSocket, error) { return socks, nil },
+		Signal:  func(pid int, _ syscall.Signal) error { t.Errorf("signalled %d", pid); return nil }}
+	sc, err := repair.Find(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.IndexErr == nil || len(sc.Broken) != 0 || len(sc.Orphans) != 0 {
+		t.Errorf("scan %+v", sc)
+	}
+	if steps := repair.Repair(context.Background(), in, sc, true); len(steps) != 0 || len(zj.deleted) != 0 {
+		t.Errorf("steps %+v, deleted %v", steps, zj.deleted)
+	}
+}
+
 func TestProtectedAndAllOrphaned(t *testing.T) {
 	fp := testutil.NewFakeProc(t)
 	sockDir := testutil.SocketDir(t)

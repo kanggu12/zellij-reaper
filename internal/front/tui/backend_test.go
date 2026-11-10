@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -166,6 +167,11 @@ func TestDeleteByHandAsksZellijFirst(t *testing.T) {
 	}
 	if z.did("--session old action list-clients") {
 		t.Error("asked an exited session for its clients")
+	}
+	// The running one with --force, the exited one without: brought back
+	// since the look, it would be killed with its client attached.
+	if !slices.Contains(z.calls, "delete-session notes --force") || !slices.Contains(z.calls, "delete-session old") || slices.Contains(z.calls, "delete-session old --force") {
+		t.Errorf("calls %q", z.calls)
 	}
 }
 

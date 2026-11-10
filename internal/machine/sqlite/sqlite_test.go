@@ -225,6 +225,47 @@ func TestATallTableWithOverflowPages(t *testing.T) {
 	}
 }
 
+func TestTwoCellsThatShareOverflowPagesStop(t *testing.T) {
+	path := unpack(t, "big.db")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := load(raw, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Find the cell that spills onto overflow pages, and give its leaf a
+	// second cell pointer to the same cell: two rows sharing one chain. A
+	// file made so, with a long chain and many cells, made a copy of the
+	// chain for each cell: 2 GB of rows from 10 MB.
+	for n := 2; n*d.pageSize <= len(raw); n++ {
+		off := (n - 1) * d.pageSize
+		if raw[off] != leafTable {
+			continue
+		}
+		cells := int(binary.BigEndian.Uint16(raw[off+3:]))
+		for i := 0; i < cells; i++ {
+			at := int(binary.BigEndian.Uint16(raw[off+8+2*i:]))
+			size, k := varint(raw[off+at : off+d.usable])
+			if k == 0 || d.localSize(int(size)) == int(size) {
+				continue
+			}
+			bad := bytes.Clone(raw)
+			binary.BigEndian.PutUint16(bad[off+3:], uint16(cells+1))
+			binary.BigEndian.PutUint16(bad[off+8+2*cells:], uint16(at))
+			if err := os.WriteFile(path, bad, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ReadTable(path, "sessions"); !errors.Is(err, ErrCorrupt) {
+				t.Errorf("two cells on one overflow chain: err = %v, want ErrCorrupt", err)
+			}
+			return
+		}
+	}
+	t.Fatal("no cell with overflow pages")
+}
+
 func TestPagesOf64KiB(t *testing.T) {
 	tab, err := ReadTable(unpack(t, "large-pages.db"), "sessions")
 	if err != nil {

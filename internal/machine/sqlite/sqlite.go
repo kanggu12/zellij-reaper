@@ -346,7 +346,11 @@ const (
 // rows calls visit with the rowid and the record of every row in the table
 // tree rooted at page root, in rowid order.
 func (d *db) rows(root uint32, visit func(rowid int64, payload []byte) error) error {
-	// A page reached twice means pages point in a circle: never walk it.
+	// A page reached twice means pages point in a circle, or two cells share
+	// overflow pages: never read it again. One set for the tree's pages and
+	// the cells' overflow pages alike bounds what a table can make this read
+	// to the pages there are: cells that shared a long chain each made a copy
+	// of it, and a 10 MB file held 2 GB of rows.
 	seen := map[uint32]bool{}
 	var walk func(n uint32, depth int) error
 	walk = func(n uint32, depth int) error {
@@ -378,7 +382,7 @@ func (d *db) rows(root uint32, visit func(rowid int64, payload []byte) error) er
 				return fmt.Errorf("%w: page %d has more cells than room", ErrCorrupt, n)
 			}
 			for i := 0; i < cells; i++ {
-				rowid, payload, err := d.leafCell(p, int(binary.BigEndian.Uint16(p[ptrs+2*i:])))
+				rowid, payload, err := d.leafCell(p, int(binary.BigEndian.Uint16(p[ptrs+2*i:])), seen)
 				if err != nil {
 					return err
 				}
@@ -411,8 +415,9 @@ func (d *db) rows(root uint32, visit func(rowid int64, payload []byte) error) er
 }
 
 // leafCell reads one cell of a table leaf: the rowid and the whole record,
-// following its overflow pages when it does not fit on the page.
-func (d *db) leafCell(p []byte, off int) (int64, []byte, error) {
+// following its overflow pages when it does not fit on the page. seen holds
+// the pages the table has used already, which no overflow page may be.
+func (d *db) leafCell(p []byte, off int, seen map[uint32]bool) (int64, []byte, error) {
 	bad := func(what string) (int64, []byte, error) {
 		return 0, nil, fmt.Errorf("%w: %s", ErrCorrupt, what)
 	}
@@ -437,7 +442,9 @@ func (d *db) leafCell(p []byte, off int) (int64, []byte, error) {
 	if off+local > d.usable {
 		return bad("a cell runs past its page")
 	}
-	payload := make([]byte, 0, total)
+	// Room for what this page holds: a size that lies is not made room for
+	// ahead of the pages that would hold it.
+	payload := make([]byte, 0, min(total, d.usable))
 	payload = append(payload, p[off:off+local]...)
 	if local == total {
 		return int64(rowid), payload, nil
@@ -448,10 +455,9 @@ func (d *db) leafCell(p []byte, off int) (int64, []byte, error) {
 		return bad("a cell's overflow pointer runs past its page")
 	}
 	next := binary.BigEndian.Uint32(p[off+local:])
-	seen := map[uint32]bool{}
 	for len(payload) < total {
 		if next == 0 || seen[next] {
-			return bad("a cell's overflow pages end early or go in a circle")
+			return bad("a cell's overflow pages end early, go in a circle, or are another's")
 		}
 		seen[next] = true
 		op, err := d.page(next)

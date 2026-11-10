@@ -228,10 +228,18 @@ func (e *Env) remember(name string) {
 	}
 }
 
-// forgetGone clears given and kept names no session has any more, at the end of a
-// pass: a session's old name, a name zellij refused, a session that is gone.
-func (e *Env) forgetGone(listed map[string]bool) {
-	for _, l := range []*protect.List{e.Given, e.Kept} {
+// forgetGone clears given names no session has any more, at the end of a pass:
+// a session's old name, a name zellij refused, a session that is gone. Kept
+// names, which people chose, go too only with keptToo: after a pass that saw
+// sessions and could tell all their names. A list that came back empty, or
+// one zellij gave by ids it could not name, says nothing about which names are
+// gone, and a person's choice lost to it is a session renamed after all.
+func (e *Env) forgetGone(listed map[string]bool, keptToo bool) {
+	lists := []*protect.List{e.Given}
+	if keptToo {
+		lists = append(lists, e.Kept)
+	}
+	for _, l := range lists {
 		if l == nil {
 			continue
 		}

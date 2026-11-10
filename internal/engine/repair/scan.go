@@ -56,6 +56,9 @@ type Scan struct {
 	// points at the socket table rather than at the servers: Repair then
 	// stops none of them.
 	AllOrphaned bool
+	// IndexErr is why zellij's session index, which is there, could not be
+	// read: with it set the scan found nothing, and Repair does nothing.
+	IndexErr error
 }
 
 // Find looks for broken sessions and orphan servers. It changes nothing.
@@ -75,8 +78,15 @@ func Find(ctx context.Context, in Inputs) (Scan, error) {
 
 	// Names come from zellij's list and from the directories it keeps, which
 	// can outlive a session zellij no longer lists. Since zellij 0.46 those
-	// directories are named by id, and the index has the names.
-	idx := in.index()
+	// directories are named by id, and the index has the names. An index
+	// that is there and cannot be read leaves no session told from another:
+	// a long name zellij lists by its id's socket would read as broken, and
+	// a live session would be deleted. Nothing is repaired then.
+	idx, idxErr := in.index()
+	if idxErr != nil {
+		sc.IndexErr = idxErr
+		return sc, nil
+	}
 	seen := map[string]bool{}
 	var names []string
 	if listed, err := in.Zellij.ListSessions(ctx); err == nil {

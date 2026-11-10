@@ -38,10 +38,14 @@ type fakeZellij struct {
 	// unseen makes a rename come back unconfirmed: zellij took it, and the new
 	// name did not show in time.
 	unseen bool
-	// onRename runs as zellij is asked for a rename.
+	// onRename runs as zellij is asked for a rename, onDelete after a delete.
 	onRename func(to string)
+	onDelete func(name string)
 	deleted  []string
-	renamed  []string
+	// forced are the deletes asked with --force, which kill a running
+	// session whatever is attached.
+	forced  []string
+	renamed []string
 }
 
 func (f *fakeZellij) Available() bool { return true }
@@ -69,6 +73,17 @@ func (f *fakeZellij) ListClients(_ context.Context, name string) ([]zellij.Clien
 }
 func (f *fakeZellij) Delete(_ context.Context, name string) error {
 	f.deleted = append(f.deleted, name)
+	f.forced = append(f.forced, name)
+	if f.onDelete != nil {
+		f.onDelete(name)
+	}
+	return nil
+}
+func (f *fakeZellij) DeleteExited(_ context.Context, name string) error {
+	f.deleted = append(f.deleted, name)
+	if f.onDelete != nil {
+		f.onDelete(name)
+	}
 	return nil
 }
 func (f *fakeZellij) Rename(_ context.Context, name, to string) error {
@@ -102,6 +117,8 @@ type world struct {
 	// attachUnseen connects a client whose end of the connection the table
 	// does not show, like one in another network namespace.
 	attachUnseen func(name string)
+	// fp is its process table, for a process that starts during a pass.
+	fp *testutil.FakeProc
 }
 
 func newWorld(t *testing.T) *world {
@@ -217,7 +234,7 @@ func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 		idx := zellij.NewIndex(map[string]string{busy: busyID})
 		env.Sources.Index = &idx
 	}
-	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach, attachUnseen: attachUnseen}
+	return &world{env: env, zj: zj, logp: logp, sockDir: sockDir, attach: attach, attachUnseen: attachUnseen, fp: fp}
 }
 
 func (w *world) log(t *testing.T) string {

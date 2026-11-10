@@ -224,6 +224,17 @@ func (c *CLI) Delete(ctx context.Context, name string) error {
 	return c.waitDeleted(ctx, name)
 }
 
+// DeleteExited deletes a session that exited: its resurrection data. Not
+// forced, so a session someone brought back since the last look, running
+// again with a client attached, is refused by zellij rather than killed.
+func (c *CLI) DeleteExited(ctx context.Context, name string) error {
+	_, errOut, err := c.call(ctx, "delete-session", name)
+	if err != nil {
+		return failed("zellij delete-session "+name, errOut, err)
+	}
+	return c.waitDeleted(ctx, name)
+}
+
 // deleteSettles is how long a server gets to stop once asked. In the integration
 // containers a session is off the list in under 300 ms.
 var deleteSettles = 5 * time.Second

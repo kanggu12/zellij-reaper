@@ -54,13 +54,13 @@ type Inputs struct {
 	Log func(line string)
 }
 
-// index is the session index recover goes by.
-func (in Inputs) index() zellij.Index {
+// index is the session index recover goes by, and why it could not be read:
+// nil when it could, or when there is none (a zellij from before ids).
+func (in Inputs) index() (zellij.Index, error) {
 	if in.Index != nil {
-		return *in.Index
+		return *in.Index, nil
 	}
-	x, _ := zellij.ReadIndex(in.InfoDir)
-	return x
+	return zellij.ReadIndex(in.InfoDir)
 }
 
 // signal is the function that sends signals.
@@ -207,7 +207,11 @@ func lookAgain(in Inputs, sc Scan) (map[int]Orphan, string) {
 		return nil, "could not read the processes again: " + err.Error()
 	}
 	servers := table.Servers(in.UID)
-	found, known := orphans(in, in.index(), table, servers, socketDirs(sc.SocketDir, in.SocketDirs, servers))
+	idx, err := in.index()
+	if err != nil {
+		return nil, "could not read zellij's session index again"
+	}
+	found, known := orphans(in, idx, table, servers, socketDirs(sc.SocketDir, in.SocketDirs, servers))
 	if !known {
 		return nil, "could not read the socket table again"
 	}

@@ -26,6 +26,9 @@ type Zellij interface {
 	ListSessions(ctx context.Context) ([]zellij.Listed, error)
 	ListClients(ctx context.Context, name string) ([]zellij.ClientRow, error)
 	Delete(ctx context.Context, name string) error
+	// DeleteExited deletes a session that exited, and nothing more: one
+	// brought back since the last look is running again, and zellij refuses.
+	DeleteExited(ctx context.Context, name string) error
 	Rename(ctx context.Context, name, to string) error
 }
 

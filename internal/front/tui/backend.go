@@ -114,23 +114,30 @@ func (r real) Delete(ctx context.Context, name string) error {
 	return r.handAction(func() error {
 		// The dialog may have stayed open across refreshes: what the screen
 		// showed is not enough, so ask zellij now.
-		if err := r.unused(ctx, name); err != nil {
+		exited, err := r.unused(ctx, name)
+		if err != nil {
 			return err
+		}
+		// An exited one without --force: brought back since this look, it
+		// is running again, and zellij refuses rather than kills it.
+		if exited {
+			return r.a.Zellij.DeleteExited(ctx, name)
 		}
 		return r.a.Zellij.Delete(ctx, name)
 	}, "%s :: deleted from %s", name, r.from)
 }
 
-// unused checks, right before a delete by hand, that nobody uses the session:
-// an exited one is still listed as exited, a running one has no client. Any
-// answer that cannot be read refuses the delete.
-func (r real) unused(ctx context.Context, name string) error {
+// unused checks, right before a delete by hand, that nobody uses the session,
+// and says whether it exited: an exited one is still listed as exited, a
+// running one has no client. Any answer that cannot be read refuses the
+// delete.
+func (r real) unused(ctx context.Context, name string) (exited bool, err error) {
 	listed, err := r.a.Zellij.ListSessions(ctx)
 	switch {
 	case errors.Is(err, zellij.ErrNoSessions):
-		return errors.New(i18n.T("delete.gone"))
+		return false, errors.New(i18n.T("delete.gone"))
 	case err != nil:
-		return errors.New(i18n.T("delete.unknown", err))
+		return false, errors.New(i18n.T("delete.unknown", err))
 	}
 	for _, l := range listed {
 		if l.Name != name {
@@ -138,18 +145,18 @@ func (r real) unused(ctx context.Context, name string) error {
 		}
 		// An exited session has no server, so nobody can be attached.
 		if l.Exited {
-			return nil
+			return true, nil
 		}
 		rows, err := r.a.Zellij.ListClients(ctx, name)
 		if err != nil {
-			return errors.New(i18n.T("delete.unknown", err))
+			return false, errors.New(i18n.T("delete.unknown", err))
 		}
 		if len(rows) > 0 {
-			return errors.New(i18n.T("delete.attached"))
+			return false, errors.New(i18n.T("delete.attached"))
 		}
-		return nil
+		return false, nil
 	}
-	return errors.New(i18n.T("delete.gone"))
+	return false, errors.New(i18n.T("delete.gone"))
 }
 
 func (r real) Rename(ctx context.Context, name, to string) (string, error) {

@@ -43,9 +43,11 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 
 	r, err := e.survey(ctx, opts)
 	if e.stopsHere(r, err) {
-		// No session left, so no given name belongs to anyone.
+		// No session left, so no given name belongs to anyone. The kept ones
+		// stay: an empty list from a timer that looks in the wrong place,
+		// say, is no sign that people stopped wanting them.
 		if r.NoSessions && !dry {
-			e.forgetGone(nil)
+			e.forgetGone(nil, false)
 		}
 		return r, err
 	}
@@ -61,8 +63,10 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	for i := range r.Outcomes {
 		e.act(ctx, &r, &r.Outcomes[i], dry, true, taken)
 	}
-	if !dry {
-		e.forgetGone(taken)
+	// Without the index the list holds ids, not names: every name would
+	// read as gone, kept ones too.
+	if !dry && r.IndexErr == nil {
+		e.forgetGone(taken, true)
 	}
 	// The book of quiet sessions is bookkeeping, like the log: a dry run
 	// keeps it too, or a session would never come due in one. A session this
@@ -117,8 +121,15 @@ func (e *Env) act(ctx context.Context, r *Report, o *Outcome, dry, full bool, ta
 // reap deletes a session the policy let go, unless something changed since.
 func (e *Env) reap(ctx context.Context, o *Outcome, dry bool, taken map[string]bool) {
 	s := o.Session
+	// An exited session is deleted without --force: one someone brought back
+	// after the last look is running again, and zellij refuses to delete it
+	// where --force would have killed it with its client attached.
+	del, force := e.Zellij.DeleteExited, ""
+	if !s.Listed.Exited {
+		del, force = e.Zellij.Delete, " --force"
+	}
 	if dry {
-		e.Log.Printf("  -> DRY_RUN: would run: zellij delete-session %s --force", s.Name())
+		e.Log.Printf("  -> DRY_RUN: would run: zellij delete-session %s%s", s.Name(), force)
 		return
 	}
 	// The facts are a few seconds old by now: ask again.
@@ -127,7 +138,7 @@ func (e *Env) reap(ctx context.Context, o *Outcome, dry bool, taken map[string]b
 		e.Log.Printf("  -> kept: %s :: %s", s.Name(), why)
 		return
 	}
-	if err := e.Zellij.Delete(ctx, s.Name()); err != nil {
+	if err := del(ctx, s.Name()); err != nil {
 		o.DeleteErr = err
 		e.Log.Printf("  -> FAILED: %s :: %v", s.Name(), err)
 		return
@@ -154,6 +165,23 @@ func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry, full bool, t
 		reserve(taken, s.Name(), target)
 		e.Log.Printf("  -> DRY_RUN: would rename '%s' → '%s'", s.Name(), target)
 		return
+	}
+	// A name protected from another terminal since the list was read keeps
+	// its name, as it keeps its session in stillDue: `protect` does not wait
+	// for a pass, and a rename would leave the protection on the old name,
+	// with the session under the new one protected by nothing.
+	if e.Protected != nil {
+		why := ""
+		if err := e.Protected.Reload(); err != nil {
+			why = "could not read the protected list again: " + err.Error()
+		} else if e.Protected.Has(s.Name()) {
+			why = "protected since the check"
+		}
+		if why != "" {
+			o.KeptName = why
+			e.Log.Printf("  -> kept name: %s :: %s", s.Name(), why)
+			return
+		}
 	}
 	// The facts predate every delete before this, each of which can take
 	// seconds: ask again, so a session someone attached to meanwhile keeps
@@ -197,6 +225,20 @@ func (e *Env) stillDue(ctx context.Context, s inspect.Session) (bool, string) {
 			}
 		}
 		return false, "it is no longer listed"
+	}
+	// A job started in a pane since the facts were gathered, by `zellij
+	// run` or keys sent to it with nobody attached, keeps the session too:
+	// --force would end it with the session.
+	if s.Server != nil {
+		table, err := inspect.ReadProcesses(e.Sources)
+		if err != nil {
+			return false, "could not read the processes again: " + err.Error()
+		}
+		for _, p := range inspect.Panes(table, s.Server.PID, e.Config.Shells) {
+			if p.Busy != "" {
+				return false, "running in a pane since the check: " + p.Busy
+			}
+		}
 	}
 	return e.noClientNow(ctx, s.Name())
 }
@@ -267,7 +309,9 @@ func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if renamed == 0 {
 		return r, nil
 	}
-	e.forgetGone(taken)
+	if r.IndexErr == nil {
+		e.forgetGone(taken, true)
+	}
 	e.Log.Rotate()
 	e.Log.Printf("=== names start ===")
 	e.Log.Write(held)
