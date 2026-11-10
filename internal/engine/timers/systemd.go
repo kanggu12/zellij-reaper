@@ -95,7 +95,7 @@ var PathDirs = []string{
 }
 
 // writeFile writes atomically, so a crash never leaves half a unit file.
-func writeFile(path, body string) error {
+func writeFile(path, body string, mode os.FileMode) error {
 	// A temporary file of its own next to the target, then one rename.
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
 	if err != nil {
@@ -110,7 +110,12 @@ func writeFile(path, body string) error {
 		os.Remove(f.Name())
 		return err
 	}
-	os.Chmod(f.Name(), 0o644)
+	// CreateTemp makes it 0600: units and launch agents are 0644, as such
+	// files are, and the settings stay the user's own.
+	if err := os.Chmod(f.Name(), mode); err != nil {
+		os.Remove(f.Name())
+		return err
+	}
 	return os.Rename(f.Name(), path)
 }
 

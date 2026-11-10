@@ -507,6 +507,25 @@ func TestDetailExplainsTheVerdict(t *testing.T) {
 	}
 }
 
+func TestTheScreenRunsNoEscapeFromASessionName(t *testing.T) {
+	i18n.Set(i18n.English)
+	// A name that would write the clipboard, and a pane title that would
+	// retitle the window, picked up from what runs in the pane.
+	evil := "x\x1b]52;c;aGk=\x07y"
+	b := sample()
+	b.report.Outcomes = append(b.report.Outcomes, session(evil, false, nil, inspect.Pane{PID: 9, Command: "sh\x1b]0;owned\x07", Busy: "sh\x1b]0;owned\x07"}))
+	m := pick(t, loaded(t, b, 140, 40), evil)
+	v := m.View().Content
+	for _, raw := range []string{"\x1b]52", "\x1b]0;", "\x07"} {
+		if strings.Contains(v, raw) {
+			t.Errorf("the screen holds %q", raw)
+		}
+	}
+	if !strings.Contains(v, `\x1b]52`) {
+		t.Errorf("the name is not shown as it is spelt:\n%s", ansi.Strip(v))
+	}
+}
+
 func TestACommandWithANameCanBePastedAsItIs(t *testing.T) {
 	for name, want := range map[string]string{
 		"api-server":    "api-server",

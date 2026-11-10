@@ -256,7 +256,9 @@ func (l *List) update(change func(names map[string]bool) (changed bool, err erro
 
 // save writes the file atomically: a reader never sees half a list.
 func save(path, header string, names map[string]bool) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// Session names, for this user only: the temporary file is made 0600,
+	// and stays so when renamed over the list.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	var b strings.Builder
@@ -279,6 +281,5 @@ func save(path, header string, names map[string]bool) error {
 		os.Remove(f.Name())
 		return err
 	}
-	os.Chmod(f.Name(), 0o644)
 	return os.Rename(f.Name(), path)
 }

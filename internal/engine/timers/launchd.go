@@ -148,7 +148,7 @@ func (l Launchd) Install(o InstallOptions) (Result, error) {
 // load writes an agent and (re)loads it, so a changed interval applies.
 func (l Launchd) load(label, plist string, r *Result) error {
 	path := l.agentPath(label)
-	if err := writeFile(path, plist); err != nil {
+	if err := writeFile(path, plist, 0o644); err != nil {
 		return err
 	}
 	r.Wrote = append(r.Wrote, path)

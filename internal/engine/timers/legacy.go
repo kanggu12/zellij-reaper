@@ -163,7 +163,7 @@ func (l *Legacy) Retire(env config.Env, newLog string) (moved, removed []string)
 		old = p
 	}
 	if _, err := os.Stat(newLog); os.IsNotExist(err) && old != newLog {
-		if err := os.MkdirAll(filepath.Dir(newLog), 0o755); err == nil {
+		if err := os.MkdirAll(filepath.Dir(newLog), 0o700); err == nil {
 			for _, suffix := range []string{".1", ""} {
 				if err := os.Rename(old+suffix, newLog+suffix); err == nil {
 					moved = append(moved, old+suffix+" -> "+newLog+suffix)

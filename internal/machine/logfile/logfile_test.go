@@ -27,6 +27,44 @@ func fill(t *testing.T, path string, n int) string {
 	return body
 }
 
+func TestTheLogIsTheUsersOwnAndRunsNoControls(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix modes")
+	}
+	dir := filepath.Join(t.TempDir(), "state")
+	l := New(filepath.Join(dir, "reaper.log"), 0)
+	// A pane title that would write the clipboard, and a line break.
+	if err := l.Printf("%s [RUNNING] panes={%s}", "notes", "x\x1b]52;c;aGk=\x07y\nz"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(l.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(b); !strings.HasSuffix(got, "] notes [RUNNING] panes={x\\x1b]52;c;aGk=\\x07y z}\n") {
+		t.Errorf("log line %q", got)
+	}
+	// Pane titles and command lines are in it: for this user only.
+	for p, want := range map[string]os.FileMode{dir: 0o700, l.Path: 0o600} {
+		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != want {
+			t.Errorf("%s: %v, %v", p, info.Mode().Perm(), err)
+		}
+	}
+	// One an earlier release made 0644 becomes the user's own; a mode the
+	// user chose stays.
+	for mode, want := range map[os.FileMode]os.FileMode{0o644: 0o600, 0o640: 0o640} {
+		if err := os.Chmod(l.Path, mode); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Printf("another line"); err != nil {
+			t.Fatal(err)
+		}
+		if info, _ := os.Stat(l.Path); info.Mode().Perm() != want {
+			t.Errorf("a log of %v became %v", mode, info.Mode().Perm())
+		}
+	}
+}
+
 func TestRotateOverLimit(t *testing.T) {
 	l := newLog(t, 1000)
 	old := fill(t, l.Path, 1001)

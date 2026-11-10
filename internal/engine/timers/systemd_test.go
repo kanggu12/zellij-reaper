@@ -89,6 +89,14 @@ func TestInstallFresh(t *testing.T) {
 	if err != nil || c.File == "" || c.IdleAfter != cfg.IdleAfter {
 		t.Errorf("settings after install: %+v %v", c, err)
 	}
+	// The settings are the user's own; the units are 0644, as units are.
+	if runtime.GOOS != "windows" {
+		for p, want := range map[string]os.FileMode{config.ConfigFile(env): 0o600, filepath.Dir(config.ConfigFile(env)): 0o700, s.servicePath(): 0o644, s.timerPath(): 0o644} {
+			if info, err := os.Stat(p); err != nil || info.Mode().Perm() != want {
+				t.Errorf("%s: %v, %v", p, info.Mode().Perm(), err)
+			}
+		}
+	}
 	// Installing again keeps the settings file as it is.
 	os.WriteFile(config.ConfigFile(env), []byte("idle_after = \"5h\"\n"), 0o644)
 	if _, err := s.Install(InstallOptions{Exe: "/usr/bin/zellij-reaper", Config: cfg}); err != nil {

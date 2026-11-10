@@ -12,6 +12,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/core/visible"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -260,7 +261,9 @@ func (m *setupModel) change(r setupRow, step int) {
 
 // View renders the whole screen.
 func (m setupModel) View() tea.View {
-	v := tea.NewView(m.render())
+	// The sessions listed come from zellij, named by other programs: as in
+	// the dashboard, only the screen's own colors go through.
+	v := tea.NewView(visible.Terminal(m.render()))
 	v.AltScreen = true
 	v.WindowTitle = "zellij-reaper setup"
 	return v
@@ -574,7 +577,7 @@ func frameTo(lines []string, w, h int) string {
 	out := make([]string, h)
 	for i := range out {
 		if i < len(lines) {
-			out[i] = ui.Fit(strings.ReplaceAll(lines[i], "\n", " "), w)
+			out[i] = ui.Fit(visible.Terminal(oneRow.Replace(lines[i])), w)
 		} else {
 			out[i] = strings.Repeat(" ", w)
 		}

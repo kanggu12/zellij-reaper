@@ -107,20 +107,20 @@ func (s Systemd) Install(o InstallOptions) (Result, error) {
 			text = config.Render(config.Default(s.Env), "zellij-reaper settings. Run `zellij-reaper config show` to see the values in effect.")
 			r.Created = cfgPath
 		}
-		if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
 			return r, err
 		}
-		if err := writeFile(cfgPath, text); err != nil {
+		if err := writeFile(cfgPath, text, 0o600); err != nil {
 			return r, err
 		}
 	}
 	if err := os.MkdirAll(config.UnitDir(s.Env), 0o755); err != nil {
 		return r, err
 	}
-	if err := writeFile(s.servicePath(), ServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env)); err != nil {
+	if err := writeFile(s.servicePath(), ServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env), 0o644); err != nil {
 		return r, err
 	}
-	if err := writeFile(s.timerPath(), TimerUnit(o.Config.Interval)); err != nil {
+	if err := writeFile(s.timerPath(), TimerUnit(o.Config.Interval), 0o644); err != nil {
 		return r, err
 	}
 	r.Wrote = append(r.Wrote, s.servicePath(), s.timerPath())
@@ -155,10 +155,10 @@ func (s Systemd) installNames(o InstallOptions, r *Result) error {
 		s.systemctl("daemon-reload")
 		return nil
 	}
-	if err := writeFile(s.namesServicePath(), NamesServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env)); err != nil {
+	if err := writeFile(s.namesServicePath(), NamesServiceUnit(o.Exe, o.ZellijDir, o.ConfigFile, o.Env), 0o644); err != nil {
 		return err
 	}
-	if err := writeFile(s.namesTimerPath(), NamesTimerUnit(o.Config.RenameInterval)); err != nil {
+	if err := writeFile(s.namesTimerPath(), NamesTimerUnit(o.Config.RenameInterval), 0o644); err != nil {
 		return err
 	}
 	r.Wrote = append(r.Wrote, s.namesServicePath(), s.namesTimerPath())

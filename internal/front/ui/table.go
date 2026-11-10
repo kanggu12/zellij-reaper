@@ -13,6 +13,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/core/visible"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 )
@@ -62,7 +63,10 @@ func Sorted(rows []Row) []Row {
 func RowsFrom(r reaper.Report, now time.Time) []Row {
 	rows := make([]Row, 0, len(r.Outcomes))
 	for i, o := range r.Outcomes {
-		row := Row{Name: o.Session.Name(), Exited: o.Session.Listed.Exited, Index: i}
+		// The name, and the commands a verdict names, come from other
+		// programs: their control characters are written out, before the
+		// columns are measured.
+		row := Row{Name: visible.Text(o.Session.Name()), Exited: o.Session.Listed.Exited, Index: i}
 		if s := o.Session.Server; s != nil {
 			row.Server = s.PID
 		}
@@ -79,10 +83,10 @@ func RowsFrom(r reaper.Report, now time.Time) []Row {
 		default:
 			row.Clients = strconv.Itoa(o.Session.Clients)
 		}
-		row.Next = NextPass(o.Verdict, r.DryRun)
+		row.Next = visible.Text(NextPass(o.Verdict, r.DryRun))
 		row.Cat = Categorize(o.Verdict)
 		row.Wait = o.Verdict.Wait
-		row.Rename = o.WouldRename
+		row.Rename = visible.Text(o.WouldRename)
 		rows = append(rows, row)
 	}
 	return rows
@@ -101,7 +105,7 @@ func RowsAfterPass(r reaper.Report, now time.Time) []Row {
 		case o.KeptAtDelete != "":
 			// The reason is the log's, in English; the word in front says
 			// in the reader's language what happened.
-			rows[i].Next, rows[i].Cat = i18n.T("result.kept", o.KeptAtDelete), CatUnknown
+			rows[i].Next, rows[i].Cat = i18n.T("result.kept", visible.Text(o.KeptAtDelete)), CatUnknown
 		// The pass's time was up before it came to this one.
 		case o.Left:
 			rows[i].Next, rows[i].Cat = i18n.T("result.left"), CatWait

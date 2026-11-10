@@ -64,8 +64,24 @@ func (w Tasks) ps(script string) (string, error) {
 		"-EncodedCommand", base64.StdEncoding.EncodeToString(b))
 }
 
-// psQuote puts s in a single-quoted PowerShell string.
-func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+// psQuote puts s in a single-quoted PowerShell string. PowerShell ends such a
+// string at any single quote it knows, the ASCII one and the curly ones
+// (U+2018 to U+201B), so a path with \u2019 in it broke out of the string and
+// what followed ran as a command. Each is doubled, which PowerShell reads as
+// that one character.
+func psQuote(s string) string {
+	var b strings.Builder
+	b.WriteByte('\'')
+	for _, r := range s {
+		switch r {
+		case '\'', '\u2018', '\u2019', '\u201a', '\u201b':
+			b.WriteRune(r)
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('\'')
+	return b.String()
+}
 
 // cmdQuote puts an argument in double quotes for a Windows command line.
 func cmdQuote(s string) string { return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"` }

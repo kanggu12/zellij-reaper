@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kanggu12/zellij-reaper/internal/core/visible"
 )
 
 // Log appends lines to a file.
@@ -85,7 +87,11 @@ func (l *Log) Rotate() {
 // a rotation by another pass is picked up at once and nothing holds the file
 // open between passes.
 func (l *Log) Printf(format string, args ...any) error {
-	msg := strings.ReplaceAll(fmt.Sprintf(format, args...), "\n", " ")
+	// One line each: a line break in a message becomes a space. Names,
+	// titles and command lines come from other programs, and their control
+	// characters are written out, so that reading the log in a terminal runs
+	// none of them.
+	msg := visible.Text(lineBreaks.Replace(fmt.Sprintf(format, args...)))
 	line := fmt.Sprintf("[%s] %s\n", l.Now().Format("2006-01-02 15:04:05"), msg)
 	if l.held != nil {
 		*l.held = append(*l.held, line)
@@ -94,16 +100,25 @@ func (l *Log) Printf(format string, args ...any) error {
 	return l.append(line)
 }
 
+// lineBreaks puts a message on one line.
+var lineBreaks = strings.NewReplacer("\r\n", " ", "\n", " ")
+
 // append writes one whole line to the file.
 func (l *Log) append(line string) error {
-	if err := os.MkdirAll(filepath.Dir(l.Path), 0o755); err != nil {
+	// The log holds pane titles and command lines: for this user only.
+	if err := os.MkdirAll(filepath.Dir(l.Path), 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(l.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(l.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	// Releases before 0.13 made it 0644. That mode, and only that one, is
+	// theirs: one the user chose is left as it is.
+	if info, err := f.Stat(); err == nil && info.Mode().Perm() == 0o644 {
+		f.Chmod(0o600)
+	}
 	// One write per line keeps lines whole even if two writers interleave.
 	_, err = f.WriteString(line)
 	return err

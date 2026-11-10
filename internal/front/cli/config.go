@@ -87,12 +87,13 @@ func settingsPath() string {
 	return config.ConfigFile(config.OSEnv{})
 }
 
-// writeDefaults writes a fresh, fully commented settings file.
+// writeDefaults writes a fresh, fully commented settings file, the user's
+// own, as the rest of the program's files are.
 func writeDefaults(p string) error {
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(p, []byte(config.Render(config.Default(config.OSEnv{}), "zellij-reaper settings.")), 0o644)
+	return os.WriteFile(p, []byte(config.Render(config.Default(config.OSEnv{}), "zellij-reaper settings.")), 0o600)
 }
 
 // showConfig prints each setting, its value and its source.

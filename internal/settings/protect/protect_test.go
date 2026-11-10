@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +12,25 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 )
+
+func TestAListIsTheUsersOwn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix modes")
+	}
+	dir := filepath.Join(t.TempDir(), "state")
+	l, err := Load(filepath.Join(dir, "protected"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Set("notes", true); err != nil {
+		t.Fatal(err)
+	}
+	for p, want := range map[string]os.FileMode{dir: 0o700, l.Path: 0o600} {
+		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != want {
+			t.Errorf("%s: %v, %v", p, info.Mode().Perm(), err)
+		}
+	}
+}
 
 func TestSetLoadRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "protected")

@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +15,29 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
+
+func TestAScreenGetsOnlyItsOwnEscapes(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "screen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	// A table row: the program's colors around a name that would write the
+	// clipboard.
+	row := "\x1b[1mnotes\x1b]52;c;aGk=\x07\x1b[m idle\n"
+	if n, err := (screen{f}).Write([]byte(row)); err != nil || n != len(row) {
+		t.Fatalf("wrote %d of %d: %v", n, len(row), err)
+	}
+	b, _ := os.ReadFile(f.Name())
+	if got := string(b); got != "\x1b[1mnotes\\x1b]52;c;aGk=\\x07\x1b[m idle\n" {
+		t.Errorf("on the screen: %q", got)
+	}
+	// The terminal checks see through it; a file that is no terminal gets
+	// the bytes as they are.
+	if stdoutFile(screen{f}) != f || screenOf(f) != io.Writer(f) {
+		t.Error("a screen hides its file, or a file became a screen")
+	}
+}
 
 // The line above plan's and run's tables keeps within the screen, as the
 // tables do, and loses no part.

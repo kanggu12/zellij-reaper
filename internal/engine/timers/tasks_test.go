@@ -4,6 +4,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+	"os/exec"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +28,43 @@ func sentScript(t *testing.T, args []string) string {
 		u[i] = uint16(b[2*i]) | uint16(b[2*i+1])<<8
 	}
 	return string(utf16.Decode(u))
+}
+
+func TestAQuoteInAPathStaysInItsString(t *testing.T) {
+	for in, want := range map[string]string{
+		`C:\Users\ann\zellij-reaper.exe`: `'C:\Users\ann\zellij-reaper.exe'`,
+		`C:\Users\o'neil\z.exe`:          `'C:\Users\o''neil\z.exe'`,
+		// The curly quotes end a PowerShell string too: what came after one
+		// ran as a command.
+		"C:\\Users\\x\u2019; Write-Output INJECTED; \u2019y": "'C:\\Users\\x\u2019\u2019; Write-Output INJECTED; \u2019\u2019y'",
+		"\u2018\u201a\u201b": "'\u2018\u2018\u201a\u201a\u201b\u201b'",
+	} {
+		if got := psQuote(in); got != want {
+			t.Errorf("psQuote(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPowerShellReadsAQuotedPathBackWhole(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("PowerShell itself reads the string")
+	}
+	if _, err := exec.LookPath("powershell.exe"); err != nil {
+		t.Skip("no powershell.exe")
+	}
+	// Read back as numbers, which no console code page changes.
+	v := "C:\\Users\\x\u2019; Write-Output INJECTED; \u2019y\\o'neil\u2018\u201a\u201b"
+	out, err := Tasks{Run: Exec}.ps("$v = " + psQuote(v) + "\nWrite-Output (([int[]][char[]]$v) -join ',')")
+	if err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	var want []string
+	for _, r := range v {
+		want = append(want, strconv.Itoa(int(r)))
+	}
+	if got := strings.TrimSpace(out); got != strings.Join(want, ",") {
+		t.Errorf("PowerShell read %q back as\n%s", v, got)
+	}
 }
 
 func TestTaskTimesAreLocal(t *testing.T) {

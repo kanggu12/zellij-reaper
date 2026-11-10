@@ -148,10 +148,10 @@ func ensureSettings(env config.Env, configFile string, r *Result) error {
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if err := writeFile(path, config.Render(config.Default(env), "zellij-reaper settings. Run `zellij-reaper config show` to see the values in effect.")); err != nil {
+	if err := writeFile(path, config.Render(config.Default(env), "zellij-reaper settings. Run `zellij-reaper config show` to see the values in effect."), 0o600); err != nil {
 		return err
 	}
 	r.Created = path

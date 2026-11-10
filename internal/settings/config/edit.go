@@ -80,12 +80,13 @@ func SetKeys(path string, c *Config, values map[string]string) error {
 		lines = append(lines[:top], append(added, lines[top:]...)...)
 	}
 	out := strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n"
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	// Written beside and moved over, so a pass never reads half a file.
+	// Written beside and moved over, so a pass never reads half a file; the
+	// user's own, as the program's other files are.
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(out), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(out), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

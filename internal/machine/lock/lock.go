@@ -19,10 +19,11 @@ type Lock struct{ f *os.File }
 // finish. The system frees the lock when the process exits (flock(2), or
 // LockFileEx on Windows), so a crashed pass never leaves a stale lock behind.
 func Acquire(path string, wait time.Duration) (*Lock, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// The state folder and the lock in it are the user's own.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}

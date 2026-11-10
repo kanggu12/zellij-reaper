@@ -135,7 +135,8 @@ func (q *quietBook) save() error {
 	if q == nil || q.path == "" || !q.changed {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(q.path), 0o755); err != nil {
+	// The book names sessions: for this user only, as the log is.
+	if err := os.MkdirAll(filepath.Dir(q.path), 0o700); err != nil {
 		return err
 	}
 	keys := make([]string, 0, len(q.at))
@@ -148,7 +149,7 @@ func (q *quietBook) save() error {
 		fmt.Fprintf(&b, "%s\t%d\n", k, q.at[k].Unix())
 	}
 	tmp := q.path + ".new"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(b.String()), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, q.path)

@@ -155,8 +155,8 @@ func failedDeletes(r reaper.Report) error {
 }
 
 // terminalWidthFor is the width to render for w: the terminal's, or 100.
-func terminalWidthFor(w any) int {
-	if f, ok := w.(*os.File); ok && isTerminal(f) {
+func terminalWidthFor(w io.Writer) int {
+	if isTerminal(stdoutFile(w)) {
 		return terminalWidth()
 	}
 	return 100

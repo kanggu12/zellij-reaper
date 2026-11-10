@@ -32,7 +32,11 @@ var configPath string
 // Execute runs the command line and returns the process exit status.
 func Execute() int {
 	i18n.Init()
-	return report(newRoot().Execute(), os.Stderr)
+	root := newRoot()
+	// What reaches a terminal goes through visible.Terminal (screenOf).
+	root.SetOut(screenOf(os.Stdout))
+	root.SetErr(screenOf(os.Stderr))
+	return report(root.Execute(), screenOf(os.Stderr))
 }
 
 // report says on w what the error a command ended with means, and gives the

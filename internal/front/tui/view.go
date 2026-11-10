@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
+	"github.com/kanggu12/zellij-reaper/internal/core/visible"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -35,7 +36,9 @@ func (m model) View() tea.View {
 	default:
 		body = m.mainView()
 	}
-	v := tea.NewView(body)
+	// Session names, pane titles and command lines come from other
+	// programs: only the screen's own colors go through as escape sequences.
+	v := tea.NewView(visible.Terminal(body))
 	v.AltScreen = true
 	v.WindowTitle = "zellij-reaper"
 	return v
@@ -47,14 +50,19 @@ func (m model) frame(lines []string) string {
 	out := make([]string, m.height)
 	for i := range out {
 		if i < len(lines) {
-			// A stray line break inside a line would add a row.
-			out[i] = ui.Fit(strings.ReplaceAll(lines[i], "\n", " "), m.width)
+			// A stray line break or tab inside a line would add a row, or
+			// cells the width does not count; a name's control characters
+			// are written out before the line is measured.
+			out[i] = ui.Fit(visible.Terminal(oneRow.Replace(lines[i])), m.width)
 		} else {
 			out[i] = strings.Repeat(" ", m.width)
 		}
 	}
 	return strings.Join(out, "\n")
 }
+
+// oneRow keeps a line on its row.
+var oneRow = strings.NewReplacer("\n", " ", "\t", " ")
 
 // mainView is the header, the table, the details, a status line and the keys.
 func (m model) mainView() string {
