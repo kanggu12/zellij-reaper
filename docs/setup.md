@@ -207,7 +207,10 @@ A closed network also keeps you from checking for new releases: the steps above 
 **Upgrade** by running the install script again, or with your package manager. The settings stay, and the script runs
 `zellij-reaper install`, which rewrites the timers; the setup screen opens only on a first install
 (`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install` again:
-`doctor` notices a timer that still runs an old path.
+`doctor` notices a timer that still runs an old path. On Windows, a copy that is running while `install.ps1` upgrades it
+(the dashboard, or the task at that moment) is renamed to `zellij-reaper.exe.<time>.old` and runs on; the next install
+removes it. When the task cannot be registered, `install.ps1` ends with an error that says so, with the new binary in
+place.
 
 **Uninstall** in two steps: first what the program set up, then the program.
 

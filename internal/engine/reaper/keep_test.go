@@ -168,6 +168,12 @@ func TestAPassPastItsTimeLeavesTheRestAndEndsAsPassesDo(t *testing.T) {
 	if r, err := reaper.Run(t.Context(), w.env, reaper.Options{DryRun: true}); err != nil || r.Outcomes[0].Left {
 		t.Errorf("dry run: %v, left %v", err, r.Outcomes[0].Left)
 	}
+	// One session is one.
+	w = newWorld(t)
+	w.zj.listed = w.zj.listed[:1]
+	if _, err := reaper.Run(t.Context(), w.env, reaper.Options{}); err != nil || !strings.Contains(w.log(t), "] time is up after 0s: 1 session left for the next pass\n") {
+		t.Errorf("%v, log:\n%s", err, w.log(t))
+	}
 }
 
 func TestAPassEndsItsCallsToZellijByItsLimit(t *testing.T) {

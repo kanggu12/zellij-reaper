@@ -80,7 +80,8 @@ func TestHereReadsTheIndexOfTheZellijItsServerIs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	dir := filepath.Join(t.TempDir(), "contract_version_1")
+	// A short folder: macOS caps a socket path at 103 bytes.
+	dir := filepath.Join(testutil.SocketDir(t), "contract_version_1")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}

@@ -83,7 +83,11 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		// do. A dry run changes nothing and takes no such time.
 		if !dry && time.Since(began) > PassBudget {
 			left := r.Outcomes[i:]
-			e.Log.Printf("time is up after %s: %d sessions left for the next pass", duration.Format(PassBudget), len(left))
+			sessions := fmt.Sprintf("%d sessions", len(left))
+			if len(left) == 1 {
+				sessions = "1 session"
+			}
+			e.Log.Printf("time is up after %s: %s left for the next pass", duration.Format(PassBudget), sessions)
 			for j := range left {
 				left[j].Left = true
 			}
