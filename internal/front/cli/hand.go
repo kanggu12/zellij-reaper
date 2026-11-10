@@ -34,7 +34,14 @@ tell, or one zellij no longer lists is kept. The waits do not apply.
 
 --yes reaps without asking, for scripts; without a terminal to answer in, delete
 needs it.`,
-		Args: cobra.MinimumNArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			// In the words unprotect and forget-name use, not the library's
+			// count of arguments.
+			if len(args) == 0 {
+				return errors.New("name a session to reap")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ask := !yes
 			// A question nobody can answer would hang a script, or take

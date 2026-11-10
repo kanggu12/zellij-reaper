@@ -263,6 +263,17 @@ func TestDeleteNeedsYesWithoutATerminal(t *testing.T) {
 	}
 }
 
+func TestDeleteWithNoNameAsksForOne(t *testing.T) {
+	isolate(t)
+	// In the words unprotect and forget-name use, not a count of arguments,
+	// and before anything is read: with --yes there is nobody to ask either.
+	for _, args := range [][]string{{"delete"}, {"delete", "--yes"}} {
+		if out, err := runRoot(t, args...); err == nil || err.Error() != "name a session to reap" {
+			t.Errorf("%v: %v\n%s", args, err, out)
+		}
+	}
+}
+
 func TestRenameFromTheCommandLine(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("zellij on Windows cannot reach a session after a rename")

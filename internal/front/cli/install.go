@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/spf13/cobra"
 
@@ -105,32 +106,91 @@ func envOnly(c *config.Config, file string) []string {
 	return out
 }
 
-// printResult lists what an install or uninstall wrote, moved and removed.
+// printResult lists what an install or an uninstall did, then what it has to
+// say about it.
 func printResult(cmd *cobra.Command, r timers.Result) {
-	w := cmd.OutOrStdout()
-	t := theme()
+	printDone(cmd, r)
+	printNotes(cmd, r)
+}
+
+// printDone lists what an install or an uninstall wrote, moved and removed,
+// and returns how many lines that took.
+func printDone(cmd *cobra.Command, r timers.Result) int {
+	w, t, n := cmd.OutOrStdout(), theme(), 0
+	// line prints one of them and counts it.
+	line := func(text string) {
+		println(w, ok(t)+text)
+		n++
+	}
 	for _, p := range r.Wrote {
-		println(w, ok(t)+i18n.T("install.wrote", tilde(p)))
+		line(i18n.T("install.wrote", shown(p)))
 	}
 	if r.Migrated != "" {
-		println(w, ok(t)+i18n.T("install.migrated", tilde(r.Migrated)))
+		line(i18n.T("install.migrated", tilde(r.Migrated)))
 	}
 	if r.Created != "" {
-		println(w, ok(t)+i18n.T("install.created", tilde(r.Created)))
+		line(i18n.T("install.created", tilde(r.Created)))
 	}
 	for _, m := range r.Moved {
 		// "from -> to", each shortened to ~ like the other paths.
 		if from, to, found := strings.Cut(m, " -> "); found {
 			m = tilde(from) + " → " + tilde(to)
 		}
-		println(w, ok(t)+i18n.T("install.moved", m))
+		line(i18n.T("install.moved", m))
 	}
 	for _, p := range r.Removed {
-		println(w, ok(t)+i18n.T("install.removed", tilde(p)))
+		line(i18n.T("install.removed", shown(p)))
 	}
+	return n
+}
+
+// printNotes lists what an install or an uninstall has to say about what it
+// did: its warnings, then each directory a purge left in place with what is
+// still in it. It returns how many lines that took.
+func printNotes(cmd *cobra.Command, r timers.Result) int {
+	w, t := cmd.OutOrStdout(), theme()
 	for _, m := range r.Warnings {
 		println(w, warn(t)+m)
 	}
+	for _, l := range r.Left {
+		println(w, warn(t)+i18n.T("uninstall.left", tilde(l.Dir), someOf(l.Names)))
+	}
+	return len(r.Warnings) + len(r.Left)
+}
+
+// shown is something a Result names, as a person reads it: a path with the
+// home directory as "~", and the crontab, which is not a file of the
+// reaper's to name, in words that say only its own lines changed.
+func shown(p string) string {
+	if p == timers.CronJobs {
+		return i18n.T("install.crontab")
+	}
+	return tilde(p)
+}
+
+// leftShown is how many of the names in a directory a purge left are listed
+// before the rest is counted.
+const leftShown = 3
+
+// someOf lists file names on one line: the first few, then how many more.
+func someOf(names []string) string {
+	shown := make([]string, 0, leftShown)
+	for _, name := range names[:min(len(names), leftShown)] {
+		// A name with a line break or an escape in it would redraw the
+		// terminal, not name the file.
+		shown = append(shown, strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) {
+				return '?'
+			}
+			return r
+		}, name))
+	}
+	out := strings.Join(shown, ", ")
+	if more := len(names) - len(shown); more > 0 {
+		// The setup screen's words for the rest of a list.
+		out += " " + i18n.T("setup.more", more)
+	}
+	return out
 }
 
 // chosenConfig is a settings file picked with --config or
@@ -154,27 +214,74 @@ func cmdUninstall() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove the timers",
-		Args:  cobra.NoArgs,
+		Long: `Stop the timers and remove them. On Linux that is both the systemd user units and
+the reaper's lines in the crontab, whichever of the two runs the passes today. The
+settings, the log and the lists stay, for an install later to go on with, and so
+does lingering, which other services of yours may rely on.
+
+--purge removes the settings, the log and the lists too, and takes the prompt hook
+out of the shells' startup files: the line setup adds, where it still reads as
+setup wrote it. The settings and state directories go when nothing else is in them;
+a file that is not the reaper's is left, and named. The program itself stays:
+delete its file, or remove the package it came in.
+
+uninstall also works where the settings file does not load.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			a, err := load()
-			if err != nil {
-				return err
-			}
-			return uninstall(cmd, a, purge)
+			// Not load(): what stops it, a settings file or a protected list
+			// that cannot be read, must not keep the timers on a machine
+			// somebody wants them off.
+			a, unread := app.ForUninstall(configPath)
+			return uninstall(cmd, a, purge, unread)
 		},
 	}
-	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list and the lists of given and kept names")
+	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list, the lists of given and kept names, and the prompt hook")
 	return cmd
 }
 
-// uninstall removes the timers and says what it did.
-func uninstall(cmd *cobra.Command, a *app.App, purge bool) error {
+// uninstall removes the timers and says what it did. unread is why the
+// settings did not load, where they did not: a then holds the defaults.
+func uninstall(cmd *cobra.Command, a *app.App, purge bool, unread error) error {
 	res, err := a.System.Uninstall(purge, a.Config.LogPath)
-	printResult(cmd, res)
 	if err != nil {
+		// What it got done before it stopped, then why it stopped. The
+		// startup files are left alone: the reaper is still half installed.
+		printResult(cmd, res)
 		return err
 	}
-	w := cmd.OutOrStdout()
+	w, t := cmd.OutOrStdout(), theme()
+	// First everything that is gone, then everything there is to say about
+	// it, so the marks read in two runs and not mixed.
+	lines := printDone(cmd, res)
+	var hook unhooked
+	if purge {
+		// The home of the settings' environment, which is where setup looked
+		// for the startup files too.
+		hook = removeHooks(a.Env.Home())
+		for _, file := range hook.removed {
+			println(w, ok(t)+i18n.T("uninstall.unhooked", tilde(file)))
+		}
+		lines += len(hook.removed)
+		// The log that went is the one the settings name. Without the
+		// settings that is the default one, and another may be left.
+		if unread != nil {
+			println(w, warn(t)+i18n.T("uninstall.nosettings"))
+			lines++
+		}
+	}
+	lines += printNotes(cmd, res)
+	for _, file := range hook.stays {
+		println(w, warn(t)+i18n.T("uninstall.hook.stays", tilde(file)))
+	}
+	for _, err := range hook.failed {
+		// A startup file that could not be changed fails nothing: the timers
+		// are gone, and the line it keeps is named.
+		println(w, warn(t)+i18n.T("uninstall.hook.failed", err))
+	}
+	// The list stands apart from the words that close it, as install's does.
+	if lines+len(hook.stays)+len(hook.failed) > 0 {
+		println(w)
+	}
 	// The timers are said to be removed only where there were some: a second
 	// uninstall, or one on a machine that never had them, finds none.
 	if res.Timers > 0 {
@@ -182,8 +289,16 @@ func uninstall(cmd *cobra.Command, a *app.App, purge bool) error {
 	} else {
 		println(w, i18n.T("uninstall.none"))
 	}
+	muted := ui.Fg(t.Muted)
 	if !purge {
-		println(w, ui.Fg(theme().Muted).Render(i18n.T("uninstall.kept")))
+		println(w, muted.Render(i18n.T("uninstall.kept")))
+		return nil
+	}
+	// A purge leaves one thing, which it cannot take itself: a running
+	// program's file cannot be deleted on Windows, and a package's file is
+	// the package manager's to remove.
+	if exe, err := app.Executable(); err == nil {
+		println(w, muted.Render(i18n.T("uninstall.program", tilde(exe))))
 	}
 	return nil
 }

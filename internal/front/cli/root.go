@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
@@ -99,13 +100,25 @@ func load() (*app.App, error) { return app.Load(configPath) }
 // file) is not.
 func isTerminal(f *os.File) bool { return f != nil && term.IsTerminal(f.Fd()) }
 
+// background is what the terminal said about its background, asked once.
+var background struct {
+	// once guards the asking.
+	once sync.Once
+	// dark is the answer; a terminal that gives none counts as dark.
+	dark bool
+}
+
 // theme picks colors for the terminal on stdout. Output that is not a
 // terminal is printed without colors, so the choice does not matter there.
 func theme() ui.Theme {
 	if !isTerminal(os.Stdout) {
 		return ui.NewTheme(true)
 	}
-	return ui.NewTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+	// One question for the whole command: a terminal that answers none makes
+	// each asking wait out its time limit, and a command that picks its colors
+	// in three places waited three times.
+	background.once.Do(func() { background.dark = lipgloss.HasDarkBackground(os.Stdin, os.Stdout) })
+	return ui.NewTheme(background.dark)
 }
 
 // themeWithoutAsking picks colors without asking the terminal, for a command

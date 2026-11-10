@@ -75,6 +75,20 @@ func Load(configPath string) (*App, error) {
 	return a, nil
 }
 
+// ForUninstall is an App with only what removing the timers takes: the
+// settings, for where the log is, and the scheduler. What stops Load (a
+// settings file or a protected list that cannot be read) must not keep the
+// timers from being removed, so the settings are the defaults where they do
+// not load, and the error says why they did not.
+func ForUninstall(configPath string) (*App, error) {
+	env := config.OSEnv{}
+	cfg, err := config.Load(configPath, env)
+	if err != nil {
+		cfg = config.Default(env)
+	}
+	return &App{Env: env, Config: cfg, System: timers.For(env, userName())}, err
+}
+
 // Sources are the real machine's: /proc, the kernel's sockets, zellij.
 func (a *App) Sources() inspect.Sources {
 	return inspect.Sources{

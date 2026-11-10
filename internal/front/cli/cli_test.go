@@ -195,7 +195,7 @@ func TestUninstallSaysWhetherThereWereTimers(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd, out := output()
-	if err := uninstall(cmd, a, false); err != nil {
+	if err := uninstall(cmd, a, false, nil); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if got := out.String(); !strings.Contains(got, "Removed the timers.") || strings.Contains(got, "Found no timers") {
@@ -204,7 +204,7 @@ func TestUninstallSaysWhetherThereWereTimers(t *testing.T) {
 	// A second uninstall has no timers to remove, and says so. With --purge
 	// the settings still go, and the line about keeping them is left out.
 	cmd, out = output()
-	if err := uninstall(cmd, a, true); err != nil {
+	if err := uninstall(cmd, a, true, nil); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	got := out.String()
@@ -256,6 +256,10 @@ type recoverMachine struct {
 	in      repair.Inputs
 	zj      *recoverZellij
 	signals []string
+	// fp and socks are its processes and the kernel's sockets, for a test to
+	// add a server to or to take a socket file from.
+	fp    *testutil.FakeProc
+	socks []procfs.UnixSocket
 }
 
 type recoverZellij struct{ deleted []string }
@@ -268,8 +272,8 @@ func (z *recoverZellij) Delete(_ context.Context, name string) error {
 
 func newRecoverMachine(t *testing.T) *recoverMachine {
 	t.Helper()
-	m := &recoverMachine{zj: &recoverZellij{}}
 	fp := testutil.NewFakeProc(t)
+	m := &recoverMachine{zj: &recoverZellij{}, fp: fp}
 	sockDir := testutil.SocketDir(t)
 	info := filepath.Join(t.TempDir(), "session_info")
 	testutil.SessionFiles(t, info, strings.Repeat("x", 120), testutil.Metadata(0, "x"), "", time.Now())
@@ -278,9 +282,10 @@ func newRecoverMachine(t *testing.T) *recoverMachine {
 	fp.Add(testutil.Proc{PID: 5_000_100, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(sockDir, "healthy")}, Sockets: []uint32{1}})
 	fp.Add(testutil.Proc{PID: 5_000_200, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(sockDir, "gone")}, Sockets: []uint32{2}})
 	_, dev, _ := procfs.FileID(filepath.Join(sockDir, "healthy"))
-	socks := []procfs.UnixSocket{{Inode: 1, State: 10, VFSIno: healthy, VFSDev: dev}, {Inode: 2, State: 10, VFSIno: 999999, VFSDev: dev}}
+	m.socks = []procfs.UnixSocket{{Inode: 1, State: 10, VFSIno: healthy, VFSDev: dev}, {Inode: 2, State: 10, VFSIno: 999999, VFSDev: dev}}
 	m.in = repair.Inputs{Zellij: m.zj, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
-		Sockets: func() ([]procfs.UnixSocket, error) { return socks, nil },
+		// Read at each scan, so a test can change them after this.
+		Sockets: func() ([]procfs.UnixSocket, error) { return m.socks, nil },
 		Signal: func(pid int, sig syscall.Signal) error {
 			// The process is gone once it got SIGTERM.
 			for _, s := range m.signals {
@@ -363,6 +368,80 @@ func TestRecoverSaysWhichSessionAnOrphanIs(t *testing.T) {
 	m.in.Protected = func(n string) bool { return n == "notes" }
 	if out := said(); !strings.Contains(out, "pid 5000200 serves no socket file (name: notes), kept: its name is protected\n") {
 		t.Errorf("a kept orphan kept by id:\n%s", out)
+	}
+}
+
+func TestRecoverNamesTheCommandForTheServersItLeaves(t *testing.T) {
+	testutil.SkipOnWindows(t)
+	isolate(t)
+	lockPath := filepath.Join(t.TempDir(), "lock")
+	const (
+		orphan = "pid 5000200 serves no socket file (first name: gone)\n"
+		one    = "1 server serves no socket file and nothing keeps it: `zellij-reaper recover --aggressive` stops it\n"
+		two    = "2 servers serve no socket file and nothing keeps them: `zellij-reaper recover --aggressive` stops them\n"
+	)
+	// said is what recover prints about m.
+	said := func(m *recoverMachine, dry, aggressive bool) string {
+		t.Helper()
+		cmd, out := output()
+		if err := recoverSessions(cmd, lockPath, m.in, dry, aggressive); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+	// served is a machine with nothing to repair: no name is too long, and one
+	// server has lost its socket file.
+	served := func() *recoverMachine {
+		m := newRecoverMachine(t)
+		m.in.InfoDir = t.TempDir()
+		return m
+	}
+
+	// A name to repair and a server left: the command closes a dry run.
+	m := newRecoverMachine(t)
+	if out := said(m, true, false); !strings.HasSuffix(out, "dry run: nothing changed\n"+one) {
+		t.Errorf("a dry run that leaves a server:\n%s", out)
+	}
+	// A real run repairs the name, leaves the server and says the same last.
+	out := said(m, false, false)
+	if !strings.HasSuffix(out, one) || strings.Contains(out, "nothing to repair") || len(m.zj.deleted) != 1 || len(m.signals) != 0 {
+		t.Errorf("a run that leaves a server: deleted %v, signals %v\n%s", m.zj.deleted, m.signals, out)
+	}
+	// With --aggressive the server is the run's to stop: no command to name.
+	if out := said(newRecoverMachine(t), true, true); strings.Contains(out, "--aggressive") {
+		t.Errorf("a dry run with --aggressive:\n%s", out)
+	}
+
+	// Nothing to repair, and a server left: the list of them ended in
+	// "nothing to repair", which told nobody there was a command for it.
+	m = served()
+	if out := said(m, false, false); !strings.HasSuffix(out, orphan+one) || strings.Contains(out, "nothing to repair") {
+		t.Errorf("nothing to repair and a server left:\n%s", out)
+	}
+	// Two of them are counted as two.
+	m.fp.Add(testutil.Proc{PID: 5_000_300, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(m.in.SocketDirs[0], "lost")}, Sockets: []uint32{3}})
+	m.socks = append(m.socks, procfs.UnixSocket{Inode: 3, State: 10, VFSIno: 999998, VFSDev: m.socks[0].VFSDev})
+	if out := said(m, true, false); !strings.HasSuffix(out, two) || strings.Contains(out, "nothing to repair") {
+		t.Errorf("two servers left:\n%s", out)
+	}
+
+	// A server something keeps is not one --aggressive would stop.
+	m = served()
+	m.in.Protected = func(n string) bool { return n == "gone" }
+	if out := said(m, true, false); !strings.HasSuffix(out, "kept: its first name is protected\n  ✓ nothing to repair\n") || strings.Contains(out, "--aggressive") {
+		t.Errorf("a server that is kept:\n%s", out)
+	}
+	// Nor is any where every server looks orphaned: none would be stopped.
+	m = served()
+	m.socks[0].VFSIno = 999997
+	if out := said(m, true, false); !strings.HasSuffix(out, "none will be stopped\n  ✓ nothing to repair\n") || strings.Contains(out, "--aggressive") {
+		t.Errorf("every server orphaned:\n%s", out)
+	}
+	// And a machine with nothing wrong says so, as it did.
+	m = served()
+	m.socks[1].VFSIno = m.socks[0].VFSIno
+	if out := said(m, false, false); !strings.HasSuffix(out, "  ✓ nothing to repair\n") || strings.Contains(out, "--aggressive") {
+		t.Errorf("nothing wrong:\n%s", out)
 	}
 }
 

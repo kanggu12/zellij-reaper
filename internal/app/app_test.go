@@ -1,8 +1,10 @@
 package app
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -19,6 +21,60 @@ func home(t *testing.T) config.Env {
 	t.Setenv("ZELLIJ_REAPER_CONFIG", "")
 	t.Setenv("ZELLIJ_REAPER_ZELLIJ", filepath.Join(dir, "no-zellij"))
 	return config.OSEnv{}
+}
+
+func TestForUninstallGoesOnWhereLoadStops(t *testing.T) {
+	// Only the App is built here: its scheduler is the real machine's, and
+	// calling it would reach the real timers.
+	t.Run("a settings file that does not parse", func(t *testing.T) {
+		env := home(t)
+		path := config.ConfigFile(env)
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte("idle_after = = 4h\n[[[\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(""); err == nil {
+			t.Fatal("the settings loaded: the case is not the one meant")
+		}
+		a, err := ForUninstall("")
+		// The error is the file's, so the caller can say the log's place is a guess.
+		var fe *config.FileError
+		if !errors.As(err, &fe) || fe.Path != path {
+			t.Errorf("error %v", err)
+		}
+		if a == nil || a.System == nil || a.Config == nil {
+			t.Fatalf("app %+v", a)
+		}
+		// The log is looked for at the default place.
+		if want := filepath.Join(config.StateDir(env), "reaper.log"); a.Config.LogPath != want {
+			t.Errorf("log path %q, want %q", a.Config.LogPath, want)
+		}
+	})
+	t.Run("a protected list that cannot be read", func(t *testing.T) {
+		env := home(t)
+		if err := os.MkdirAll(config.ProtectedFile(env), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(""); err == nil {
+			t.Fatal("loaded without the protected list: the case is not the one meant")
+		}
+		// Removing the timers asks nothing of that list.
+		if a, err := ForUninstall(""); err != nil || a.System == nil {
+			t.Errorf("app %+v, error %v", a, err)
+		}
+	})
+	t.Run("settings that load", func(t *testing.T) {
+		env := home(t)
+		path, log := config.ConfigFile(env), filepath.Join(t.TempDir(), "elsewhere.log")
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		if err := os.WriteFile(path, []byte("[log]\npath = "+strconv.Quote(log)+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// The log a purge removes is the one the settings name.
+		if a, err := ForUninstall(""); err != nil || a.Config.LogPath != log {
+			t.Errorf("log path %q, error %v", a.Config.LogPath, err)
+		}
+	})
 }
 
 func TestAListThatCannotBeReadStopsOnlyWhatItGuards(t *testing.T) {

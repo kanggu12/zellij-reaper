@@ -84,12 +84,25 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 			println(w, warn(t)+i18n.T("recover.orphan", o.PID, orphanName(o)))
 		}
 	}
+	// Servers this run leaves that --aggressive would stop are said last,
+	// with the command for them: a list of them that ended in "nothing to
+	// repair" told nobody there was one.
+	left := stoppable > 0 && !aggressive
+	hint := func() {
+		if left {
+			println(w, ui.Fg(t.Muted).Render(i18n.TN("recover.stoppable", stoppable, stoppable)))
+		}
+	}
 	if len(sc.Broken) == 0 && (stoppable == 0 || !aggressive || sc.AllOrphaned) {
-		println(w, ok(t)+i18n.T("recover.nothing"))
+		if !left {
+			println(w, ok(t)+i18n.T("recover.nothing"))
+		}
+		hint()
 		return nil
 	}
 	if dry {
 		println(w, ui.Fg(t.Muted).Render(i18n.T("recover.dry")))
+		hint()
 		return nil
 	}
 	for _, st := range repair.Repair(cmd.Context(), in, sc, aggressive) {
@@ -99,6 +112,7 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 			println(w, ok(t)+st.Target+": "+st.What)
 		}
 	}
+	hint()
 	return nil
 }
 

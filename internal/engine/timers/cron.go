@@ -35,6 +35,11 @@ type Cron struct {
 // cronMark ends every line zellij-reaper writes into the crontab.
 const cronMark = "# zellij-reaper"
 
+// CronJobs stands in Result.Wrote and Result.Removed for the reaper's own
+// lines in the crontab, which is no file of its own to name: the front shows
+// it in words.
+const CronJobs = "crontab"
+
 // NewCron returns the Cron of the real machine.
 func NewCron(env config.Env) Cron {
 	return Cron{Env: env, Run: crontab, Running: func() bool {
@@ -287,7 +292,7 @@ func (c Cron) Install(o InstallOptions) (Result, error) {
 	if err := c.write(lines); err != nil {
 		return r, err
 	}
-	r.Wrote = append(r.Wrote, "crontab")
+	r.Wrote = append(r.Wrote, CronJobs)
 	return r, nil
 }
 
@@ -304,7 +309,7 @@ func (c Cron) Uninstall(purge bool, logPath string) (Result, error) {
 		if err := c.write(rest); err != nil {
 			return r, err
 		}
-		r.Removed = append(r.Removed, "crontab")
+		r.Removed = append(r.Removed, CronJobs)
 	}
 	r.Timers = len(r.Removed)
 	if purge {

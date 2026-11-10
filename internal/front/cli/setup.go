@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -104,7 +106,7 @@ func setupSnapshot(cmd *cobra.Command, snap, look, keys string) error {
 	if err != nil {
 		return err
 	}
-	hook, _ := hookFor(os.Getenv("SHELL"), homeDir())
+	hook, _ := hookFor(os.Getenv("SHELL"), a.Env.Home())
 	start, err := tui.StartFrom(cmd.Context(), a, firstPassAt(a), zellij.RenameReachable(), tilde(hook))
 	if err != nil {
 		return err
@@ -154,7 +156,7 @@ var errNoScreen = errors.New("the setup screen did not open")
 // setup shows the setup screen and applies what was chosen. From the
 // installer, esc keeps the defaults and still starts the timers.
 func setup(cmd *cobra.Command, a *app.App, installer bool) error {
-	hook, hookLine := hookFor(os.Getenv("SHELL"), homeDir())
+	hook, hookLine := hookFor(os.Getenv("SHELL"), a.Env.Home())
 	start, err := tui.StartFrom(cmd.Context(), a, firstPassAt(a), zellij.RenameReachable(), tilde(hook))
 	if err != nil {
 		return err
@@ -311,7 +313,7 @@ func setupWith(cmd *cobra.Command, a *app.App, f setupFlags, reload func() (*app
 	}
 	if f.given("hook") && f.hook {
 		shell := os.Getenv("SHELL")
-		file, line := shellHook(shell, homeDir())
+		file, line := shellHook(shell, a.Env.Home())
 		switch {
 		case file == "":
 			// No hook to add is no reason to leave the timers off.
@@ -395,10 +397,115 @@ func appendLine(path, line string) error {
 	return err
 }
 
-// homeDir is the home directory, or "".
-func homeDir() string {
-	h, _ := os.UserHomeDir()
-	return h
+// hookShells are the shells that have a prompt hook, in the order a purge goes
+// through their startup files.
+var hookShells = []string{"bash", "zsh", "fish"}
+
+// unhooked is what taking the prompt hook out of the startup files came to.
+type unhooked struct {
+	// removed are the files the hook's line was taken out of.
+	removed []string
+	// stays are the files that still mention the hook, in a line that does
+	// not read as setup writes it.
+	stays []string
+	// failed is why a startup file could not be read or changed.
+	failed []error
+}
+
+// removeHooks takes the line setup adds for the prompt hook out of the
+// startup file of every shell that has one, under home. All of them: the
+// shell an uninstall runs in need not be the one setup ran in.
+func removeHooks(home string) (u unhooked) {
+	for _, shell := range hookShells {
+		file, line := shellHook(shell, home)
+		if file == "" {
+			// No home to look in.
+			continue
+		}
+		removed, err := dropLine(file, line)
+		if err != nil {
+			u.failed = append(u.failed, err)
+			continue
+		}
+		if removed {
+			u.removed = append(u.removed, file)
+		}
+		// A line somebody wrote or changed by hand, indented inside an `if`
+		// say, is theirs to take out: it is pointed at, not guessed at.
+		if hasHook(file) {
+			u.stays = append(u.stays, file)
+		}
+	}
+	return u
+}
+
+// dropLine takes every line of the file at path that reads exactly as line
+// out of it, and reports whether there was one. No file is no line.
+//
+// The file is changed where it is, not replaced by a new one: a startup file
+// is often a link into a directory of dotfiles, or mounted on its own into a
+// container, and a new file in its place would break either.
+func dropLine(path, line string) (bool, error) {
+	// A first look that asks for no right to write. A startup file that
+	// cannot be written and has no hook in it, one a package manager keeps
+	// read-only say, is nothing to report.
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if _, at := without(b, line); at < 0 {
+		return false, nil
+	}
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	// Read again through the handle the change is written with: what goes
+	// back is what the file holds now, not what it held a moment ago.
+	if b, err = io.ReadAll(f); err != nil {
+		return false, err
+	}
+	kept, at := without(b, line)
+	if at < 0 {
+		return false, nil
+	}
+	// Up to the first line taken out, the file is right as it stands. The
+	// rest is written over what is there and the file cut to its new length
+	// after that, so it never holds less than all that stays; where the hook
+	// is the last line, as setup adds it, the cut is the whole change.
+	if _, err := f.WriteAt(kept[at:], int64(at)); err != nil {
+		return false, err
+	}
+	if err := f.Truncate(int64(len(kept))); err != nil {
+		return false, err
+	}
+	return true, f.Sync()
+}
+
+// without is text with every line that reads exactly as line taken out, and
+// where the first of them began: -1 when there is none.
+func without(text []byte, line string) (kept []byte, first int) {
+	first = -1
+	for at := 0; at < len(text); {
+		// One line with its line break, which the last one may lack.
+		end := len(text)
+		if i := bytes.IndexByte(text[at:], '\n'); i >= 0 {
+			end = at + i + 1
+		}
+		if string(bytes.TrimSuffix(text[at:end], []byte("\n"))) == line {
+			if first < 0 {
+				first = at
+			}
+		} else {
+			kept = append(kept, text[at:end]...)
+		}
+		at = end
+	}
+	return kept, first
 }
 
 // firstPassAt is when the first pass after an install runs, as the scheduler

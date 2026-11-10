@@ -28,6 +28,17 @@ type Result struct {
 	Linger string
 	// Warnings are things install did not do and the person should know.
 	Warnings []string
+	// Left lists the folders a purge could not remove because something that
+	// is not the reaper's is still in them.
+	Left []Leftover
+}
+
+// Leftover is a folder a purge left in place, with what it still holds.
+type Leftover struct {
+	// Dir is the folder.
+	Dir string
+	// Names are the entries in it, as the folder lists them.
+	Names []string
 }
 
 // InstallOptions are the inputs to Install.
