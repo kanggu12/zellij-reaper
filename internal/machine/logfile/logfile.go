@@ -144,7 +144,8 @@ func (l Line) Kind() string {
 		return "renamed"
 	// A session kept at the last moment (or kept its name): the safety
 	// check working, not a failure, even when its reason says "could not".
-	case strings.HasPrefix(t, "  -> kept:") || strings.HasPrefix(t, "  -> kept name:"):
+	// A server recover kept on its second look is the same.
+	case strings.HasPrefix(t, "  -> kept:") || strings.HasPrefix(t, "  -> kept name:") || strings.Contains(t, " :: recover: kept orphan server: "):
 		return "kept"
 	case strings.HasPrefix(t, "  -> DRY RUN") || strings.HasPrefix(t, "  -> DRY_RUN"):
 		return "dry"

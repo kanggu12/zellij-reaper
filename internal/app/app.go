@@ -103,12 +103,17 @@ func (a *App) Sources() inspect.Sources {
 }
 
 // RepairInputs are the inputs for `recover`. An orphan server is judged by a
-// pass's settings: the protected names and programs, and the shells.
+// pass's settings: the protected names and programs, and the shells. What a
+// repair does goes to the decision log, beside what the passes did: recover
+// deletes sessions and stops servers, and the log is where that is looked up.
 func (a *App) RepairInputs() repair.Inputs {
 	s := a.Sources()
 	return repair.Inputs{Zellij: a.Zellij, ProcRoot: s.ProcRoot, InfoDir: s.InfoDir, SocketDirs: s.SocketDirs, UID: s.UID, Sockets: s.Sockets,
 		Protected:       func(name string) bool { return a.Config.ProtectMatches(name) || a.Protected.Has(name) },
-		ProtectCommands: a.Config.ProtectCommands, Shells: a.Config.Shells}
+		ProtectCommands: a.Config.ProtectCommands, Shells: a.Config.Shells,
+		// A line that cannot be written does not stop a repair half way: the
+		// terminal shows the step all the same.
+		Log: func(line string) { a.Reaper.Log.Printf("%s", line) }}
 }
 
 // Executable is the absolute, symlink-resolved path of this binary, which the

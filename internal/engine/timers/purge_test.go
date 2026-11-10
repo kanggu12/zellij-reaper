@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -189,6 +190,31 @@ func TestPurgeReportsOneDirectoryOnceWhereBothAreTheSame(t *testing.T) {
 	purgeState(env, logPath, &r)
 	if len(r.Left) != 1 || !slices.Equal(r.Left[0].Names, []string{"notes.txt"}) {
 		t.Errorf("left %+v", r.Left)
+	}
+}
+
+func TestAPurgeThroughBothSchedulersSaysWhatItLeft(t *testing.T) {
+	// On Linux an uninstall goes through systemd and cron and puts the two
+	// results together. What the purge had left was dropped on the way, so a
+	// directory with someone's own file in it stayed without a word.
+	for _, systemdUp := range []bool{true, false} {
+		env := config.MapEnv{"HOME": t.TempDir()}
+		logPath := stateOf(t, env)
+		put(t, filepath.Join(config.ConfigDir(env), "notes.txt"))
+		run, f := &fakeRun{linger: "no", noUser: !systemdUp}, &fakeCrontab{}
+		a := auto{sys: Systemd{Env: env, Run: run.run, User: "u"},
+			cron: Cron{Env: env, Run: f.run, Running: func() bool { return true }}, once: &sync.Once{}, pick: new(Scheduler)}
+		r, err := a.Uninstall(true, logPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.Left) != 1 || r.Left[0].Dir != config.ConfigDir(env) || !slices.Equal(r.Left[0].Names, []string{"notes.txt"}) {
+			t.Errorf("%s chosen: left %+v, want the settings directory with notes.txt", a.Kind(), r.Left)
+		}
+		// The purge's own list comes through as well, after the timers'.
+		if !slices.Contains(r.Removed, config.ConfigFile(env)) {
+			t.Errorf("%s chosen: removed %v", a.Kind(), r.Removed)
+		}
 	}
 }
 

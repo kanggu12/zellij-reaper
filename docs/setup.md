@@ -207,12 +207,43 @@ A closed network also keeps you from checking for new releases: the steps above 
 **Upgrade** by running the install script again, or with your package manager. The settings stay, and the script runs
 `zellij-reaper install`, which rewrites the timers; the setup screen opens only on a first install
 (`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install` again:
-`doctor` notices a timer that still runs an old path. **Uninstall** with `zellij-reaper uninstall`, which stops and
-removes the timers: the systemd units, the launch agents or the scheduled task. `--purge` also removes the settings,
-the log, the protected list and the lists of given and kept names. Lingering stays on; `loginctl disable-linger` turns
-it off. Then remove the binary (`rm ~/.local/bin/zellij-reaper`) or the package; on Windows, the folder
-`%LOCALAPPDATA%\Programs\zellij-reaper` and its entry in your user `PATH`. Run `uninstall` before removing a package,
-or the timer stays and fails every hour.
+`doctor` notices a timer that still runs an old path.
+
+**Uninstall** in two steps: first what the program set up, then the program.
+
+```sh
+zellij-reaper uninstall          # the timers; the settings, the log and the lists stay
+zellij-reaper uninstall --purge  # those too, and the prompt hook
+```
+
+`uninstall` stops and removes the timers: on Linux the systemd units and the reaper's lines in your crontab, whichever
+of the two runs the passes today, on macOS the launch agents, on Windows the scheduled task. It lists what it removed,
+and run again it says there was nothing left. It does not need the settings file to load, so a file that no longer
+parses does not keep the timers on.
+
+`--purge` also removes the settings, the log, the protected list and the lists of given and kept names, and takes the
+prompt hook out of `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish`: the line `setup` added, where it still reads
+as `setup` wrote it. The startup file is changed in place, so one that is a link into your dotfiles stays a link. What
+a purge leaves, it names: a hook line written another way, a file of yours in one of its folders, a file it could not
+remove.
+
+Neither removes the program, and the last line of a purge says where it is:
+
+| Installed with | Remove it with |
+|:---|:---|
+| the install script | `rm ~/.local/bin/zellij-reaper` |
+| a package | `sudo apt remove zellij-reaper`, `sudo dnf remove zellij-reaper`, `sudo apk del zellij-reaper` or `sudo pacman -R zellij-reaper` |
+| `go install` | `rm "$(go env GOPATH)/bin/zellij-reaper"` |
+| `install.ps1` | delete the folder `%LOCALAPPDATA%\Programs\zellij-reaper` and take it out of your user `PATH` |
+
+Run `uninstall` before removing the program: without it the timer stays and fails at every pass. Under a package, each
+user who ran `install` runs `uninstall`. Lingering stays on, since other services of yours may rely on it;
+`loginctl disable-linger` turns it off.
+
+**Repair** an install by running `zellij-reaper install` again: it rewrites the timers and keeps the settings, the log
+and the lists. `zellij-reaper doctor` says what is wrong first. With a settings file that no longer parses, a command
+that needs the settings stops and names the file and the line; `zellij-reaper config edit` opens it and checks what
+you saved, and moving the file away starts again from the defaults.
 
 ## Settings
 

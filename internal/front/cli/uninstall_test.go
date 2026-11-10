@@ -162,6 +162,67 @@ func TestUninstallThatStopsHalfwayLeavesTheHook(t *testing.T) {
 	}
 }
 
+func TestPurgeSaysWhichStartupFileItCouldNotChange(t *testing.T) {
+	home := isolate(t)
+	a := fakeApp(t, config.MapEnv{"HOME": home})
+	// A directory where bash's startup file would be: it cannot be read as a
+	// file, by root either, so the failure is the same for whoever runs this.
+	bashrc, _ := shellHook("bash", home)
+	if err := os.Mkdir(bashrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, unreadable := os.ReadFile(bashrc)
+	if unreadable == nil {
+		t.Fatal("a directory was read as a file")
+	}
+	// No timers and nothing else removed: the failure is the whole list.
+	a.System = uninstalled{}
+	exe, err := app.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd, out := output()
+	// The timers are gone all the same, so a startup file fails nothing.
+	if err := uninstall(cmd, a, true, nil); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	// The settings loaded, so nothing is said about where the log was looked
+	// for; one line is a list, and a blank line follows it.
+	want := "  ! could not remove the prompt hook: " + unreadable.Error() + "\n" +
+		"\n" +
+		"Found no timers to remove.\n" +
+		"The program itself stays: delete " + tilde(exe) + ", or remove its package.\n"
+	if got := out.String(); got != want {
+		t.Errorf("purge printed:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestRemoveHooksGoesOnPastAFileItCannotRead(t *testing.T) {
+	home := t.TempDir()
+	// bash's startup file cannot be read (a directory is in its place), and
+	// zsh's, which comes after it, has the hook.
+	bashrc, _ := shellHook("bash", home)
+	if err := os.Mkdir(bashrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	zshrc, hook := shellHook("zsh", home)
+	if err := os.WriteFile(zshrc, []byte("# mine\n"+hook+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	u := removeHooks(home)
+	// The file that failed is named once, and the ones after it are still
+	// gone through.
+	if len(u.failed) != 1 || !strings.Contains(u.failed[0].Error(), bashrc) {
+		t.Errorf("failed: %v", u.failed)
+	}
+	if !slices.Equal(u.removed, []string{zshrc}) || len(u.stays) != 0 {
+		t.Errorf("removed %q, stays %q", u.removed, u.stays)
+	}
+	if b, _ := os.ReadFile(zshrc); string(b) != "# mine\n" {
+		t.Errorf("%s is now %q", zshrc, b)
+	}
+}
+
 func TestSomeOfListsThreeNamesAndCountsTheRest(t *testing.T) {
 	i18n.Set(i18n.English)
 	for _, c := range []struct {

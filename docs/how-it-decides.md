@@ -152,6 +152,8 @@ Every line the log can hold:
 | `=== reaper start (dry_run=... idle_after=... exited_after=...) ===` | a pass starts; ` force` follows `exited_after` for `run --force` |
 | `could not rotate PATH (N bytes) to PATH.1: ERROR` | the log could not move aside; the pass goes on |
 | `could not read the list of kept names: ERROR, so no session is renamed` | with `auto_rename` on, the list of kept names could not be read; the pass goes on and renames nothing |
+| `zellij on Windows cannot reach a session after a rename: its pipe keeps the first name, so no session is renamed` | with `auto_rename` on, on Windows; the pass goes on and renames nothing |
+| `read zellij's session index PATH: ERROR, so sessions zellij keeps by id are kept`, `zellij's session index PATH has no name column, so sessions zellij keeps by id are kept` | the index a zellij newer than 0.45 keeps its sessions' names in could not be read; the pass goes on and keeps every session it cannot find without it |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
@@ -165,10 +167,17 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
-| `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |
+| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass first found quiet starts its wait at the next one |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
-| `NAME :: name kept from the command line`, `NAME :: name no longer kept, from the command line` | `keep-name` and `forget-name` |
+| `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |
+| `NAME :: deleted from the command line`, `NAME :: renamed from the command line to NEW`, `NAME :: name kept from the command line`, `NAME :: name no longer kept, from the command line` | `delete`, `rename`, `keep-name` and `forget-name` |
+| `NAME :: recover: deleted with zellij`, `NAME :: recover: removed DIR` | `recover` deleted a broken session and cleared its files; `recover --dry-run` writes no line |
+| `NAME :: recover: zellij could not delete it: ERROR`, `NAME :: recover: could not remove DIR: ERROR`, `NAME :: recover: skipped: name is not a plain directory name` | a step of that did not go through; zellij often cannot delete a session it cannot reach, and the files are cleared all the same |
+| `pid N (first name: NAME) :: recover: stopped orphan server`, `... :: recover: stopped orphan server (SIGKILL)` | `recover --aggressive` stopped a server that serves no socket file, with `SIGKILL` when it was still there a second after `SIGTERM`; the brackets hold `name: NAME` where zellij's index still names the session, `first name: NAME` for the name it started under, or `name unknown` |
+| `pid N (...) :: recover: kept orphan server: REASON` | the look right before the stop found a reason to keep the server |
+| `pid N (...) :: recover: could not stop orphan server: ERROR`, `... :: recover: could not stop orphan server (SIGKILL): ERROR` | the signal was refused |
+| `servers :: recover: not stopped: every server looked orphaned, which points at the socket table` | `recover --aggressive` stopped none: with more than one server and not one of them serving a socket file, the socket table is what looks wrong |
 
 The words stay the same across releases, so months of the log can be grepped. New kinds of lines may be added.
 `zellij-reaper logs -f` follows it across rotations; with `tail`, use `tail -F`.

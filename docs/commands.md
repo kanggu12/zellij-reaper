@@ -81,7 +81,8 @@ attached, one whose clients nobody can tell, or one not in the list of sessions 
 before and by zellij asked once more right before the delete. Each is asked about first with the dashboard's question,
 which says what protects it or still runs in it, and checked again after the answer; `--yes` (`-y`) reaps without
 asking, and without a terminal to answer in, `delete` needs it. The waits do not apply. The exit status is 1 when any
-session it was not told to keep was kept.
+session it was not told to keep was kept. Each delete is a line in the log, `NAME :: deleted from the command line`,
+and shows among the dashboard's recent decisions.
 
 **`rename NAME NEW-NAME`** renames a running session, as <kbd>r</kbd> does in the dashboard. A name given by hand is
 someone's choice, so passes leave it alone, and a protection follows the session to its new name. A name too long for
@@ -98,7 +99,10 @@ of its socket path, which Linux caps at 107 bytes and macOS at 103; a session re
 its files come back after every delete. `recover` deletes such sessions and clears their files. `--aggressive` also
 stops servers that serve no socket file at all, unless a client is still connected to one, a pane in it is busy, a
 protected program runs in it, its name is protected, or any of that cannot be read; it looks once more just before
-each stop. A renamed session's server still serves its socket and is left alone. A real run takes the pass lock.
+each stop. A renamed session's server still serves its socket and is left alone. Without `--aggressive`, a run that
+finds servers the flag would stop ends by saying how many there are and which command stops them. A real run takes the
+pass lock and writes each thing it does to the [log](how-it-decides.md#the-log) as it does it; `--dry-run` changes
+nothing and logs nothing.
 
 **`resize [--dry-run] [--shallow]`** (also `refresh`) sends `SIGWINCH` to every zellij client, every server and every
 program in a pane, so each one reads its terminal size again. Use it when a program is stuck at an old size after the
@@ -136,8 +140,10 @@ zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run --protect api,no
 
 **`install`** writes a settings file and the timers, the systemd units with lingering on Linux (crontab lines where
 systemd has no user instance but cron runs), the launch agents on macOS and the scheduled task on Windows, and says
-when the first pass runs. **`uninstall`** removes the timers;
-`--purge` also removes the settings, the log, the protected list and the lists of given and kept names. See [setup](setup.md#install).
+when the first pass runs. **`uninstall`** removes the timers, also when the settings file does not load; `--purge` also
+removes the settings, the log, the protected list and the lists of given and kept names, and takes the prompt hook
+`setup` added out of the shells' startup files. Both list what they removed and name what they left; the program
+itself stays. See [install](setup.md#install) and [uninstall](setup.md#upgrade-and-uninstall).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`
 prints the file's path, `init` writes the file with every key at its default, and `edit` opens it in `$VISUAL` or

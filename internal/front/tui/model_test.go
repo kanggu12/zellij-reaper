@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -732,13 +733,31 @@ func TestANameWithSpacesAroundItIsKeptAsItIs(t *testing.T) {
 	}
 }
 
-func TestRecentDecisionsShowANameKeptByHand(t *testing.T) {
+func TestRecentDecisionsShowWhatWasDoneByHand(t *testing.T) {
 	i18n.Set(i18n.English)
 	m := loaded(t, sample(), 120, 40)
-	m.logLines = []string{"[2026-11-06 09:00:00] notes :: name kept from the dashboard"}
-	got := ansi.Strip(strings.Join(m.recentLines(5), "\n"))
-	if !strings.Contains(got, "11-06 09:00  kept the name notes · by hand") {
-		t.Errorf("recent decisions:\n%s", got)
+	// What the dashboard did, then the same three from the commands: `delete`
+	// and `rename` came after the dashboard's keys, and their lines were not
+	// read, so a session deleted from a terminal showed nowhere here.
+	m.logLines = []string{
+		"[2026-11-06 09:00:00] notes :: name kept from the dashboard",
+		"[2026-11-06 09:01:00] scratch :: deleted from the dashboard",
+		"[2026-11-06 09:02:00] draft :: renamed from the dashboard to report",
+		"[2026-11-06 09:03:00] logs :: name kept from the command line",
+		"[2026-11-06 09:04:00] old :: deleted from the command line",
+		"[2026-11-06 09:05:00] todo :: renamed from the command line to done",
+	}
+	want := []string{
+		"11-06 09:00  kept the name notes · by hand",
+		"11-06 09:01  reaped scratch · by hand",
+		"11-06 09:02  renamed draft → report · by hand",
+		"11-06 09:03  kept the name logs · by hand",
+		"11-06 09:04  reaped old · by hand",
+		"11-06 09:05  renamed todo → done · by hand",
+	}
+	got := strings.Split(ansi.Strip(strings.Join(m.recentLines(10), "\n")), "\n")
+	if !slices.Equal(got, want) {
+		t.Errorf("recent decisions:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

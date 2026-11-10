@@ -6,6 +6,18 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Added
+
+- `recover` writes what it does to the log, one line for each step as it takes it: a session deleted and its files
+  cleared, an orphan server stopped (with `SIGKILL` where `SIGTERM` was not enough) or kept on the look right before the
+  stop, and every step that did not go through. Long after, the log still says which servers a recover stopped and why
+  one was kept. A dry run writes nothing. The lines are in the [table of the log's lines](docs/how-it-decides.md#the-log).
+
+### Fixed
+
+- The dashboard's recent decisions showed a name kept with `keep-name`, but not a session reaped with `delete` or
+  renamed with `rename`, though the log has both.
+
 ## [0.10.1] - 2026-11-10
 
 ### Fixed

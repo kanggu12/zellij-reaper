@@ -133,7 +133,16 @@ func TestParseAndKind(t *testing.T) {
 		"[2026-11-04 09:31:00]   -> kept: work :: could not ask for its clients again: no answer":      "kept",
 		"[2026-11-04 09:31:00]   -> kept name: work :: could not ask for its clients again: no answer": "kept",
 		"[2026-11-04 09:31:00]   -> rename FAILED: a → b :: Session with name b already exists":        "failed",
-		"[2026-11-04 09:31:00] could not read the protected list: read /x: is a directory":             "failed",
+		// recover's steps: a server kept on the second look is kept, whatever
+		// its reason says; a step that failed is a failure; one that went
+		// through has no kind of its own.
+		"[2026-11-04 09:31:00] pid 4242 (first name: work) :: recover: kept orphan server: could not read the socket table again": "kept",
+		"[2026-11-04 09:31:00] pid 4242 (first name: work) :: recover: could not stop orphan server: operation not permitted":     "failed",
+		"[2026-11-04 09:31:00] work :: recover: zellij could not delete it: exit status 1":                                        "failed",
+		"[2026-11-04 09:31:00] work :: recover: could not remove /x/work: unlinkat /x/work/a: permission denied":                  "failed",
+		"[2026-11-04 09:31:00] pid 4242 (first name: work) :: recover: stopped orphan server":                                     "",
+		"[2026-11-04 09:31:00] work :: recover: deleted with zellij":                                                              "",
+		"[2026-11-04 09:31:00] could not read the protected list: read /x: is a directory":                                        "failed",
 	}
 	for raw, kind := range cases {
 		l := Parse(raw)

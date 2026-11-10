@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"testing"
 
@@ -75,6 +76,32 @@ func TestForUninstallGoesOnWhereLoadStops(t *testing.T) {
 			t.Errorf("log path %q, error %v", a.Config.LogPath, err)
 		}
 	})
+}
+
+func TestRecoverWritesItsStepsToTheDecisionLog(t *testing.T) {
+	home(t)
+	// The log is told where to be, so nothing set on this machine decides it.
+	log := filepath.Join(t.TempDir(), "reaper.log")
+	t.Setenv("ZELLIJ_REAPER_LOG", log)
+	a, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := a.RepairInputs()
+	if in.Log == nil {
+		t.Fatal("recover has nowhere to write its steps")
+	}
+	// A step as repair words it. The pid is above the kernel's limit, though
+	// nothing here signals anything.
+	in.Log("pid 5000042 (name unknown) :: recover: stopped orphan server")
+	b, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One line, with the time in front as every line of the log has it.
+	if !regexp.MustCompile(`^\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\] pid 5000042 \(name unknown\) :: recover: stopped orphan server\n$`).Match(b) {
+		t.Errorf("the log holds %q", b)
+	}
 }
 
 func TestAListThatCannotBeReadStopsOnlyWhatItGuards(t *testing.T) {

@@ -234,8 +234,10 @@ var (
 	deletedRe = regexp.MustCompile(`^  -> deleted: (.*?)(?: :: .*)?$`)
 	renamedRe = regexp.MustCompile(`^  -> renamed: (.*) → (.*)$`)
 	failedRe  = regexp.MustCompile(`^  -> FAILED: (.*?) :: `)
-	handRe    = regexp.MustCompile(`^(.*) :: (deleted from the dashboard|name kept from the (?:dashboard|command line)|renamed from the dashboard to (.*))$`)
-	endRe     = regexp.MustCompile(`^=== reaper end \((\d+) reaped, (\d+) kept`)
+	// What was done by hand reads the same whether the dashboard did it or
+	// `delete`, `rename` and `keep-name` did.
+	handRe = regexp.MustCompile(`^(.*) :: (deleted from the (?:dashboard|command line)|name kept from the (?:dashboard|command line)|renamed from the (?:dashboard|command line) to (.*))$`)
+	endRe  = regexp.MustCompile(`^=== reaper end \((\d+) reaped, (\d+) kept`)
 )
 
 // statusLine shows the last action's result for a few seconds, otherwise a

@@ -256,6 +256,8 @@ type recoverMachine struct {
 	in      repair.Inputs
 	zj      *recoverZellij
 	signals []string
+	// logged is every line recover handed to the decision log.
+	logged []string
 	// fp and socks are its processes and the kernel's sockets, for a test to
 	// add a server to or to take a socket file from.
 	fp    *testutil.FakeProc
@@ -286,6 +288,7 @@ func newRecoverMachine(t *testing.T) *recoverMachine {
 	m.in = repair.Inputs{Zellij: m.zj, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
 		// Read at each scan, so a test can change them after this.
 		Sockets: func() ([]procfs.UnixSocket, error) { return m.socks, nil },
+		Log:     func(line string) { m.logged = append(m.logged, line) },
 		Signal: func(pid int, sig syscall.Signal) error {
 			// The process is gone once it got SIGTERM.
 			for _, s := range m.signals {
@@ -320,13 +323,17 @@ func TestRecoverWaitsForThePassLock(t *testing.T) {
 	if time.Since(start) < reaper.LockWait-time.Second {
 		t.Errorf("gave up after %v without waiting for the pass", time.Since(start))
 	}
-	if len(m.zj.deleted)+len(m.signals) != 0 {
-		t.Errorf("changed things without the lock: deleted %v, signals %v", m.zj.deleted, m.signals)
+	if len(m.zj.deleted)+len(m.signals)+len(m.logged) != 0 {
+		t.Errorf("changed things without the lock: deleted %v, signals %v, logged %q", m.zj.deleted, m.signals, m.logged)
 	}
-	// A dry run changes nothing, so it does not wait.
+	// A dry run changes nothing, so it does not wait. The decision log is
+	// for what was done: a dry run leaves it as it is.
 	cmd, out = output()
 	if err := recoverSessions(cmd, lockPath, m.in, true, true); err != nil || !strings.Contains(out.String(), "dry run: nothing changed") {
 		t.Errorf("dry run with the lock held: %v\n%s", err, out)
+	}
+	if len(m.logged) != 0 {
+		t.Errorf("a dry run wrote to the log: %q", m.logged)
 	}
 	// Once the pass is done, recover repairs.
 	held.Release()
@@ -336,6 +343,17 @@ func TestRecoverWaitsForThePassLock(t *testing.T) {
 	}
 	if len(m.zj.deleted) != 1 || len(m.signals) != 1 {
 		t.Errorf("after the pass: deleted %v, signals %v\n%s", m.zj.deleted, m.signals, out)
+	}
+	// Each step it printed is in the log too, in the same order: the server
+	// with the session it is, then the name and its files.
+	long := strings.Repeat("x", 120)
+	want := []string{
+		"pid 5000200 (first name: gone) :: recover: stopped orphan server",
+		long + " :: recover: deleted with zellij",
+		long + " :: recover: removed " + filepath.Join(m.in.InfoDir, long),
+	}
+	if !slices.Equal(m.logged, want) {
+		t.Errorf("the log holds\n%s\nwant\n%s", strings.Join(m.logged, "\n"), strings.Join(want, "\n"))
 	}
 }
 

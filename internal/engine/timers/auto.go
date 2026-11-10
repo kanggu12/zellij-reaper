@@ -65,10 +65,13 @@ func (a auto) Uninstall(purge bool, logPath string) (Result, error) {
 		r.Warnings = nil
 	}
 	c, err := a.chosen().Uninstall(purge, logPath)
-	r.Removed = append(r.Removed, c.Removed...)
-	r.Warnings = append(r.Warnings, c.Warnings...)
-	r.Timers += c.Timers
-	return r, err
+	// The chosen one's result is the one handed on, with the other's timers
+	// and words put in front of its own. Copying its fields into the other's
+	// one by one dropped what a purge had left in place: a field added since.
+	c.Removed = append(r.Removed, c.Removed...)
+	c.Warnings = append(r.Warnings, c.Warnings...)
+	c.Timers += r.Timers
+	return c, err
 }
 
 func (a auto) FirstPass(now time.Time, every time.Duration) time.Time {

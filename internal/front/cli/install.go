@@ -109,19 +109,17 @@ func envOnly(c *config.Config, file string) []string {
 // printResult lists what an install or an uninstall did, then what it has to
 // say about it.
 func printResult(cmd *cobra.Command, r timers.Result) {
-	printDone(cmd, r)
-	printNotes(cmd, r)
+	w, t := cmd.OutOrStdout(), theme()
+	for _, l := range append(done(t, r), notes(t, r)...) {
+		println(w, l)
+	}
 }
 
-// printDone lists what an install or an uninstall wrote, moved and removed,
-// and returns how many lines that took.
-func printDone(cmd *cobra.Command, r timers.Result) int {
-	w, t, n := cmd.OutOrStdout(), theme(), 0
-	// line prints one of them and counts it.
-	line := func(text string) {
-		println(w, ok(t)+text)
-		n++
-	}
+// done is what an install or an uninstall wrote, moved and removed, a line
+// for each.
+func done(t ui.Theme, r timers.Result) (lines []string) {
+	// line adds one of them, with the mark of something that went well.
+	line := func(text string) { lines = append(lines, ok(t)+text) }
 	for _, p := range r.Wrote {
 		line(i18n.T("install.wrote", shown(p)))
 	}
@@ -141,21 +139,20 @@ func printDone(cmd *cobra.Command, r timers.Result) int {
 	for _, p := range r.Removed {
 		line(i18n.T("install.removed", shown(p)))
 	}
-	return n
+	return lines
 }
 
-// printNotes lists what an install or an uninstall has to say about what it
-// did: its warnings, then each directory a purge left in place with what is
-// still in it. It returns how many lines that took.
-func printNotes(cmd *cobra.Command, r timers.Result) int {
-	w, t := cmd.OutOrStdout(), theme()
+// notes is what an install or an uninstall has to say about what it did, a
+// line for each: its warnings, then every directory a purge left in place
+// with what is still in it.
+func notes(t ui.Theme, r timers.Result) (lines []string) {
 	for _, m := range r.Warnings {
-		println(w, warn(t)+m)
+		lines = append(lines, warn(t)+m)
 	}
 	for _, l := range r.Left {
-		println(w, warn(t)+i18n.T("uninstall.left", tilde(l.Dir), someOf(l.Names)))
+		lines = append(lines, warn(t)+i18n.T("uninstall.left", tilde(l.Dir), someOf(l.Names)))
 	}
-	return len(r.Warnings) + len(r.Left)
+	return lines
 }
 
 // shown is something a Result names, as a person reads it: a path with the
@@ -251,35 +248,38 @@ func uninstall(cmd *cobra.Command, a *app.App, purge bool, unread error) error {
 	}
 	w, t := cmd.OutOrStdout(), theme()
 	// First everything that is gone, then everything there is to say about
-	// it, so the marks read in two runs and not mixed.
-	lines := printDone(cmd, res)
+	// it, so the marks read in two runs and not mixed. The lines are put
+	// together before any is printed: whether a blank line follows them is
+	// then whether there are any, with nothing to count on the way.
+	list := done(t, res)
 	var hook unhooked
 	if purge {
 		// The home of the settings' environment, which is where setup looked
 		// for the startup files too.
 		hook = removeHooks(a.Env.Home())
 		for _, file := range hook.removed {
-			println(w, ok(t)+i18n.T("uninstall.unhooked", tilde(file)))
+			list = append(list, ok(t)+i18n.T("uninstall.unhooked", tilde(file)))
 		}
-		lines += len(hook.removed)
 		// The log that went is the one the settings name. Without the
 		// settings that is the default one, and another may be left.
 		if unread != nil {
-			println(w, warn(t)+i18n.T("uninstall.nosettings"))
-			lines++
+			list = append(list, warn(t)+i18n.T("uninstall.nosettings"))
 		}
 	}
-	lines += printNotes(cmd, res)
+	list = append(list, notes(t, res)...)
 	for _, file := range hook.stays {
-		println(w, warn(t)+i18n.T("uninstall.hook.stays", tilde(file)))
+		list = append(list, warn(t)+i18n.T("uninstall.hook.stays", tilde(file)))
 	}
 	for _, err := range hook.failed {
 		// A startup file that could not be changed fails nothing: the timers
 		// are gone, and the line it keeps is named.
-		println(w, warn(t)+i18n.T("uninstall.hook.failed", err))
+		list = append(list, warn(t)+i18n.T("uninstall.hook.failed", err))
+	}
+	for _, l := range list {
+		println(w, l)
 	}
 	// The list stands apart from the words that close it, as install's does.
-	if lines+len(hook.stays)+len(hook.failed) > 0 {
+	if len(list) > 0 {
 		println(w)
 	}
 	// The timers are said to be removed only where there were some: a second

@@ -2,9 +2,11 @@ package repair_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -19,10 +21,15 @@ import (
 type fakeZellij struct {
 	listed  []zellij.Listed
 	deleted []string
+	// refuse is what a delete of a name answers; a name not in it is deleted.
+	refuse map[string]error
 }
 
 func (f *fakeZellij) ListSessions(context.Context) ([]zellij.Listed, error) { return f.listed, nil }
 func (f *fakeZellij) Delete(_ context.Context, name string) error {
+	if err := f.refuse[name]; err != nil {
+		return err
+	}
 	f.deleted = append(f.deleted, name)
 	return nil
 }
@@ -448,5 +455,104 @@ func TestAnOrphanKeptByIDIsKnownByItsNames(t *testing.T) {
 	}
 	if !said {
 		t.Errorf("no step says the second look kept the protected one: %+v", steps)
+	}
+}
+
+func TestARepairPutsEveryStepInTheLog(t *testing.T) {
+	m := newOrphanMachine(t)
+	// Two sessions renamed past the socket path's limit, each with files to
+	// clear. zellij deletes the first and cannot reach the second.
+	long, lost := strings.Repeat("l", 120), strings.Repeat("m", 120)
+	for _, n := range []string{long, lost} {
+		testutil.SessionFiles(t, m.in.InfoDir, n, testutil.Metadata(0, "x"), "layout {\n}\n", time.Now())
+	}
+	m.in.Zellij = &fakeZellij{refuse: map[string]error{lost: errors.New("exit status 1")}}
+	var log []string
+	m.in.Log = func(line string) { log = append(log, line) }
+	sc, err := repair.Find(context.Background(), m.in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A scan changes nothing, and the log is for what was done.
+	if len(log) != 0 {
+		t.Errorf("the scan wrote %q", log)
+	}
+	// Between the scan and the stop "plain" gets protected. The second look
+	// keeps its server, which is a step like any other.
+	m.in.Protected = func(n string) bool { return n == "keep-me" || n == "plain" }
+	steps := repair.Repair(context.Background(), m.in, sc, true)
+	want := []string{
+		// Nobody knows a server by its pid: its session stands beside it.
+		fmt.Sprintf("pid %d (first name: plain) :: recover: kept orphan server: its first name is protected", base+200),
+		fmt.Sprintf("pid %d (first name: pairs) :: recover: stopped orphan server", base+800),
+		long + " :: recover: deleted with zellij",
+		long + " :: recover: removed " + filepath.Join(m.in.InfoDir, long),
+		// What zellij answered follows the step that failed.
+		lost + " :: recover: zellij could not delete it: exit status 1",
+		lost + " :: recover: removed " + filepath.Join(m.in.InfoDir, lost),
+	}
+	if !slices.Equal(log, want) {
+		t.Errorf("the log holds\n%s\nwant\n%s", strings.Join(log, "\n"), strings.Join(want, "\n"))
+	}
+	// The log has the steps the caller is handed, one line each, in order.
+	if len(steps) != len(log) {
+		t.Fatalf("%d steps, %d lines", len(steps), len(log))
+	}
+	for i, st := range steps {
+		if st.Line() != log[i] {
+			t.Errorf("step %d reads %q, its line %q", i, st.Line(), log[i])
+		}
+	}
+	// Only the server nothing kept got a signal.
+	if got := strings.Join(m.signals, ","); got != fmt.Sprintf("%d 15", base+800) {
+		t.Errorf("signals %s", got)
+	}
+}
+
+func TestARepairSaysWhichFileWouldNotGo(t *testing.T) {
+	// Root removes a file from a directory nobody may write to, so the case
+	// does not come up for it.
+	if os.Geteuid() == 0 {
+		t.Skip("root removes a file from a read-only directory all the same")
+	}
+	fp := testutil.NewFakeProc(t)
+	sockDir := testutil.SocketDir(t)
+	info := filepath.Join(t.TempDir(), "session_info")
+	long := strings.Repeat("x", 120)
+	testutil.SessionFiles(t, info, long, testutil.Metadata(0, "x"), "", time.Now())
+	// Inside the session's directory, one that lets nothing out of it.
+	dir := filepath.Join(info, long)
+	held := filepath.Join(dir, "held")
+	if err := os.Mkdir(held, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(held, "stays.kdl"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(held, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	// The test's own directories have to go when it ends.
+	t.Cleanup(func() { os.Chmod(held, 0o755) })
+	var log []string
+	in := repair.Inputs{Zellij: &fakeZellij{}, ProcRoot: fp.Root, InfoDir: info, SocketDirs: []string{sockDir}, UID: os.Getuid(),
+		Log: func(line string) { log = append(log, line) }}
+	sc, err := repair.Find(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps := repair.Repair(context.Background(), in, sc, false)
+	// zellij's delete went through; the directory stayed.
+	if len(steps) != 2 || len(log) != 2 {
+		t.Fatalf("steps %+v, log %q", steps, log)
+	}
+	// The step reads as the failure it is, and its reason names the file
+	// that would not go.
+	st := steps[1]
+	if st.What != "could not remove "+dir || st.Err == nil || !strings.Contains(st.Err.Error(), "stays.kdl") {
+		t.Errorf("step %+v", st)
+	}
+	if st.Err != nil && log[1] != long+" :: recover: could not remove "+dir+": "+st.Err.Error() {
+		t.Errorf("the log holds %q", log[1])
 	}
 }
