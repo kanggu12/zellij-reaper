@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"io"
 	"os"
 	"strconv"
 
@@ -132,6 +133,25 @@ func recoverSessions(cmd *cobra.Command, lockPath string, in repair.Inputs, dry,
 	return nil
 }
 
+// showResized prints a line for each process resize signalled, or would, and
+// ends with status 1 when one was not reached: its line says why.
+func showResized(w io.Writer, t ui.Theme, targets []resize.Target) error {
+	failed := false
+	for _, tg := range targets {
+		line := strconv.Itoa(tg.PID) + "  " + tg.Role + "  " + ui.Fg(t.Muted).Render(tg.Command)
+		if tg.Err != nil {
+			println(w, bad(t)+line+": "+tg.Err.Error())
+			failed = true
+		} else {
+			println(w, ok(t)+line)
+		}
+	}
+	if failed {
+		return errSilentExit
+	}
+	return nil
+}
+
 // busyError is lock.ErrBusy in the words the dashboard uses for it, in the
 // reader's language; errors.Is still finds lock.ErrBusy in it.
 type busyError struct{}
@@ -184,21 +204,7 @@ old size after the window changed. --shallow signals the clients only.`,
 			if !dry {
 				targets = resize.Send(targets)
 			}
-			failed := false
-			for _, tg := range targets {
-				line := strconv.Itoa(tg.PID) + "  " + tg.Role + "  " + ui.Fg(t.Muted).Render(tg.Command)
-				if tg.Err != nil {
-					println(w, bad(t)+line+": "+tg.Err.Error())
-					failed = true
-				} else {
-					println(w, ok(t)+line)
-				}
-			}
-			// A process the signal did not reach has said why above.
-			if failed {
-				return errSilentExit
-			}
-			return nil
+			return showResized(w, t, targets)
 		},
 	}
 	cmd.Flags().BoolVar(&dry, "dry-run", false, "list the processes, send nothing")

@@ -14,14 +14,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/repair"
+	"github.com/kanggu12/zellij-reaper/internal/engine/resize"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
+	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
@@ -465,6 +468,22 @@ func TestAPassWithAFailedDeleteEndsWithStatus1(t *testing.T) {
 	cmd, out := output()
 	if err := showPass(cmd.Context(), out, a, r, false, true); err != nil {
 		t.Errorf("no failed delete: %v", err)
+	}
+}
+
+func TestResizeEndsWithStatus1WhenASignalWasNotSent(t *testing.T) {
+	isolate(t)
+	th := ui.NewTheme(true)
+	targets := []resize.Target{{PID: 4242, Role: "client", Command: "zellij attach notes"}}
+	var out strings.Builder
+	if err := showResized(&out, th, targets); err != nil {
+		t.Errorf("every signal sent: %v\n%s", err, out.String())
+	}
+	targets = append(targets, resize.Target{PID: 4243, Role: "pane", Command: "htop", Err: syscall.EPERM})
+	out.Reset()
+	// The line says why; the status tells a script.
+	if err := showResized(&out, th, targets); err != errSilentExit || !strings.Contains(ansi.Strip(out.String()), "✗ 4243  pane  htop: operation not permitted") {
+		t.Errorf("a signal not sent: %v\n%s", err, out.String())
 	}
 }
 

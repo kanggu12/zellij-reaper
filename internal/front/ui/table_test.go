@@ -35,6 +35,25 @@ func TestKeptAtTheDeleteReadsInTheReadersLanguage(t *testing.T) {
 	}
 }
 
+func TestASessionThePassDidNotComeToSaysSo(t *testing.T) {
+	defer i18n.Set(i18n.English)
+	// Due, but the pass's time was up first: the next pass decides it.
+	r := reaper.Report{Outcomes: []reaper.Outcome{{
+		Session: inspect.Session{Listed: zellij.Listed{Name: "notes"}},
+		Verdict: policy.Verdict{Action: policy.Reap, Code: policy.IdleOld},
+		Left:    true,
+	}}}
+	for lang, want := range map[i18n.Lang]string{
+		i18n.English: "left for the next pass",
+		i18n.Korean:  "다음 점검으로 넘김",
+	} {
+		i18n.Set(lang)
+		if rows := RowsAfterPass(r, time.Now()); rows[0].Next != want || rows[0].Cat != CatWait {
+			t.Errorf("%s: %q (%v), want %q", lang, rows[0].Next, rows[0].Cat, want)
+		}
+	}
+}
+
 func TestFitMiddleKeepsBothEndsOfAName(t *testing.T) {
 	// Cut from the end, these two read the same: "release-notes-dra…".
 	a, b := FitMiddle("release-notes-draft", 18), FitMiddle("release-notes-draft-2", 18)

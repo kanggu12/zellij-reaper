@@ -297,6 +297,9 @@ echo "-- a dry run changes nothing"
 check "dry run succeeds" env ZELLIJ_REAPER_DRY_RUN=1 $R run --quiet
 check "every session is still there" sh -c "for s in idle-old second exited-old; do $Z list-sessions -n -s | grep -qxF \$s || exit 1; done"
 check "the log says what it would do" grep -q 'DRY_RUN: would run: zellij delete-session idle-old --force' "$LOG"
+# An exited session goes without --force: zellij refuses one brought back
+# meanwhile, where --force would end it with its client attached.
+check "an exited session would go without --force" grep -q 'DRY_RUN: would run: zellij delete-session exited-old$' "$LOG"
 
 echo "-- a pass"
 check "a pass succeeds" $R run --quiet
@@ -307,6 +310,10 @@ for s in idle-new shell-busy cmd-pane agent nohup-job redirected attached keepme
   check "$s is kept" listed "$s"
 done
 check "deletions are logged" grep -q '  -> deleted: idle-old' "$LOG"
+# zellij took the delete without --force: the session is gone, above, and
+# nothing failed.
+check "the exited session's delete went through" grep -q '  -> deleted: exited-old$' "$LOG"
+check "no delete failed" sh -c "! grep -q -- '-> FAILED' '$LOG'"
 
 echo "-- a second terminal on a session"
 { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
@@ -607,6 +614,28 @@ check "the renamed server with a busy pane is kept" running orph-first
 check "the idle orphan is stopped" stopped orph-idle
 check "the log names the server it stopped" grep -Eq '\] pid [0-9]+ \((first name|name): orph-idle\) :: recover: stopped orphan server' "$LOG"
 check "a healthy session is untouched" listed keepme
+
+if by_id; then
+  echo "-- an index that cannot be read"
+  # zellij keeps sessions by id and the names in its index. One that cannot be
+  # read, from a newer zellij say, leaves zellij listing ids, which no
+  # protection names: every session is kept, and recover repairs nothing,
+  # since no broken name can be told from a live one.
+  start idx-idle && age_ptys idx-idle '-3 hours'
+  check "the idle session is due" is_code idx-idle idle-old
+  # The servers keep the index they have open; zellij's commands and the
+  # reaper find one that cannot be read in its place.
+  mv "$INDEX" /tmp/index.kept
+  printf 'not a database' >"$INDEX"
+  check "every session reads as name unknown" sh -c "$R plan --json | jq -e '(.sessions | length) > 0 and all(.sessions[]; .code == \"name-unknown\")' >/dev/null"
+  check "a pass succeeds" $R run --quiet
+  check "and keeps every session" running idx-idle
+  check "it says why in the log" grep -q 'so every session is kept$' "$LOG"
+  check "recover changes nothing, and says so with its status" sh -c "! $R recover --aggressive >/tmp/recover.out 2>&1 && grep -q 'cannot be read' /tmp/recover.out"
+  check "the session is still there" running idx-idle
+  mv /tmp/index.kept "$INDEX"
+  check "with the index back, the name is read again" is_code idx-idle idle-old
+fi
 
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"

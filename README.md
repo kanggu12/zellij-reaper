@@ -227,7 +227,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the timers. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their

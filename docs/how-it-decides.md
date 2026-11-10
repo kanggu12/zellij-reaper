@@ -37,10 +37,12 @@ its wait over:
    `zellij action list-clients`, one at a time. macOS and Windows have no such table, so every running session is
    asked there, except one renamed by hand on Windows, which zellij cannot reach.
 6. **Decides every session** with the checks below, all from that one snapshot.
-7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it asks
-   again: a running session for its clients, an exited one whether it is still listed as exited, and it reads the
-   protected list once more. Anything that changed keeps the session, logged as `-> kept: NAME :: reason`. Otherwise
-   it runs `zellij delete-session NAME --force`.
+7. **Goes through the sessions one at a time** and logs each one's line. Just before it deletes a session, it looks
+   again: at a running session's clients, and at its panes for a job started since; at whether an exited one is still
+   listed as exited; and at the protected list. Anything that changed keeps the session, logged as
+   `-> kept: NAME :: reason`. Otherwise it runs `zellij delete-session NAME --force` for a running session, and
+   `zellij delete-session NAME` for an exited one, which zellij refuses if someone brought it back meanwhile. A pass
+   stops starting deletes after 50 seconds and leaves the rest to the next.
 8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
    another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
    session for its clients once more first.

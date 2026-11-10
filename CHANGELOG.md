@@ -6,6 +6,69 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Added
+
+- A zellij server stopped by a signal never answers, and `zellij list-sessions` waits for every server: each pass
+  stopped with "no answer within 10s" and nothing more. A list cut short now names the stopped servers and the command
+  that lets them go on (`the server of beta (pid 78) is stopped: kill -CONT 78 lets it go on`), in the log, `plan` and
+  `doctor`, on macOS too.
+- `doctor` reads the space left where the log is, and fails below 64 KiB: a full file system takes the open and no
+  line after it, and went unseen. It also counts the deletes zellij refused in the last pass, and warns.
+- The dashboard keeps a name with <kbd>r</kbd> and has no key to let it go: the panel of a session whose name is kept
+  says so, with the `forget-name` command.
+
+### Changed
+
+- `run` ends with status 1 when zellij refused a delete, with a line saying how many, under `--quiet` too, so the
+  timer's own status shows it; a session kept at the last moment or a rename zellij refused is no failure. `recover`
+  ends with 1 when a step failed or zellij's index cannot be read, and `resize` when a process could not be signalled.
+  All three printed the failure and ended with 0.
+
+### Fixed
+
+- `recover` could delete a live session with `--force`. Where zellij reads its session index and zellij-reaper cannot,
+  a session with a long name is listed under its name while its socket is named by its id, and it read as broken.
+  `recover` now changes nothing while the index is there and cannot be read, says why, and ends with status 1.
+- Without the kernel's socket table (`unix_diag`), a server is found by the socket its command line names, which a
+  rename does not change. After `bar` was renamed `baz` and `foo` was renamed `bar`, the session `bar` was judged by the
+  other server's idle panes, and could be reaped while busy. The command line is used only while no rename shows;
+  otherwise the running sessions are kept as `no-server`, and `doctor` says why.
+- An exited session was deleted with `--force`, so one brought back between the last look and the delete was killed
+  with its client attached. It is deleted without `--force` now, by passes and by hand, and zellij refuses one running
+  again. Right before a delete, the panes are read again too: a job started in those seconds (`zellij run`, keys sent
+  to a detached session) was ended with the session.
+- A session protected from another terminal during a pass was still renamed, which left the protection on the old
+  name and the session protected by nothing. The rename looks at the list again, and keeps the name.
+- zellij keeps session files under `contract_version_N`, and the highest `N` present was read. A folder another zellij
+  left, with sessions of the same names, had exited sessions judged by stale files. The folder the running servers'
+  sockets name is read now.
+- A pass that could not read zellij's index forgot every kept and given name, since zellij then lists ids, and one
+  empty list, from a timer looking in another place, forgot every kept name. Kept names now go only after a pass that
+  saw sessions and could name them all.
+- A damaged index could make the SQLite reader copy one overflow chain for every cell that pointed at it: 2 GB from a
+  10 MB file. A page is read once per table, and a size field is not made room for ahead of the pages that hold it.
+- systemd and the Task Scheduler stop a pass after a minute, and one stopped so writes no end line and keeps none of
+  its book of quiet sessions. A pass that has run 50 seconds, its wait for the lock included, leaves the sessions it
+  has not come to for the next pass, says so in the log (`time is up after 50s: 3 sessions left for the next pass`),
+  and ends as passes do.
+- On macOS `lsof` had no time limit: a pane working in a directory on a file server that stopped answering held the
+  pass and the lock for good. It gets 10 seconds. `systemctl`, `loginctl`, `launchctl`, PowerShell and `crontab` get a
+  minute each, where one that never answered held `install`, `uninstall` and `doctor`.
+- `crontab -l` was read with its error stream: a warning there became a line of the crontab at the next `install`.
+- `install.ps1` never read what the program returned, so a task that did not register still ended the install as
+  done; it stops with the same words as `install.sh` now. An upgrade while the program runs (the dashboard, the task)
+  failed on a file in use: the running copy is moved aside, and the next install removes it.
+- <kbd>ctrl+c</kbd> on the setup screen ended with status 0, which an install script took for a finished install with
+  no timer running. It ends with 130, and the script says the timers are not running.
+- Help ran past 80 columns in most commands, and a flag's words to 125; the line above the tables of `plan` and `run`
+  was about 94. Help is set in lines of 80 and the line above the tables breaks between its parts, both held by tests.
+  `install --help` said Windows gets two tasks; it gets one. `recover --help` gives macOS's 103-byte limit too.
+- A missing zellij, a busy lock in `recover`, `keep-name` and `forget-name`, a setup screen that did not open and the
+  commands' usage errors were said in English on a Korean screen. They are said in the language on screen; a missing
+  zellij also says how to name it in the settings.
+- `forget-name` said a name was no longer kept, and logged it, for a name that never was. It says the name was not on
+  the list, as `unprotect` does.
+
 ## [0.11.0] - 2026-11-10
 
 ### Added
