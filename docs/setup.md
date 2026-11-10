@@ -196,7 +196,7 @@ offline too:
 - **The demo image:** on a machine with internet access, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then
   `docker save ghcr.io/kanggu12/zellij-reaper-demo | gzip >demo.tar.gz`. On the closed machine, `docker load
   <demo.tar.gz`. It runs with `--network none`.
-- **From source:** with Go 1.26 or newer on the closed machine, run `go mod vendor` in a clone on a machine with internet
+- **From source:** with Go 1.26.10 or newer on the closed machine, run `go mod vendor` in a clone on a machine with internet
   access and carry the whole clone across. Then run `GOFLAGS=-mod=vendor GOTOOLCHAIN=local make build`; the binary is
   `dist/zellij-reaper`.
 
