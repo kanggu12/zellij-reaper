@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-10
+
 ### Added
 
 - A zellij server stopped by a signal never answers, and `zellij list-sessions` waits for every server: each pass
@@ -608,7 +610,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.12.0
 [0.11.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.11.0
 [0.10.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.10.1
 [0.10.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.10.0
