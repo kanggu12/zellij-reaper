@@ -529,6 +529,34 @@ func TestTheScreenRunsNoEscapeFromASessionName(t *testing.T) {
 	// Written out before the lines were measured: none is wider than the
 	// screen.
 	measure(t, "a name with escapes", m.View().Content, 140, 40)
+	// The dialogs ask about the name as it is spelt, as the row behind them
+	// shows it: drawn from the raw name, the box dropped the escape and
+	// asked "Reap xy now?". Its right edge runs straight down past it.
+	for name, v := range map[string]string{"the reap question": press(t, m, "d").View().Content, "the rename dialog": press(t, m, "r").View().Content} {
+		rows := strings.Split(ansi.Strip(v), "\n")
+		top := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, "╭") })
+		if top < 0 {
+			t.Errorf("%s draws no box:\n%s", name, ansi.Strip(v))
+			continue
+		}
+		left := ansi.StringWidth(rows[top][:strings.Index(rows[top], "╭")])
+		edge := ansi.StringWidth(rows[top][:strings.Index(rows[top], "╮")])
+		var box []string
+		for _, r := range rows[top+1:] {
+			c := ansi.Cut(r, edge, edge+1)
+			if c == "╯" {
+				break
+			}
+			if c != "│" {
+				t.Errorf("%s: the right edge leaves its column at %q", name, r)
+				break
+			}
+			box = append(box, ansi.Cut(r, left, edge+1))
+		}
+		if !strings.Contains(strings.Join(box, "\n"), `x\x1b]52;c;aGk=\x07y`) {
+			t.Errorf("%s does not ask about the name as it is spelt:\n%s", name, strings.Join(box, "\n"))
+		}
+	}
 }
 
 func TestACommandWithANameCanBePastedAsItIs(t *testing.T) {
