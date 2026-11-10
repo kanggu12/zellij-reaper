@@ -234,6 +234,13 @@ func TestUninstallRemovesTheTimersOfBothSchedulers(t *testing.T) {
 		if cron.HasJobs() || !slices.Equal(f.lines, []string{"17 4 * * * /bin/true"}) {
 			t.Errorf("%s chosen: the crontab now holds %q", kind, f.lines)
 		}
+		// What both removed is said, the other scheduler's first: the
+		// crontab's lines before the unit files where systemd was chosen,
+		// after them where cron was.
+		cronAt, unitAt := slices.Index(r.Removed, CronJobs), slices.Index(r.Removed, sys.timerPath())
+		if cronAt < 0 || unitAt < 0 || (cronAt < unitAt) != systemdUp {
+			t.Errorf("%s chosen: removed %q", kind, r.Removed)
+		}
 		if _, err := os.Stat(sys.timerPath()); err == nil {
 			t.Errorf("%s chosen: systemd's timer file is still there", kind)
 		}

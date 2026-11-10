@@ -3,6 +3,7 @@ package timers
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -174,6 +175,37 @@ func TestPurgeSaysWhatItCouldNotRemove(t *testing.T) {
 	// The directory it sits in stays for it, and says so.
 	if len(r.Left) != 1 || r.Left[0].Dir != config.StateDir(env) || !slices.Equal(r.Left[0].Names, []string{"quiet"}) {
 		t.Errorf("left %+v", r.Left)
+	}
+}
+
+func TestPurgeSaysWhyAnEmptyDirectoryStayed(t *testing.T) {
+	// Root removes a directory whatever its parent's mode, and Windows does not
+	// go by a directory's mode: the case comes up for neither.
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("a parent's mode keeps nothing from root, or on Windows")
+	}
+	states := t.TempDir()
+	env := config.MapEnv{"HOME": t.TempDir(), "XDG_STATE_HOME": states}
+	logPath := stateOf(t, env)
+	// The folder the state directory is in may not be written: what is in the
+	// state directory goes, the directory itself cannot.
+	if err := os.Chmod(states, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	// Writable again for the test's own cleanup.
+	t.Cleanup(func() { os.Chmod(states, 0o755) })
+	var r Result
+	purgeState(env, logPath, &r)
+	dir := config.StateDir(env)
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Fatalf("%s holds %v (%v)", dir, entries, err)
+	}
+	// Empty, it has nothing to name: why it stayed is said instead.
+	if len(r.Left) != 0 {
+		t.Errorf("left %+v", r.Left)
+	}
+	if len(r.Warnings) != 1 || !strings.HasPrefix(r.Warnings[0], "could not remove "+dir+": ") {
+		t.Errorf("warnings: %q", r.Warnings)
 	}
 }
 
