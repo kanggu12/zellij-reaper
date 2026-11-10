@@ -32,6 +32,11 @@ gone() { ! listed "$1"; }
 # A pass's verdict on one session, from plan --json.
 verdict() { "$R" plan --json | tr -d '\r' | awk -v n="\"$1\"" '$1 == "\"name\":" && $2 == n "," { on = 1 } on && $1 == "\"code\":" { gsub(/[",]/, "", $2); print $2; exit }'; }
 is() { [ "$(verdict "$1")" = "$2" ]; }
+# A pass answers and has data for every session it lists.
+has_data() {
+  local out
+  out=$("$R" plan --json 2>/dev/null | tr -d '\r') && [ -n "$out" ] && ! grep -q '"code": "no-info"' <<<"$out"
+}
 
 windows=false
 tmp=${TMPDIR:-/tmp}
@@ -72,6 +77,11 @@ start to-rename
 start wise-panda "$tmp/launch.kdl"
 tmo 30 "$Z" attach --create-background idle-one >/dev/null 2>&1
 sleep 3
+# zellij writes a session's data a moment after the session starts, and on a
+# busy runner later than that: once on Windows the first session of the run
+# had none after 4 s, and the pass rightly kept it as "no session data yet".
+# Wait, up to a minute, until a pass has data for every session.
+for _ in $(seq 60); do has_data && break; sleep 1; done
 show "$Z" list-sessions --no-formatting
 check "the sessions are up" listed busy-one
 check "the idle one is up" listed idle-one
@@ -91,7 +101,7 @@ if $windows; then
 else
   tmo 20 "$Z" --session busy-one run -- sh -c "'$R' here >'$tmp/here.out' 2>&1" >/dev/null 2>&1
 fi
-for _ in $(seq 40); do [ -s "$tmp/here.out" ] && break; sleep 0.25; done
+for _ in $(seq 120); do [ -s "$tmp/here.out" ] && break; sleep 0.25; done
 show cat "$tmp/here.out"
 check "here names the session" sh -c "tr -d '\r' <'$tmp/here.out' | grep -qx busy-one"
 

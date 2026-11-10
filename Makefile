@@ -26,7 +26,7 @@ vet:
 
 lint:
 	go run $(STATICCHECK) ./...
-	shellcheck scripts/*.sh test/integration/*.sh test/demo/*.sh
+	shellcheck scripts/*.sh test/integration/*.sh test/demo/*.sh test/native/*.sh
 
 test:
 	go test -race -count=1 ./...
