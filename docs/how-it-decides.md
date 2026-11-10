@@ -161,16 +161,17 @@ Every line the log can hold:
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
-| `  -> kept: NAME :: REASON` | something changed just before the delete |
+| `  -> kept: NAME :: REASON` | something changed just before the delete: a client attached, a job started in a pane, the name was protected, an exited session runs again |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
-| `  -> kept name: NAME :: REASON` | a client attached before the rename, so the session keeps its name for now (with `auto_rename_attached = false`) |
+| `  -> kept name: NAME :: REASON` | the name was protected just before the rename, or a client attached (with `auto_rename_attached = false`), so the session keeps its name for now |
 | `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and the session keeps that name until someone changes it |
 | `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename, or took it without listing the new name in time |
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |
-| `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run |
+| `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run; an exited session is deleted without `--force`, so a session brought back meanwhile is refused rather than killed |
+| `time is up after 50s: N sessions left for the next pass` | a pass that has run 50 seconds, its wait for the lock included, leaves the sessions it has not come to: systemd and the Task Scheduler stop a pass at a minute, and one stopped that way writes no end line |
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
-| `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
+| `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: `...; the server of NAME (pid N) is stopped: kill -CONT N lets it go on` |
 | `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |

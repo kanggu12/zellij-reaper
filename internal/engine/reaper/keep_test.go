@@ -135,6 +135,36 @@ func TestAJobStartedBeforeTheDeleteKeepsTheSession(t *testing.T) {
 	}
 }
 
+func TestAPassPastItsTimeLeavesTheRestAndEndsAsPassesDo(t *testing.T) {
+	w := newWorld(t)
+	// A budget already spent: the pass comes to no session.
+	defer func(d time.Duration) { reaper.PassBudget = d }(reaper.PassBudget)
+	reaper.PassBudget = -time.Second
+	r, err := reaper.Run(t.Context(), w.env, reaper.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.deleted) != 0 {
+		t.Errorf("deleted %v", w.zj.deleted)
+	}
+	for _, o := range r.Outcomes {
+		if !o.Left {
+			t.Errorf("%s not left for the next pass", o.Session.Name())
+		}
+	}
+	// Said once, and the pass ends with its end line: systemd's stop at a
+	// minute left none.
+	log := w.log(t)
+	if !strings.Contains(log, "] time is up after 0s: 4 sessions left for the next pass\n") || !strings.HasSuffix(log, "=== reaper end (0 reaped, 4 kept, 0 renamed) ===\n") {
+		t.Errorf("log:\n%s", log)
+	}
+	// A dry run changes nothing and is not cut short.
+	w = newWorld(t)
+	if r, err := reaper.Run(t.Context(), w.env, reaper.Options{DryRun: true}); err != nil || r.Outcomes[0].Left {
+		t.Errorf("dry run: %v, left %v", err, r.Outcomes[0].Left)
+	}
+}
+
 func TestForgettingANameThatIsNotKeptChangesNothing(t *testing.T) {
 	w := newWorld(t)
 	if err := reaper.KeepName(t.Context(), w.env, "fresh", true, "the command line", time.Second); err != nil {

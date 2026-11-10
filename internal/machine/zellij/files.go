@@ -30,12 +30,20 @@ func DataDirName(version string) string {
 // SessionInfoDir finds the directory with one subdirectory per session, under
 // zellij's cache directory (config.ZellijCacheDir). Before 0.44 it is
 // <cache>/<version>/session_info; since then <cache>/contract_version_N/
-// session_info, where zellij bumps N when the format changes, so the highest N
-// present wins.
-func SessionInfoDir(zellijCache, version string) string {
+// session_info, where zellij bumps N when the format changes. The N in the
+// socket paths of running servers (sockets) is the one the zellij in use
+// writes, and wins: a folder another zellij left, with a higher N and maybe
+// sessions of the same names, would judge those sessions by stale files.
+// Without a server to say, the highest N present wins.
+func SessionInfoDir(zellijCache, version string, sockets ...string) string {
 	base := zellijCache
 	if d := DataDirName(version); !strings.HasPrefix(d, "contract_version_") {
 		return filepath.Join(base, d, "session_info")
+	}
+	for _, s := range sockets {
+		if d := filepath.Base(filepath.Dir(s)); contractRe.MatchString(d) {
+			return filepath.Join(base, d, "session_info")
+		}
 	}
 	best, bestN := "", -1
 	entries, _ := os.ReadDir(base)

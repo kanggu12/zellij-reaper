@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
@@ -12,11 +13,19 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 )
 
+// PassBudget is how long a pass acts, from when it began to wait for the lock,
+// before it leaves the sessions it has not come to for the next pass. systemd
+// and the Task Scheduler stop a pass after a minute, and one stopped from
+// outside writes no end line and keeps none of its book of quiet sessions;
+// under cron and launchd nothing stops it at all.
+var PassBudget = 50 * time.Second
+
 // Run is one pass: take the lock, rotate the log, decide, act, log.
 func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if opts.NamesOnly {
 		return namesPass(ctx, e, opts)
 	}
+	began := e.Now()
 	l, err := lock.Acquire(e.LockPath, PassLockWait)
 	if err != nil {
 		return Report{}, err
@@ -61,6 +70,17 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	}
 	taken := takenNames(r)
 	for i := range r.Outcomes {
+		// Each delete can take seconds when zellij is slow to answer. Past
+		// the budget the rest waits, said once, and the pass ends as passes
+		// do. A dry run changes nothing and takes no such time.
+		if !dry && e.Now().Sub(began) > PassBudget {
+			left := r.Outcomes[i:]
+			e.Log.Printf("time is up after %s: %d sessions left for the next pass", duration.Format(PassBudget), len(left))
+			for j := range left {
+				left[j].Left = true
+			}
+			break
+		}
 		e.act(ctx, &r, &r.Outcomes[i], dry, true, taken)
 	}
 	// Without the index the list holds ids, not names: every name would

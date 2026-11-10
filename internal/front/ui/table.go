@@ -102,6 +102,9 @@ func RowsAfterPass(r reaper.Report, now time.Time) []Row {
 			// The reason is the log's, in English; the word in front says
 			// in the reader's language what happened.
 			rows[i].Next, rows[i].Cat = i18n.T("result.kept", o.KeptAtDelete), CatUnknown
+		// The pass's time was up before it came to this one.
+		case o.Left:
+			rows[i].Next, rows[i].Cat = i18n.T("result.left"), CatWait
 		case r.DryRun && o.Verdict.Action == policy.Reap:
 			rows[i].Next = i18n.T("result.dry")
 		}

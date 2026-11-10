@@ -101,6 +101,9 @@ type Outcome struct {
 	// KeptName says why a session auto_rename would have renamed kept its
 	// name after all: a client attached between the check and the rename.
 	KeptName string
+	// Left is set for a session the pass did not come to: its time was up
+	// (PassBudget), and the next pass decides it.
+	Left bool
 }
 
 // Report is the result of a pass or a plan.

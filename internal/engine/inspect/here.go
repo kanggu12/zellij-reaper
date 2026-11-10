@@ -49,6 +49,12 @@ func Here(src Sources, pid int) (string, error) {
 	if !found {
 		return "", ErrNotInSession
 	}
+	// The index names come from the folder this server's zellij writes, which
+	// its socket path names: a newer one another zellij left would give the
+	// names of other sessions.
+	if src.InfoDir != "" {
+		src.InfoDir = zellij.SessionInfoDir(filepath.Dir(filepath.Dir(src.InfoDir)), "", server.Socket)
+	}
 	// The socket file the server listens on, whatever it is called now: only
 	// a match through the socket table or the file itself counts, since after
 	// a rename another session may have taken the name on the server's

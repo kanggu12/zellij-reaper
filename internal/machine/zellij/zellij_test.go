@@ -170,6 +170,16 @@ func TestSessionInfoDir(t *testing.T) {
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1"); !strings.Contains(got, "contract_version_2") {
 		t.Errorf("highest contract not picked: %q", got)
 	}
+	// A running server's socket names the folder the zellij in use writes:
+	// a higher one another zellij left is no session's of this one.
+	sock := "/run/user/1000/zellij/contract_version_1/work"
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1", sock); got != filepath.Join(cache, "zellij", "contract_version_1", "session_info") {
+		t.Errorf("with a server on contract 1: %q", got)
+	}
+	// A socket path with no contract in it says nothing.
+	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1", "/tmp/elsewhere/work"); !strings.Contains(got, "contract_version_2") {
+		t.Errorf("with a socket path that names no contract: %q", got)
+	}
 	// Before 0.44, the data directory is named after the version.
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.43.1"); got != filepath.Join(cache, "zellij", "0.43.1", "session_info") {
 		t.Errorf("0.43 = %q", got)

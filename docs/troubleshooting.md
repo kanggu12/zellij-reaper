@@ -27,13 +27,15 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
 
 - **It stopped: `zellij list-sessions failed: ... no answer within 10s`.** `zellij list-sessions` asks every session's
   server, and one server that stopped answering makes it wait: every pass then stops and keeps every session.
-  `zellij list-sessions` in a shell waits the same way. On Linux `ps -o pid,stat,args -C zellij` lists the servers; one
-  with a `T` was stopped (`kill -CONT PID` lets it go on), and one that never answers can be ended with `kill PID`,
-  which ends its session.
+  `zellij list-sessions` in a shell waits the same way. A server a signal stopped is named on that line, with the
+  command that lets it go on (`kill -CONT PID`). One that is stuck some other way is not; `ps -o pid,stat,args -C
+  zellij` lists the servers, and `kill PID` ends one that never answers, with its session.
+- **It came to only some sessions: `time is up after 50s`.** zellij answered slowly enough that the pass ran out of
+  its time; the next pass goes on with the rest.
 - **Something holds the pass lock.** A pass waits up to 30 seconds for it, then gives up and leaves the work to the
   holder. `lsof ~/.local/state/zellij-reaper/lock` (on Linux also `fuser -v`) names the process. The system frees the
   lock when that process ends.
-- **The log cannot be written**, or the passes stopped coming: a full disk, a read-only file system, or a `log.path`
+- **The log cannot be written**: a full disk (less than 64 KiB left), a read-only file system, or a `log.path`
   somewhere the timer may not write. The passes go on without a record.
 
 ## The log says `zellij not installed`, but zellij works in your shell
