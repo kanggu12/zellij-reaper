@@ -6,14 +6,16 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-10
+
 ### Fixed
 
-- A rename could leave a second copy of the session under the name it had. zellij moves a renamed session's files to
-  the new name, then tells the job that writes them every second; a write in between makes the old name's folder
-  again, and zellij lists a session by that name as exited, which attach would bring back. It happened about once in
-  some hundreds of renames. A pass that renamed sessions, and a rename in the dashboard or with `rename`, now waits
-  1.5 s and deletes an exited session under an old name, as exited sessions are deleted, never forced, and the log
-  says so. Until the rename the name was the renamed session's own, so no other session had it.
+- A rename could leave a second copy of the session under the name it had. zellij moves a renamed session's files to the
+  new name, then tells the job that writes them every second; a write in between makes the old name's folder again, and
+  zellij lists a session by that name as exited, which attach would bring back. It happened about once in some hundreds
+  of renames. A pass that renamed sessions now waits 1.5 s and deletes an exited session under an old name, as exited
+  sessions are deleted, never forced, and the log says so; a rename in the dashboard or with `rename` does the same once
+  it has said the rename is done. Until the rename the name was the renamed session's own, so no other session had it.
 
 ## [0.13.0] - 2026-11-10
 
@@ -659,7 +661,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.13.1
 [0.13.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.13.0
 [0.12.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.12.0
 [0.11.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.11.0
