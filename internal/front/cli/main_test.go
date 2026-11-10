@@ -8,8 +8,7 @@ import (
 )
 
 // TestMain runs the commands without the wait for a copy zellij may leave
-// after a rename: the fakes never leave one, and the dashboard's and the
-// passes' tests check what happens when zellij does.
+// after a rename: a fake that leaves one leaves it before the rename returns.
 func TestMain(m *testing.M) {
 	reaper.LeftoverSettles = 0
 	os.Exit(m.Run())

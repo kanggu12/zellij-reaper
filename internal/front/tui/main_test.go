@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
@@ -20,6 +21,8 @@ func TestMain(m *testing.M) {
 	// No wait for a copy zellij may leave after a rename: the fake leaves
 	// it, when a test asks, before the rename returns.
 	reaper.LeftoverSettles = 0
+	// A pass that holds the lock is a test's own, which holds it on purpose.
+	handLockWait = 200 * time.Millisecond
 	os.Exit(m.Run())
 }
 

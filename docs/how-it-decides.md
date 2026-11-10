@@ -48,9 +48,15 @@ its wait over:
    another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
    session for its clients once more first. zellij moves a renamed session's files to the new name, then tells the job
    that writes them every second, and a write in between makes the old name's folder again: zellij then lists an exited
-   session under the old name, a copy that attach would bring back. So 1.5 seconds after its renames the pass deletes an
-   exited session under an old name, as it deletes exited sessions, never forced. Until the rename the name was the
-   renamed session's own, so no other session had it.
+   session under the old name, a copy that attach would bring back. So once the pass has been through its sessions, at
+   least 1.5 seconds after its last rename, it deletes an exited session under a name it renamed a session away from,
+   with `zellij delete-session NAME`, never `--force`, and without the `exited_after` wait: until the rename the name
+   was the renamed session's own, so no other session had it. It keeps such a copy when its name is protected now, when
+   its files were written more than 1.5 seconds after the rename (someone brought it back), or when zellij refuses
+   because it runs again, and starts no such delete past its 40 seconds. A copy zellij writes later than that, or one
+   the pass does not get to, waits like any exited session. A rename in the dashboard or with `rename` looks the same
+   way, under the lock, once it has said the rename is done; closed or stopped within those 1.5 seconds, it leaves the
+   copy to wait like any exited session.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
@@ -167,8 +173,11 @@ Every line the log can hold:
 | `read zellij's session index PATH: ERROR, so every session is kept`, `zellij's session index PATH has no name column, so every session is kept` | the index a zellij newer than 0.45 keeps its sessions' names in is there but could not be read; no session's name can be told for sure, so each is kept as `name-unknown` |
 | `NAME [RUNNING] panes={TITLES} :: VERDICT` | a session is decided; `[EXITED]` for an exited one |
 | `  -> deleted: NAME` | the session was deleted |
+| `NAME [EXITED] :: copy zellij left when it renamed the session to NEW` | after a rename, zellij listed the old name as an exited session, a copy of the renamed one (step 8); the next line says what came of it |
+| `  -> deleted the copy: NAME` | that copy was deleted |
+| `  -> could not delete the copy: NAME :: ERROR` | zellij refused; the copy waits like any exited session, and it is no failure of the pass |
 | `  -> FAILED: NAME :: ERROR` | zellij refused the delete, or the session was still running five seconds later |
-| `  -> kept: NAME :: REASON` | something changed just before the delete: a client attached, a job started in a pane, the name was protected, an exited session runs again |
+| `  -> kept: NAME :: REASON` | something changed just before the delete: a client attached, a job started in a pane, the name was protected, an exited session runs again; for a copy, its files were written since the rename or could not be read, or the pass's 40 seconds were up |
 | `  -> renamed: OLD → NEW` | `auto_rename` renamed a survivor |
 | `  -> kept name: NAME :: REASON` | the name was protected just before the rename, or a client attached (with `auto_rename_attached = false`), so the session keeps its name for now |
 | `  -> could not record the name NAME: ERROR` | the list of given names could not be written; the rename goes on, and the session keeps that name until someone changes it |
@@ -176,6 +185,8 @@ Every line the log can hold:
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |
 | `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run; an exited session is deleted without `--force`, so a session brought back meanwhile is refused rather than killed |
 | `time is up after 40s: N sessions left for the next pass` | a pass that has run 40 seconds, its wait for the lock included, starts no more deletes and leaves the sessions it has not come to; a names pass says `time is up after 40s: the rest are named at the next pass`. systemd and the Task Scheduler stop a pass at a minute, and one stopped that way writes no end line |
+| `time is up after 40s: no look for copies zellij may have left under old names` | the pass renamed a session too close to its 40 seconds to wait for zellij; a copy left waits like any exited session |
+| `could not look for copies zellij left under old names: ERROR` | after a rename, zellij did not list its sessions, or after a rename by hand a pass held the lock; a copy left waits like any exited session |
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: ``...; the server of NAME (pid N) is stopped: `kill -CONT N` lets it go on``, or ``the servers of NAME (pid N) and NAME (pid M) are stopped: `kill -CONT N M` lets them go on`` |

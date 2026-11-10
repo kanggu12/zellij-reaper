@@ -154,7 +154,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `tui` | the dashboard, always; it needs a terminal |
 | `setup` | choose the waits, the mode and the sessions to keep, then start the timers; with flags (`--idle-after 4h`, `--dry-run`, ...) without the screen |
 | `plan [--json]` | what the next pass would do, changing nothing |
-| `run [--dry-run] [--force] [--names-only]` | one pass now, as the timer runs it; `--names-only` only renames |
+| `run [--dry-run] [--force] [--names-only]` | one pass now, as the timer runs it; `--names-only` renames, and deletes nothing but the copies zellij leaves under old names |
 | `logs [-n 50] [-f]` | the decision log |
 | `protect NAME` / `unprotect NAME` | keep a session out of every pass, or let it go again |
 | `keep-name NAME` / `forget-name NAME` | keep a session's name as it is, or let passes rename it again |

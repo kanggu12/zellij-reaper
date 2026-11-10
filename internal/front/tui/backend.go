@@ -102,10 +102,15 @@ func (r real) Pass(ctx context.Context, force bool) (reaper.Report, error) {
 	return reaper.Run(ctx, r.a.Reaper, reaper.Options{Force: force})
 }
 
+// handLockWait is how long an action by hand waits for the pass lock. A names
+// pass that renamed a session holds it 1.5 s longer than before 0.13.1, for the
+// copy zellij may leave (reaper.LeftoverSettles), and two seconds were tight.
+var handLockWait = 5 * time.Second
+
 // handAction runs an action by hand under the pass lock, so it never races a
 // timer pass, and records it in the decision log.
 func (r real) handAction(do func() error, logf string, args ...any) error {
-	l, err := lock.Acquire(r.a.Reaper.LockPath, 2*time.Second)
+	l, err := lock.Acquire(r.a.Reaper.LockPath, handLockWait)
 	if err != nil {
 		return err
 	}
@@ -191,13 +196,25 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 }
 
 func (r real) DropLeftover(ctx context.Context, name, to string) {
-	r.a.Reaper.DropLeftovers(ctx, map[string]string{name: to})
+	// The rename was listed a moment ago, as the person heard of it.
+	at := time.Now()
+	if !reaper.SettleLeftovers(ctx) {
+		return
+	}
+	// Under the pass lock, as every action by hand: never at once with a pass.
+	l, err := lock.Acquire(r.a.Reaper.LockPath, handLockWait)
+	if err != nil {
+		r.a.Reaper.Log.Printf("could not look for copies zellij left under old names: %v", err)
+		return
+	}
+	defer l.Release()
+	r.a.Reaper.DropLeftovers(ctx, map[string]reaper.Renamed{name: {To: to, At: at}}, time.Time{})
 }
 
 // KeepName runs under the pass lock: a pass that read the list a moment before
 // would rename the session anyway.
 func (r real) KeepName(ctx context.Context, name string) error {
-	err := reaper.KeepName(ctx, r.a.Reaper, name, true, r.from, 2*time.Second)
+	err := reaper.KeepName(ctx, r.a.Reaper, name, true, r.from, handLockWait)
 	// The dialog may have stayed open while a pass renamed the session.
 	if errors.Is(err, reaper.ErrNoSession) {
 		return errors.New(i18n.T("keep.gone", name))

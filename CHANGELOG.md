@@ -6,6 +6,19 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- The copy a rename leaves under the old name (0.13.1) was deleted whatever the name: one the protect pattern or the
+  protected list covers keeps its copy now, as a protected name keeps its session. So does a copy whose files were
+  written more than 1.5 s after the rename, which someone brought back and used meanwhile, since a pass looks only
+  once it has been through its sessions.
+- A pass could start that delete past its 40 seconds; it does not look then.
+- After a rename in the dashboard or with `rename`, the look ran outside the pass lock, so it could act at once with a
+  pass; it holds the lock now, and an action by hand waits up to 5 s for it, not 2, since a names pass that renamed
+  holds it 1.5 s longer. A copy someone brings back as it is deleted is kept, as an exited session is.
+- The log said `-> deleted: NAME` for a copy, which the dashboard listed as a session reaped: it says
+  `-> deleted the copy: NAME`. The guides list the new lines, and no longer say that the names timer only renames.
+
 ## [0.13.1] - 2026-11-10
 
 ### Fixed

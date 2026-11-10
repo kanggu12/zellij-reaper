@@ -877,6 +877,23 @@ func TestRecentDecisionsShowWhatWasDoneByHand(t *testing.T) {
 	}
 }
 
+func TestRecentDecisionsLeaveOutTheCopyARenameLeft(t *testing.T) {
+	i18n.Set(i18n.English)
+	m := loaded(t, sample(), 120, 40)
+	// A pass renamed busy, and deleted the copy zellij left under that name:
+	// the session runs on as htop, and was not reaped.
+	m.logLines = []string{
+		"[2026-11-10 09:00:00] busy [RUNNING] panes={htop} :: SKIP running in a pane: htop",
+		"[2026-11-10 09:00:00]   -> renamed: busy → htop",
+		"[2026-11-10 09:00:02] busy [EXITED] :: copy zellij left when it renamed the session to htop",
+		"[2026-11-10 09:00:02]   -> deleted the copy: busy",
+	}
+	got := ansi.Strip(strings.Join(m.recentLines(10), "\n"))
+	if !strings.Contains(got, "renamed busy → htop") || strings.Contains(got, "reaped") {
+		t.Errorf("recent decisions:\n%s", got)
+	}
+}
+
 func TestRenameShowsTheBackendsWarning(t *testing.T) {
 	i18n.Set(i18n.English)
 	b := sample()

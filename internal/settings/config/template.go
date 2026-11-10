@@ -62,7 +62,7 @@ func Render(c *Config, intro string) string {
 	b.WriteString("\n# How often the systemd timer runs a pass. Run `zellij-reaper install` again\n")
 	b.WriteString("# after changing it.\n")
 	line("interval", c.Value("interval"), def.Value("interval"))
-	b.WriteString("\n# How often a second timer only renames, so names follow their sessions sooner.\n")
+	b.WriteString("\n# How often a second timer renames, so names follow their sessions sooner.\n")
 	b.WriteString("# \"0\" turns it off. Run `zellij-reaper install` again after changing it.\n")
 	line("rename_interval", c.Value("rename_interval"), def.Value("rename_interval"))
 	b.WriteString("\n# The zellij binary. Empty means the first one in PATH.\n")

@@ -671,7 +671,7 @@ else
   check "which runs on under its new name" sh -c "$Z list-sessions -n | grep -q '^$copy_to ' && ! $Z list-sessions -n | grep '^$copy_to ' | grep -q EXITED"
   check "its server is the same" running chatty-cactus
   check "the log tells of the copy zellij left" grep -q "] chatty-cactus \[EXITED\] :: copy zellij left when it renamed the session to $copy_to\$" "$LOG"
-  check "and that the pass deleted it" grep -q '\]   -> deleted: chatty-cactus$' "$LOG"
+  check "and that the pass deleted it" grep -q '\]   -> deleted the copy: chatty-cactus$' "$LOG"
   check "zellij lists no copy" gone chatty-cactus
 fi
 

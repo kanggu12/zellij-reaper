@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/core/rename"
@@ -166,7 +167,9 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 	for attempt := target; ; {
 		err := e.renameTo(ctx, o.Session, attempt)
 		if err == nil {
-			o.RenamedTo = attempt
+			// The wall clock, as the files of a copy zellij may leave are
+			// stamped (see DropLeftovers).
+			o.RenamedTo, o.RenamedAt = attempt, time.Now()
 			delete(taken, name)
 			taken[attempt] = true
 			e.Log.Printf("  -> renamed: %s → %s", name, attempt)

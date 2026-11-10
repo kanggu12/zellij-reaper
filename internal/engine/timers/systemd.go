@@ -19,7 +19,7 @@ import (
 const (
 	ServiceName = "zellij-reaper.service"
 	TimerName   = "zellij-reaper.timer"
-	// The names timer runs passes that only rename, every rename_interval.
+	// The names timer runs renaming passes, every rename_interval.
 	NamesServiceName = "zellij-reaper-names.service"
 	NamesTimerName   = "zellij-reaper-names.timer"
 )

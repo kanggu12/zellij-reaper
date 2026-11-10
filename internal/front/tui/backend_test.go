@@ -234,11 +234,17 @@ func TestRenameByHandKeepsTheProtection(t *testing.T) {
 func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
 	i18n.Set(i18n.English)
 	ctx := context.Background()
-	z := &fakeZellij{sessions: "notes [Created 2h ago] \n"}
-	b, a := backendFor(t, z, "")
 	// zellij's rename raced the job that writes the session's files: they
 	// are written once more under the old name, an exited session.
-	z.onRename = func() { z.sessions = "notes [Created 0s ago] (EXITED - attach to resurrect)\n" }
+	copyOf := func(t *testing.T, z *fakeZellij, a *app.App, name string) {
+		info := t.TempDir()
+		a.Reaper.Sources.InfoDir = info
+		testutil.SessionFiles(t, info, name, testutil.Metadata(0, "x"), "layout {\n}\n", time.Now().Add(-time.Minute))
+		z.onRename = func() { z.sessions = name + " [Created 0s ago] (EXITED - attach to resurrect)\n" }
+	}
+	z := &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a := backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
 	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +257,7 @@ func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
 		t.Errorf("calls %v, sessions %q", z.calls, z.sessions)
 	}
 	log, _ := os.ReadFile(a.Reaper.Log.Path)
-	for _, want := range []string{"notes :: renamed from the dashboard to journal", "notes [EXITED] :: copy zellij left when it renamed the session to journal", "  -> deleted: notes"} {
+	for _, want := range []string{"notes :: renamed from the dashboard to journal", "notes [EXITED] :: copy zellij left when it renamed the session to journal", "  -> deleted the copy: notes"} {
 		if !strings.Contains(string(log), want) {
 			t.Errorf("no %q in the log:\n%s", want, log)
 		}
@@ -266,6 +272,62 @@ func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
 	b.DropLeftover(ctx, "todo", "later")
 	if z.did("delete-session") {
 		t.Errorf("calls %v", z.calls)
+	}
+
+	// The pattern protects the old name: a session renamed out of it loses
+	// its protection, and the copy under it keeps it.
+	z = &fakeZellij{sessions: "keep-notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "^keep-")
+	copyOf(t, z, a, "keep-notes")
+	if _, err := b.Rename(ctx, "keep-notes", "notes"); err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "keep-notes", "notes")
+	log, _ = os.ReadFile(a.Reaper.Log.Path)
+	if z.did("delete-session") || !strings.Contains(string(log), "  -> kept: keep-notes :: protected by protect pattern") {
+		t.Errorf("calls %v, log:\n%s", z.calls, log)
+	}
+
+	// A pass holds the lock: the look waits for it, as every action by hand
+	// does, and gives up when the pass outlasts the wait.
+	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	l, err := lock.Acquire(a.Reaper.LockPath, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "notes", "journal")
+	l.Release()
+	log, _ = os.ReadFile(a.Reaper.Log.Path)
+	if z.did("delete-session") || !strings.Contains(string(log), "could not look for copies zellij left under old names: ") {
+		t.Errorf("calls %v, log:\n%s", z.calls, log)
+	}
+
+	// zellij writes the copy a moment after the rename: the look waits for
+	// it, as a pass's does.
+	defer func(d time.Duration) { reaper.LeftoverSettles = d }(reaper.LeftoverSettles)
+	reaper.LeftoverSettles = 300 * time.Millisecond
+	z = &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a = backendFor(t, z, "")
+	copyOf(t, z, a, "notes")
+	z.onRename = func() {
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			z.mu.Lock()
+			defer z.mu.Unlock()
+			z.sessions = strings.Replace(z.sessions, "notes [Created 2h ago] \n", "notes [Created 0s ago] (EXITED - attach to resurrect)\n", 1)
+		}()
+	}
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "notes", "journal")
+	if !z.did("delete-session notes") {
+		t.Errorf("a copy written late was not deleted: calls %v", z.calls)
 	}
 }
 

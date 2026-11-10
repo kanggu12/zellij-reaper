@@ -89,9 +89,11 @@ type Outcome struct {
 	// KeptAtDelete says why a session the policy let go was kept after all:
 	// something changed between the check and the delete.
 	KeptAtDelete string
-	// RenamedTo is the new name after a rename; WouldRename is the name a
-	// dry run would have given; RenameErr is a failed rename.
+	// RenamedTo is the new name after a rename, and RenamedAt when zellij
+	// listed it; WouldRename is the name a dry run would have given;
+	// RenameErr is a failed rename.
 	RenamedTo   string
+	RenamedAt   time.Time
 	WouldRename string
 	RenameErr   error
 	// Suggested is the name this session's panes point to, set by Plan for

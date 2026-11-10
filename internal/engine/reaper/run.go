@@ -95,7 +95,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		}
 		e.act(ctx, &r, &r.Outcomes[i], dry, true, taken)
 	}
-	e.DropLeftovers(ctx, r.renames())
+	e.dropLeftovers(ctx, r, began)
 	// Without the index the list holds ids, not names: every name would
 	// read as gone, kept ones too.
 	if !dry && r.IndexErr == nil {
@@ -326,8 +326,9 @@ func titleSummary(titles []string) string {
 }
 
 // namesPass renames what a full pass would rename and nothing else, every few
-// minutes. It deletes nothing, so it needs neither the waits nor a second look
-// before a delete. It writes to the log only when a name changed, so attempts
+// minutes. It deletes no session, only the copies zellij may leave under the
+// names it changed (see DropLeftovers), so it needs neither the waits nor a
+// second look before a delete. It writes to the log only when a name changed, so attempts
 // that keep failing do not fill the log every few minutes; the hourly pass logs
 // those. A dry run does nothing: plan and the hourly dry pass show the names.
 func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Report, error) {
@@ -365,7 +366,7 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 		}
 		e.name(ctx, &r, o, false, false, taken)
 	}
-	e.DropLeftovers(ctx, r.renames())
+	e.dropLeftovers(ctx, r, began)
 	held := e.Log.Take()
 	_, _, renamed := r.Counts()
 	if renamed == 0 {

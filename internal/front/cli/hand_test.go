@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
@@ -19,6 +20,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 	"github.com/kanggu12/zellij-reaper/internal/settings/protect"
+	"github.com/kanggu12/zellij-reaper/internal/testutil"
 )
 
 // fakeSessions answers zellij's command line for the commands that act by
@@ -305,6 +307,8 @@ func TestRenameFromTheCommandLine(t *testing.T) {
 	// session, once the rename has been said.
 	said := ""
 	z.onDelete = func() { said = out.String() }
+	a.Reaper.Sources.InfoDir = t.TempDir()
+	testutil.SessionFiles(t, a.Reaper.Sources.InfoDir, "notes", testutil.Metadata(0, "x"), "layout {\n}\n", time.Now().Add(-time.Minute))
 	if err := renameByHand(cmd, a, b, "notes", "release-notes"); err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +318,7 @@ func TestRenameFromTheCommandLine(t *testing.T) {
 	if !z.did("delete-session notes") || z.did("delete-session notes --force") || !strings.Contains(said, "Renamed notes to release-notes") {
 		t.Errorf("calls %v, output when the copy was deleted:\n%s", z.calls, said)
 	}
-	for _, want := range []string{"notes :: renamed from the command line to release-notes", "notes [EXITED] :: copy zellij left when it renamed the session to release-notes", "  -> deleted: notes"} {
+	for _, want := range []string{"notes :: renamed from the command line to release-notes", "notes [EXITED] :: copy zellij left when it renamed the session to release-notes", "  -> deleted the copy: notes"} {
 		if log := logged(t, a); !strings.Contains(log, want) {
 			t.Errorf("no %q in the log:\n%s", want, log)
 		}

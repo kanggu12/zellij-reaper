@@ -63,7 +63,7 @@ an error.`,
 	}
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "log what would happen, change nothing")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "skip the waits; every other check still applies")
-	cmd.Flags().BoolVar(&opts.NamesOnly, "names-only", false, "only rename (the names timer's mode)")
+	cmd.Flags().BoolVar(&opts.NamesOnly, "names-only", false, "rename, and delete nothing but the copies zellij leaves under old names (the names timer's mode)")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "print only errors and failed deletes (the timer's mode); the log gets all")
 	return cmd
 }
