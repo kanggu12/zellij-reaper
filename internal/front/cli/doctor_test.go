@@ -112,12 +112,18 @@ func TestDoctorSaysWhatCameOfTheLastPass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the lock after doctor: %v", err)
 	}
-	defer l.Release()
 	// A lock let go of while doctor waits for it is no failure: a names
-	// pass holds it for a moment.
-	time.AfterFunc(300*time.Millisecond, l.Release)
+	// pass holds it for a moment. The test waits for the letting go before
+	// it goes on, so nothing touches the lock from two goroutines at once.
+	released := make(chan struct{})
+	time.AfterFunc(300*time.Millisecond, func() {
+		l.Release()
+		close(released)
+	})
 	cmd, out = output()
-	if problems, _ := doctor(context.Background(), a, cmd); problems != before || strings.Contains(out.String(), "holds the pass lock") {
+	problems, _ := doctor(context.Background(), a, cmd)
+	<-released
+	if problems != before || strings.Contains(out.String(), "holds the pass lock") {
 		t.Errorf("doctor with the lock held for a moment: %d problems (before %d):\n%s", problems, before, out)
 	}
 	// One held all along is. The wait is cut short here, to keep the test
