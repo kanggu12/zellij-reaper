@@ -3,6 +3,8 @@
 package timers
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,9 +27,23 @@ const (
 // Runner runs a command and returns its combined output. Tests replace it.
 type Runner func(name string, args ...string) (string, error)
 
-// Exec runs the real command.
+// commandLimit is how long a scheduler's command may take: systemctl waits on
+// the user's bus, PowerShell on the Task Scheduler, and one that never answers
+// held install, uninstall and doctor until someone pressed ctrl+c.
+var commandLimit = time.Minute
+
+// Exec runs the real command, within commandLimit.
 func Exec(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), commandLimit)
+	defer cancel()
+	c := exec.CommandContext(ctx, name, args...)
+	// Killed at the limit, it lets go of its output a second later, even
+	// with something it started still holding it.
+	c.WaitDelay = time.Second
+	out, err := c.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return strings.TrimSpace(string(out)), fmt.Errorf("%s gave no answer within %s", name, commandLimit)
+	}
 	return strings.TrimSpace(string(out)), err
 }
 

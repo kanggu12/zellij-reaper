@@ -51,11 +51,39 @@ func socketOwners(t *procfs.Table, servers []procfs.Server) map[uint32]int {
 	return owners
 }
 
+// cmdlineTrusted reports whether every server's command line still names its
+// own session's socket file: true while no session has been renamed. A rename
+// moves the socket file and leaves the command line, so after one a server's
+// command line can name a file another session moved into its place, and the
+// command-line match below would judge one session by the other's panes. A
+// command line naming no socket file, or a socket file no command line names,
+// says a rename happened (or a server left its file behind), and then no
+// match by command line is made: the sessions it would have found are kept.
+func cmdlineTrusted(servers []procfs.Server, dirs []string) bool {
+	named := map[string]bool{}
+	for _, s := range servers {
+		if _, err := os.Lstat(s.Socket); err != nil {
+			return false
+		}
+		named[s.Socket] = true
+	}
+	for _, d := range dirs {
+		for _, f := range zellij.Sockets(d) {
+			// zellij's own sockets are no session's.
+			if !zellij.IsAppName(f) && !named[filepath.Join(d, f)] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // findServer finds the server listening on socket. The socket file's inode
 // leads to the listening socket (sock_diag) and from there to the process
 // holding it, which stays right after a rename. The command line is the
-// fallback; it still names the session's first name after a rename.
-func findServer(socket string, servers []procfs.Server, socks []procfs.UnixSocket, owners map[uint32]int) (*procfs.Server, string) {
+// fallback, used only where byCmdline says no session was renamed: it still
+// names the session's first name after a rename.
+func findServer(socket string, servers []procfs.Server, socks []procfs.UnixSocket, owners map[uint32]int, byCmdline bool) (*procfs.Server, string) {
 	if ino, dev, ok := procfs.FileID(socket); ok {
 		for _, u := range socks {
 			if !u.Listening() || u.VFSIno != ino || (u.VFSDev != 0 && u.VFSDev != dev) {
@@ -79,9 +107,13 @@ func findServer(socket string, servers []procfs.Server, socks []procfs.UnixSocke
 			}
 		}
 	}
-	// By command line: only when exactly one server names this socket. After
-	// a rename and a new session under the old name, two servers name it, and
-	// picking either could judge one session by the other's panes.
+	// By command line: only when no session was renamed, and exactly one
+	// server names this socket. After a rename and a new session under the
+	// old name, two servers name it, and picking either could judge one
+	// session by the other's panes.
+	if !byCmdline {
+		return nil, ""
+	}
 	var match *procfs.Server
 	for i := range servers {
 		if servers[i].Socket == socket {

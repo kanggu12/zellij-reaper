@@ -132,7 +132,9 @@ dashboard's detail panel marks with ✗.
   process listening on it; on macOS its creation time matches the server that started then; on Windows the file holds
   the server's process ID. zellij keeps a server's command line when its session is renamed, so this is what finds
   renamed sessions. Without such a match (a Linux kernel without `unix_diag`, or on macOS two servers started less than
-  about 0.1 s apart) a renamed session is kept as `no-server`.
+  about 0.1 s apart) a renamed session is kept as `no-server`. The command line is what is left then, and it names the
+  socket a server started with: once any session has been renamed, that name may be another session's, so no server is
+  found by it and every running session is kept as `no-server` until the sessions renamed have ended.
 
 ## The log
 

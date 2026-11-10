@@ -73,7 +73,7 @@ func Here(src Sources, pid int) (string, error) {
 	}
 	owners := socketOwners(table, servers)
 	for _, file := range zellij.Sockets(dir) {
-		s, how := findServer(filepath.Join(dir, file), servers, socks, owners)
+		s, how := findServer(filepath.Join(dir, file), servers, socks, owners, false)
 		if s != nil && s.PID == server.PID && how == "socket file" {
 			// Since zellij 0.46 the file is named by an id that stays
 			// through renames, and the index has the name.

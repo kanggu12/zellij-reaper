@@ -385,6 +385,34 @@ func TestRenamedSessionFindsItsServer(t *testing.T) {
 	}
 }
 
+func TestASessionRenamedIntoAnothersFirstNameIsNotJudgedByIt(t *testing.T) {
+	// Without sock_diag. bar was renamed baz, and later foo was renamed bar:
+	// the file bar is foo's server's now, while bar's first server still has
+	// bar on its command line. Matched by that, bar (busy) would be judged by
+	// the other server's idle pane, and reaped.
+	m := newMachine(t)
+	m.server(t, "baz", "bar", 100, testutil.Metadata(0, "x"), "")
+	m.pane(t, 101, 100, "bash", []string{"-bash"}, now.Add(-5*time.Hour))
+	m.server(t, "bar", "foo", 200, testutil.Metadata(0, "x"), "")
+	m.pane(t, 201, 200, "htop", []string{"htop"}, now)
+	got := m.gather(t, false, running("bar"), running("baz"))
+	for _, s := range got {
+		if s.Facts.ServerPID != 0 {
+			t.Errorf("%s matched to server %d by a command line a rename made wrong", s.Name(), s.Facts.ServerPID)
+		}
+		if v := policy.Decide(s.Facts, policy.Thresholds{}, now); v.Code != policy.NoServer {
+			t.Errorf("%s: %s", s.Name(), v.Code)
+		}
+	}
+	// With nothing renamed the command line is right, and is used.
+	m = newMachine(t)
+	m.server(t, "plain", "plain", 300, testutil.Metadata(0, "x"), "")
+	m.pane(t, 301, 300, "bash", []string{"-bash"}, now)
+	if got := m.gather(t, false, running("plain")); got[0].Facts.ServerPID != 300 || got[0].ServerMatch != "command line" {
+		t.Errorf("never renamed: server %d via %q", got[0].Facts.ServerPID, got[0].ServerMatch)
+	}
+}
+
 func TestExitedAndMissing(t *testing.T) {
 	m := newMachine(t)
 	testutil.SessionFiles(t, m.info, "gone", testutil.Metadata(0, "x"), "layout {\n}\n", now.Add(-50*time.Hour))

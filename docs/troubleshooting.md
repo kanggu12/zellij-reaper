@@ -58,7 +58,8 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 - `reap in ...` (`idle-recent`): a pane's terminal was used more recently than you think, often a program printing to
   it.
 - `server not found` (`no-server`) after a rename: the kernel has no `unix_diag` (`doctor` says so), so a renamed
-  session cannot be matched to its server. `modprobe unix_diag` where that is possible.
+  session cannot be matched to its server, and once one is renamed no running session is. `modprobe unix_diag` where
+  that is possible.
 
 ## A session's name keeps a `-2`
 

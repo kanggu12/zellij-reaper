@@ -2,6 +2,7 @@ package procfs
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"os"
 	"os/exec"
@@ -25,6 +26,10 @@ const (
 	szomb = 5
 	sstop = 4
 )
+
+// lsofLimit is how long lsof gets to name the directories panes work in: it
+// takes well under a second for a few hundred processes.
+const lsofLimit = 10 * time.Second
 
 // readNative reads every process from sysctl. With sessions, only zellij's
 // processes and everything under them get their command line and directory.
@@ -208,7 +213,20 @@ func cwdsOf(pids []int) map[int]string {
 	for i, pid := range pids {
 		list[i] = strconv.Itoa(pid)
 	}
-	b, _ := exec.Command(lsofPath(), "-nP", "-w", "-a", "-d", "cwd", "-p", strings.Join(list, ","), "-F", "pn").Output()
+	// lsof stats every directory it names, and one on a file server that no
+	// longer answers stops it there: a pass holding the lock would wait for
+	// good, and launchd starts no other while one runs. After the limit the
+	// directories stay unknown.
+	ctx, cancel := context.WithTimeout(context.Background(), lsofLimit)
+	defer cancel()
+	c := exec.CommandContext(ctx, lsofPath(), "-nP", "-w", "-a", "-d", "cwd", "-p", strings.Join(list, ","), "-F", "pn")
+	c.WaitDelay = time.Second
+	// lsof ends with status 1 when a process went meanwhile, and still names
+	// the others: its output counts unless it was cut off.
+	b, _ := c.Output()
+	if ctx.Err() != nil {
+		return out
+	}
 	return parseLsofCwd(b)
 }
 

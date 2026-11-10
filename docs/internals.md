@@ -131,8 +131,10 @@ shell scripts did, loses every renamed session: six months of the author's shell
 The socket file's inode follows the rename. sock_diag (what `ss -x` reads) reports for each listening socket the inode
 of its file (`UNIX_DIAG_VFS`), and `/proc/<pid>/fd` shows which process holds the socket. `internal/machine/procfs` asks
 the kernel over netlink, so `ss` is not needed. The device number in `UNIX_DIAG_VFS` uses the kernel's own encoding
-(`major << 20 | minor`), not the one `stat(2)` returns. Without `unix_diag` the command line is the fallback and
-renamed sessions are kept as `no-server`.
+(`major << 20 | minor`), not the one `stat(2)` returns. Without `unix_diag` the command line is the fallback, and only
+while no session has been renamed: a rename moves the socket file and leaves the command line, so after one, the name
+on a server's command line can be the file another session moved there. A command line naming no socket file, or a
+socket file no command line names, turns the fallback off, and the running sessions are kept as `no-server`.
 
 The same matching lets `recover` tell a real orphan (a server whose socket file is gone) from a renamed session. The
 shell version's `recover --aggressive` took every server whose first name had no file for an orphan, which includes

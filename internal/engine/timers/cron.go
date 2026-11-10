@@ -1,6 +1,8 @@
 package timers
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -72,15 +74,29 @@ func (c Cron) zone() *time.Location {
 	return c.Zone()
 }
 
-// crontab runs the crontab command. Its output comes back byte for byte: the
-// blank lines of a crontab are the person's, and are written back as read.
+// crontab runs the crontab command, within commandLimit. What it prints on its
+// output comes back byte for byte: the blank lines of a crontab are the
+// person's, and are written back as read. A word on its error stream, a
+// warning say, is no line of the crontab, and would have been written into
+// it at the next install; it comes back only with a failure, to say why.
 func crontab(stdin string, args ...string) (string, error) {
-	c := exec.Command("crontab", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), commandLimit)
+	defer cancel()
+	c := exec.CommandContext(ctx, "crontab", args...)
+	c.WaitDelay = time.Second
 	if stdin != "" {
 		c.Stdin = strings.NewReader(stdin)
 	}
-	out, err := c.CombinedOutput()
-	return string(out), err
+	var out, errOut bytes.Buffer
+	c.Stdout, c.Stderr = &out, &errOut
+	err := c.Run()
+	switch {
+	case ctx.Err() == context.DeadlineExceeded:
+		return "", fmt.Errorf("crontab %s gave no answer within %s", strings.Join(args, " "), commandLimit)
+	case err != nil:
+		return errOut.String() + out.String(), err
+	}
+	return out.String(), nil
 }
 
 // cronDaemonRuns looks for a cron daemon among the processes: cron (Debian,

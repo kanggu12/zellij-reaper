@@ -222,6 +222,7 @@ func GatherFrom(ctx context.Context, src Sources, rules Rules, listed []zellij.L
 		shells: shellSet(rules.Shells),
 		idx:    src.index(),
 	}
+	v.byCmdline = cmdlineTrusted(servers, v.dirs)
 	out := make([]Session, len(listed))
 	for i, l := range listed {
 		out[i] = v.session(l)
@@ -244,6 +245,9 @@ type snapshot struct {
 	owners  map[uint32]int
 	shells  map[string]bool
 	idx     zellij.Index
+	// byCmdline is whether a server may be found by the socket its command
+	// line names: only while no session has been renamed (cmdlineTrusted).
+	byCmdline bool
 }
 
 // session gathers the facts of one listed session.
@@ -280,7 +284,7 @@ func (v snapshot) exited(s *Session) {
 	// A socket file can outlive a server that was killed; only a server still
 	// listening on it means the session is not gone.
 	if sock := findSocket(v.dirs, s.ID); sock != "" {
-		if srv, _ := findServer(sock, v.servers, v.socks, v.owners); srv != nil {
+		if srv, _ := findServer(sock, v.servers, v.socks, v.owners, v.byCmdline); srv != nil {
 			s.Socket, s.Server = sock, srv
 			s.Facts.ServerPID = srv.PID
 		}
@@ -293,7 +297,7 @@ func (v snapshot) running(s *Session) {
 	s.Socket = findSocket(v.dirs, s.ID)
 	s.Facts.SocketOK = s.Socket != ""
 	if s.Socket != "" {
-		s.Server, s.ServerMatch = findServer(s.Socket, v.servers, v.socks, v.owners)
+		s.Server, s.ServerMatch = findServer(s.Socket, v.servers, v.socks, v.owners, v.byCmdline)
 	}
 	if s.Server != nil {
 		s.Facts.ServerPID = s.Server.PID
