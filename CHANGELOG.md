@@ -6,6 +6,41 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Added
+
+- Every file of a release comes with a signed build provenance attestation: a record of the workflow run and the commit
+  it was built from, which `gh attestation verify FILE --repo kanggu12/zellij-reaper` checks. The setup guide says how.
+
+### Changed
+
+- A survey reads the zellij servers' sockets side by side, where it read one server after another: in a container with
+  thirty sessions, a plan took 33.4 ms and takes 31.1 ms, of which zellij's own list is 26.
+
+### Security
+
+- Releases are built with Go 1.26.10. They were built with 1.26.0, in whose standard library govulncheck finds two
+  vulnerabilities the program's calls reach, and more it does not call.
+- The Windows task is registered by a PowerShell script that puts paths in single quotes, and only `'` was doubled.
+  PowerShell ends such a string at the curly quotes U+2018 to U+201B as well, so a path with `’` in it, the program's,
+  the settings' or zellij's, ended the string, and what followed ran as a command. All five are doubled now.
+- Session names, pane titles and command lines are chosen by whatever runs in a pane, and reached the terminal as they
+  were: a name holding an OSC 52 sequence wrote the clipboard when `plan` printed it. Their control characters (C0,
+  DEL, C1, direction overrides, and bytes that are not UTF-8) are now written out as text, such as `\x1b`, in the log,
+  in what the commands print to a terminal, and in the dashboard and the setup screen. A pipe or a file still gets the
+  bytes as they are, so the prompt hook reads a session's exact name.
+- The log holds pane titles and command lines, and was made readable by everyone, in a folder anyone could list: on a
+  machine that hides other users' processes, it showed them yours. The log, the lock, the name lists and the settings
+  are made 0600 now, in folders of 0700. A log an earlier release made 0644 becomes 0600 at its next line; a mode you
+  chose stays.
+- `recover --aggressive` sends `SIGTERM`, then `SIGKILL` a second later to a server still there. A server that ended in
+  that second could pass its pid to another process of yours, which would have got the `SIGKILL`. It is sent only to the
+  process that started when the server did.
+- The workflows run every action at the commit its version names, and the release with goreleaser v2.19.0 rather than
+  the newest v2, built without the shared module cache. `install.sh` downloads from GitHub over HTTPS only, redirects
+  included, with TLS 1.2 or newer; a mirror in `ZELLIJ_REAPER_BASE_URL` is still taken as given.
+- A crontab line carries the installing shell's `XDG_RUNTIME_DIR`, which was the one value put there without the check
+  for a line break the others get. A session's metadata and layout files are read up to 4 MiB.
+
 ## [0.12.0] - 2026-11-10
 
 ### Added
