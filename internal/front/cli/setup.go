@@ -29,7 +29,7 @@ func cmdSetup() *cobra.Command {
 	var f setupFlags
 	cmd := &cobra.Command{
 		Use:   "setup",
-		Short: "Choose the waits, the mode and the sessions to keep, then start the timers",
+		Short: "Choose the waits, the mode and what to keep, then start the timers",
 		Long: `Open a screen that shows what the first pass would reap and lets you choose: how
 long idle and exited sessions wait, whether passes reap or only log what they would
 reap, whether sessions are named after what they show, the prompt hook, and which
@@ -153,6 +153,13 @@ func fromInstaller(cmd *cobra.Command) error {
 // applying what was chosen.
 var errNoScreen = errors.New("the setup screen did not open")
 
+// errInterrupted is ctrl+c on the setup screen, which has said what it had to
+// say: the command ends with status 130, as after a shell's interrupt.
+var errInterrupted = errors.New("interrupted")
+
+// runSetup shows the setup screen; tests answer for it.
+var runSetup = tui.RunSetup
+
 // setup shows the setup screen and applies what was chosen. From the
 // installer, esc keeps the defaults and still starts the timers.
 func setup(cmd *cobra.Command, a *app.App, installer bool) error {
@@ -165,15 +172,18 @@ func setup(cmd *cobra.Command, a *app.App, installer bool) error {
 		start.HookFile = ""
 	}
 	start.Installer = installer
-	choice, how, err := tui.RunSetup(start)
+	choice, how, err := runSetup(start)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errNoScreen, err)
 	}
 	w := cmd.OutOrStdout()
 	switch {
+	// ctrl+c ends the command as an interrupt does: an install script that
+	// opened the screen sees a status that is not 0, and says the timers are
+	// not running. With 0 it ended as a finished install with no timer.
 	case how == tui.SetupQuit:
 		println(w, i18n.T("setup.left"))
-		return nil
+		return errInterrupted
 	case how == tui.SetupLeft && installer:
 		// The defaults, as an install without the screen would set up.
 		println(w, i18n.T("setup.defaults"))

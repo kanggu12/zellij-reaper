@@ -112,11 +112,13 @@ func (l *Log) append(line string) error {
 // Writable says why a line could not be added to the log at path, or nil. It
 // writes nothing: a log that is there is opened for appending and closed, and
 // for one not made yet, the nearest directory that is there is checked, as a
-// pass makes the ones in between. A full disk is not found this way.
+// pass makes the ones in between. Either way the file system has to have room
+// left for a pass's lines: a full one takes the open, and no line after it.
 func Writable(path string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
 	if err == nil {
-		return f.Close()
+		f.Close()
+		return roomIn(filepath.Dir(path))
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -127,7 +129,10 @@ func Writable(path string) error {
 		case err == nil && !info.IsDir():
 			return fmt.Errorf("%s is not a directory", dir)
 		case err == nil:
-			return dirWritable(dir)
+			if err := dirWritable(dir); err != nil {
+				return err
+			}
+			return roomIn(dir)
 		case !errors.Is(err, os.ErrNotExist):
 			return err
 		}
@@ -138,6 +143,25 @@ func Writable(path string) error {
 		}
 		dir = parent
 	}
+}
+
+// minRoom is the least free space a pass's lines need: a pass over a hundred
+// sessions writes some 20 KiB.
+const minRoom = 64 << 10
+
+// freeBytes is how much the file system a directory is on lets this user
+// write; a variable, so tests can fill a disk.
+var freeBytes = spaceLeft
+
+// roomIn says when the file system dir is on has too little room left for a
+// pass's lines, or nil. Where the space cannot be read, there is taken to be
+// room: the open above already said what it could.
+func roomIn(dir string) error {
+	n, err := freeBytes(dir)
+	if err != nil || n >= minRoom {
+		return nil
+	}
+	return fmt.Errorf("only %d bytes left on the file system %s is on", n, dir)
 }
 
 // Line is one parsed log line.

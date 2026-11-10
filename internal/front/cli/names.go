@@ -11,6 +11,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
@@ -88,14 +89,17 @@ end
 func cmdShellHook() *cobra.Command {
 	return &cobra.Command{
 		Use:   "shell-hook bash|zsh|fish",
-		Short: "Print a prompt hook that keeps ZELLIJ_SESSION_NAME current after a rename",
+		Short: "Print a prompt hook that keeps ZELLIJ_SESSION_NAME current",
 		Long: `Print a prompt hook that keeps ZELLIJ_SESSION_NAME at the name this pane's session
 has now, so zellij commands run in a pane opened before a rename keep working.
 Add it to the shell's startup file:
 
-  command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"   # ~/.bashrc
-  command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"    # ~/.zshrc
-  type -q zellij-reaper; and zellij-reaper shell-hook fish | source                # fish config
+ # ~/.bashrc
+ command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"
+ # ~/.zshrc
+ command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"
+ # ~/.config/fish/config.fish
+ type -q zellij-reaper; and zellij-reaper shell-hook fish | source
 
 The test before each keeps a shell quiet where zellij-reaper is not on its PATH.`,
 		Args:      cobra.ExactArgs(1),
@@ -114,13 +118,19 @@ The test before each keeps a shell quiet where zellij-reaper is not on its PATH.
 // cmdKeepName builds `keep-name NAME...` (on) or `forget-name NAME...` (off).
 // With no name, `keep-name` lists the kept names.
 func cmdKeepName(on bool) *cobra.Command {
-	use, short := "keep-name [name...]", "Keep these sessions' names as they are: passes leave them alone (no name: list them)"
+	use, short := "keep-name [name...]", "Keep sessions' names as they are; with no name, list the kept ones"
+	long := `Keep the names of these running sessions as they are: no pass renames them
+from then on, as r, Tab and Enter do in the dashboard. With no name, list the
+kept names. forget-name lets passes rename them again.`
 	if !on {
 		use, short = "forget-name name...", "Let passes rename these sessions again"
+		long = `Take these names off the list of kept names, so passes may rename those
+sessions again. A name that is not on the list is said, and left.`
 	}
 	return &cobra.Command{
 		Use:   use,
 		Short: short,
+		Long:  long,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if !on && len(args) == 0 {
 				return fmt.Errorf("name a session to forget")
@@ -153,6 +163,14 @@ func cmdKeepName(on bool) *cobra.Command {
 				// more", as rename says it.
 				if errors.Is(err, reaper.ErrNoSession) {
 					return errors.New(i18n.T("rename.none", name))
+				}
+				// As unprotect says of a name the protected list never had.
+				if errors.Is(err, reaper.ErrNotKept) {
+					fmt.Fprintln(w, i18n.T("forget.notkept", name))
+					continue
+				}
+				if errors.Is(err, lock.ErrBusy) {
+					return errors.New(i18n.T("toast.busy"))
 				}
 				if err != nil {
 					return err

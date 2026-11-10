@@ -49,6 +49,7 @@ but keeps every other check.`,
 			case errors.Is(err, reaper.ErrNoZellij):
 				if !quiet {
 					fmt.Fprintln(os.Stderr, i18n.T("error.zellij"))
+					fmt.Fprintln(os.Stderr, i18n.T("error.zellij.fix"))
 				}
 				return nil
 			case err != nil:

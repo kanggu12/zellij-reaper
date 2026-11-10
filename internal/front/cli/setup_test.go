@@ -10,9 +10,62 @@ import (
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
+	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
+
+func TestCtrlCOnTheSetupScreenEndsAsAnInterrupt(t *testing.T) {
+	home := isolate(t)
+	env := config.MapEnv{"HOME": home}
+	a := fakeApp(t, env)
+	// The screen answers ctrl+c.
+	defer func(f func(tui.SetupStart) (tui.SetupChoice, tui.SetupOutcome, error)) { runSetup = f }(runSetup)
+	runSetup = func(tui.SetupStart) (tui.SetupChoice, tui.SetupOutcome, error) {
+		return tui.SetupChoice{}, tui.SetupQuit, nil
+	}
+	for _, installer := range []bool{true, false} {
+		cmd, out := output()
+		err := setup(cmd, a, installer)
+		// Opened by an install script, too: a status of 0 ended the script as
+		// a finished install, with no timer running.
+		if !errors.Is(err, errInterrupted) || !strings.HasPrefix(out.String(), "Nothing changed.") {
+			t.Errorf("installer %v: %v\n%s", installer, err, out)
+		}
+		var w strings.Builder
+		if got := report(err, &w); got != 130 || w.Len() != 0 {
+			t.Errorf("installer %v: status %d, printed %q", installer, got, w.String())
+		}
+	}
+	// Nothing was set up: no settings file, no timer.
+	for _, p := range []string{config.ConfigFile(env), filepath.Join(config.UnitDir(env), timers.TimerName)} {
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("%s was written", p)
+		}
+	}
+}
+
+func TestReportSaysWhatAnErrorMeans(t *testing.T) {
+	isolate(t)
+	for _, c := range []struct {
+		err    error
+		status int
+		said   string
+	}{
+		{nil, 0, ""},
+		{errSilentExit, 1, ""},
+		// The engine's English words for a missing zellij are not shown: the
+		// screen's language, and what to do.
+		{reaper.ErrNoZellij, 1, "zellij-reaper: zellij was not found in PATH\nInstall zellij, or name it in the settings: zellij = \"/path/to/zellij\" (zellij-reaper config edit).\n"},
+		{errors.New("unknown flag: --nope"), 1, "zellij-reaper: unknown flag: --nope\nRun `zellij-reaper --help` for the commands.\n"},
+	} {
+		var w strings.Builder
+		if got := report(c.err, &w); got != c.status || w.String() != c.said {
+			t.Errorf("%v: status %d, said %q", c.err, got, w.String())
+		}
+	}
+}
 
 func TestSetupTakesItsChoicesAsFlags(t *testing.T) {
 	if runtime.GOOS == "windows" {

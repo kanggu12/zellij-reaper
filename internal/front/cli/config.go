@@ -41,7 +41,7 @@ func cmdConfig() *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("config.written", p))
 				return nil
 			}},
-		&cobra.Command{Use: "edit", Short: "Open the settings in $VISUAL or $EDITOR (writing defaults first if needed)", Args: cobra.NoArgs,
+		&cobra.Command{Use: "edit", Short: "Open the settings in $VISUAL or $EDITOR, writing them if missing", Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				p := settingsPath()
 				if _, err := os.Stat(p); errors.Is(err, os.ErrNotExist) {

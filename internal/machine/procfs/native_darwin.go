@@ -19,8 +19,12 @@ import (
 // from one lsof call. What /proc gives through fd 0 comes here from the
 // controlling terminal: a pane's input is its terminal.
 
-// szomb is the p_stat of a zombie in <sys/proc.h>.
-const szomb = 5
+// szomb is the p_stat of a zombie in <sys/proc.h>, sstop that of a process a
+// signal stopped.
+const (
+	szomb = 5
+	sstop = 4
+)
 
 // readNative reads every process from sysctl. With sessions, only zellij's
 // processes and everything under them get their command line and directory.
@@ -98,9 +102,14 @@ func fromKinfo(kp *unix.KinfoProc, ttys map[int32]string) *Proc {
 		// The start time, kept for the starting-server check.
 		started: time.Unix(kp.Proc.P_starttime.Sec, int64(kp.Proc.P_starttime.Usec)*1000),
 	}
-	if kp.Proc.P_stat == szomb {
+	switch kp.Proc.P_stat {
+	case szomb:
 		p.State = "Z"
-	} else {
+	case sstop:
+		// Stopped by a signal, which /proc on Linux says with a T: a stopped
+		// zellij server answers no client, and that is worth naming.
+		p.State = "T"
+	default:
 		p.State = "S"
 	}
 	// NODEV (-1) is no controlling terminal, which /proc says as 0.

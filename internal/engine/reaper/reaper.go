@@ -282,8 +282,10 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 		r.NoSessions = true
 		return r, nil
 	}
+	// A list that gave no answer says which server held it up, where the
+	// process table shows one stopped.
 	if err != nil {
-		return r, err
+		return r, Stuck(err, table.table, src.UID, r.index)
 	}
 	if table.err != nil {
 		return r, gatherError{table.err}

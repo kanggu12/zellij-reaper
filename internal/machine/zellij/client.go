@@ -37,6 +37,17 @@ type cutShort string
 
 func (e cutShort) Error() string { return string(e) }
 
+// CutShort reports whether err is a zellij command stopped before it
+// finished, by its time limit or by the caller.
+func CutShort(err error) bool { return errors.As(err, new(cutShort)) }
+
+// NoAnswer is the error of a command that gave no answer within its time
+// limit, worded as the real call words it; fakes that stand in for zellij in
+// tests give it too.
+func NoAnswer(command string, limit time.Duration) error {
+	return cutShort(fmt.Sprintf("%s: no answer within %s", command, limit))
+}
+
 // errNoAnswer is list-clients exiting 0 with nothing printed: no answer, which
 // must not read as "nobody attached".
 var errNoAnswer = errors.New("list-clients printed nothing")
@@ -96,7 +107,7 @@ func (c *CLI) call(parent context.Context, args ...string) (string, string, erro
 	case parent.Err() != nil:
 		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: cancelled", strings.Join(args, " ")))
 	case ctx.Err() == context.DeadlineExceeded:
-		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: no answer within %s", strings.Join(args, " "), c.Timeout))
+		return out.String(), "", NoAnswer("zellij "+strings.Join(args, " "), c.Timeout)
 	}
 	return out.String(), errOut.String(), err
 }

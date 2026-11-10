@@ -14,6 +14,10 @@ import (
 // ErrNoSession says no session has the name asked about.
 var ErrNoSession = errors.New("no session has that name")
 
+// ErrNotKept is a name to stop keeping that the list of kept names does not
+// have.
+var ErrNotKept = errors.New("that name is not kept")
+
 // KeepName puts a session's name on the list of kept names, or takes it off
 // (on false), and logs it as done from by ("the dashboard", "the command
 // line"). It runs under the pass lock, waiting up to wait: a pass that read the
@@ -32,6 +36,16 @@ func KeepName(ctx context.Context, e *Env, name string, on bool, by string, wait
 		}
 		if !slices.ContainsFunc(listed, func(l zellij.Listed) bool { return l.Name == name }) {
 			return fmt.Errorf("%w: %s", ErrNoSession, name)
+		}
+	}
+	// A name the list does not have: nothing to take off, and no line for
+	// the log saying something was.
+	if !on && e.Kept != nil {
+		if err := e.Kept.Reload(); err != nil {
+			return err
+		}
+		if !e.Kept.Has(name) {
+			return fmt.Errorf("%w: %s", ErrNotKept, name)
 		}
 	}
 	// On the kept list, a name stays whatever else says it may go.

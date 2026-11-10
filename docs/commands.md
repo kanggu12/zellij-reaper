@@ -119,7 +119,8 @@ with <kbd>space</kbd>.
 - <kbd>⏎</kbd> writes the choices into the settings file, leaving its other lines as they are, puts the kept sessions on
   the protected list, adds the hook to the shell's startup file and runs `install`.
 - <kbd>esc</kbd> changes nothing; opened by an install script, it keeps the defaults and the install goes on.
-  <kbd>ctrl+c</kbd> stops there either way.
+  <kbd>ctrl+c</kbd> stops there either way, with status 130, so an install script that opened the screen says the timers
+  are not running.
 - The install scripts open it on a first install in a terminal. With no settings file, `zellij-reaper` opens it
   instead of the dashboard.
 

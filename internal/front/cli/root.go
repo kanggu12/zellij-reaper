@@ -17,6 +17,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
@@ -31,25 +32,40 @@ var configPath string
 // Execute runs the command line and returns the process exit status.
 func Execute() int {
 	i18n.Init()
-	root := newRoot()
-	if err := root.Execute(); err != nil {
-		// doctor has already printed its findings.
-		if err != errSilentExit {
-			fmt.Fprintln(os.Stderr, "zellij-reaper:", err)
-			// A settings file that does not load stops every command: say
-			// how to get past it.
-			var fe *config.FileError
-			if errors.As(err, &fe) {
-				fmt.Fprintln(os.Stderr, i18n.T("config.broken", fe.Path))
-			}
-			// A mistyped command or flag: say where the right ones are.
-			if msg := err.Error(); strings.HasPrefix(msg, "unknown command") || strings.HasPrefix(msg, "unknown flag") || strings.HasPrefix(msg, "unknown shorthand flag") {
-				fmt.Fprintln(os.Stderr, i18n.T("help.hint"))
-			}
-		}
+	return report(newRoot().Execute(), os.Stderr)
+}
+
+// report says on w what the error a command ended with means, and gives the
+// exit status for it.
+func report(err error, w io.Writer) int {
+	switch {
+	case err == nil:
+		return 0
+	// ctrl+c on a screen that has said what it had to say.
+	case errors.Is(err, errInterrupted):
+		return 130
+	// doctor has already printed its findings.
+	case err == errSilentExit:
+		return 1
+	// zellij missing is said in the language on screen, with what to do
+	// about it; the engine's words for it are English.
+	case errors.Is(err, reaper.ErrNoZellij):
+		fmt.Fprintln(w, "zellij-reaper:", i18n.T("error.zellij"))
+		fmt.Fprintln(w, i18n.T("error.zellij.fix"))
 		return 1
 	}
-	return 0
+	fmt.Fprintln(w, "zellij-reaper:", err)
+	// A settings file that does not load stops every command: say how to
+	// get past it.
+	var fe *config.FileError
+	if errors.As(err, &fe) {
+		fmt.Fprintln(w, i18n.T("config.broken", fe.Path))
+	}
+	// A mistyped command or flag: say where the right ones are.
+	if msg := err.Error(); strings.HasPrefix(msg, "unknown command") || strings.HasPrefix(msg, "unknown flag") || strings.HasPrefix(msg, "unknown shorthand flag") {
+		fmt.Fprintln(w, i18n.T("help.hint"))
+	}
+	return 1
 }
 
 // newRoot builds the command tree.
@@ -83,13 +99,14 @@ Run it without a command in a terminal to open the dashboard.`,
 			return runPlan(cmd.Context(), cmd.OutOrStdout(), false)
 		},
 	}
-	root.PersistentFlags().StringVar(&configPath, "config", "", "settings file (default ~/.config/zellij-reaper/config.toml)")
+	root.PersistentFlags().StringVar(&configPath, "config", "", "settings file, instead of the default (see config path)")
 	root.SetVersionTemplate("zellij-reaper {{.Version}}\n")
 	root.AddCommand(
 		cmdTUI(), cmdSetup(), cmdPlan(), cmdRun(), cmdLogs(), cmdInstall(), cmdUninstall(), cmdConfig(),
 		cmdProtect(true), cmdProtect(false), cmdKeepName(true), cmdKeepName(false), cmdDelete(), cmdRename(), cmdHere(), cmdShellHook(),
 		cmdDoctor(), cmdRecover(), cmdResize(), cmdVersion(),
 	)
+	fitHelp(root)
 	return root
 }
 

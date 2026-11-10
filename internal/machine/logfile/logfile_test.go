@@ -1,6 +1,7 @@
 package logfile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -241,6 +242,39 @@ func TestWritableSaysWhyALineCouldNotBeAdded(t *testing.T) {
 		if err := Writable(p); err == nil {
 			t.Errorf("%s: no error", p)
 		}
+	}
+}
+
+func TestWritableSaysWhenTheFileSystemIsFull(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "reaper.log")
+	if err := os.WriteFile(log, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The real reading works here, and finds room.
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		if n, err := spaceLeft(dir); err != nil || n == 0 {
+			t.Errorf("space left in %s: %d, %v", dir, n, err)
+		}
+	}
+	defer func(f func(string) (uint64, error)) { freeBytes = f }(freeBytes)
+	// 4 KiB left: the log still opens, and no pass's lines fit. Measured in
+	// a container, a pass on a full file system wrote nothing and ended with
+	// status 0, and doctor said the log was fine.
+	freeBytes = func(string) (uint64, error) { return 4096, nil }
+	for _, p := range []string{log, filepath.Join(dir, "new", "reaper.log")} {
+		if err := Writable(p); err == nil || err.Error() != "only 4096 bytes left on the file system "+dir+" is on" {
+			t.Errorf("%s on a full file system: %v", p, err)
+		}
+	}
+	// Room enough, or room that cannot be read: nothing to say.
+	freeBytes = func(string) (uint64, error) { return minRoom, nil }
+	if err := Writable(log); err != nil {
+		t.Errorf("with room: %v", err)
+	}
+	freeBytes = func(string) (uint64, error) { return 0, errors.New("statfs: not supported") }
+	if err := Writable(log); err != nil {
+		t.Errorf("with the room unknown: %v", err)
 	}
 }
 

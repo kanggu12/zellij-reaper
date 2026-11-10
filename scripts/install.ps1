@@ -69,8 +69,21 @@
 
     Expand-Archive -Path (Join-Path $tmp $archive) -DestinationPath (Join-Path $tmp 'x') -Force
     New-Item -ItemType Directory -Path $binDir -Force | Out-Null
-    Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') (Join-Path $binDir 'zellij-reaper.exe') -Force
-    Write-Host "installed $(Join-Path $binDir 'zellij-reaper.exe')"
+    $exe = Join-Path $binDir 'zellij-reaper.exe'
+    # Copies an earlier upgrade moved aside, once nothing runs them any more.
+    Get-ChildItem -Path $binDir -Filter 'zellij-reaper.exe.*.old' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    # Windows writes no file over a program that is running (the dashboard,
+    # or the task at that moment), but it moves one: the running copy goes on
+    # under its new name, and the next install removes it.
+    if (Test-Path $exe) {
+      $aside = "$exe.$([DateTime]::Now.ToString('yyyyMMddHHmmss')).old"
+      Move-Item $exe $aside -Force
+      Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') $exe -Force
+      Remove-Item $aside -Force -ErrorAction SilentlyContinue
+    } else {
+      Copy-Item (Join-Path $tmp 'x\zellij-reaper.exe') $exe -Force
+    }
+    Write-Host "installed $exe"
   } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
   }
@@ -99,13 +112,23 @@
     $key.Close()
   }
 
+  $exe = Join-Path $binDir 'zellij-reaper.exe'
   if ($env:ZELLIJ_REAPER_NO_TIMER -eq '1') {
     Write-Host "run 'zellij-reaper install' to start the task"
-  } elseif ($env:ZELLIJ_REAPER_NO_SETUP -ne '1' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+    return
+  }
+  if ($env:ZELLIJ_REAPER_NO_SETUP -ne '1' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
     # In a console: on a first install the setup screen, which shows what the
     # first pass would reap; on an upgrade only the task is written again.
-    & (Join-Path $binDir 'zellij-reaper.exe') setup --installer
+    & $exe setup --installer
   } else {
-    & (Join-Path $binDir 'zellij-reaper.exe') install
+    & $exe install
+  }
+  # A program's failing does not stop a script, even with
+  # ErrorActionPreference at Stop: its status is read. The task did not start
+  # (no Task Scheduler answered, or ctrl+c on the setup screen), for the
+  # reason the program gave above, and the install is not finished.
+  if ($LASTEXITCODE -ne 0) {
+    throw "zellij-reaper install: the binary is in place, the task is not: run '$exe install' to try again"
   }
 }

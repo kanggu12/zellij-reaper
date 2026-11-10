@@ -24,8 +24,9 @@ func cmdInstall() *cobra.Command {
 		Use:   "install",
 		Short: "Install the timers that run a pass every interval",
 		Long: `Set up the timers that run the passes: on Linux, systemd user units in
-~/.config/systemd/user with lingering turned on, so they run without a login; on
-macOS, launch agents in ~/Library/LaunchAgents; on Windows, two tasks in the Task
+~/.config/systemd/user with lingering turned on, so they run without a login, or
+two lines in the crontab where no systemd user instance answers and cron runs; on
+macOS, launch agents in ~/Library/LaunchAgents; on Windows, a task in the Task
 Scheduler. A settings file is written if there is none. On Linux an install of the
 earlier shell version is moved over: its settings go to the settings file, its log
 next to the new one. Running install again after changing the interval applies it.`,

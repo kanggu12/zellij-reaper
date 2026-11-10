@@ -14,6 +14,8 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
+	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -186,6 +188,13 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	} else if errors.Is(err, zellij.ErrNoSessions) {
 		pass(i18n.T("doctor.sessions.none", tilde(a.InfoDir)))
 	} else if a.Zellij.Available() {
+		// A list that gave no answer names the server that held it up, as a
+		// pass's does, where the process table shows one stopped.
+		if zellij.CutShort(err) {
+			table, _ := inspect.ReadProcesses(a.Sources())
+			idx, _ := zellij.ReadIndex(a.InfoDir)
+			err = reaper.Stuck(err, table, a.Sources().UID, idx)
+		}
 		fail(i18n.T("error.list", err))
 	}
 	// Since 0.46 zellij names a session's files by id, and keeps the names
