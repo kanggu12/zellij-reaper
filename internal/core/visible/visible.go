@@ -98,11 +98,13 @@ func firstUnsafe(s string, screen bool) int {
 }
 
 // unsafeRune reports the characters above ASCII that act rather than show:
-// the C1 controls (U+0080 to U+009F, CSI among them as U+009B), and the
+// the C1 controls (U+0080 to U+009F, CSI among them as U+009B), the
 // bidirectional embeddings, overrides and isolates, which reorder what
-// follows them on a line.
+// follows them on a line, and the direction marks (U+200E, U+200F, U+061C),
+// which move what stands next to them.
 func unsafeRune(r rune) bool {
-	return (r >= 0x80 && r <= 0x9f) || (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069)
+	return (r >= 0x80 && r <= 0x9f) || (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069) ||
+		r == 0x200e || r == 0x200f || r == 0x061c
 }
 
 // sgrLen is the length of the SGR sequence s starts with, ESC [ then digits,

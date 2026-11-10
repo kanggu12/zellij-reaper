@@ -115,9 +115,13 @@ func (l *Log) append(line string) error {
 	}
 	defer f.Close()
 	// Releases before 0.13 made it 0644. That mode, and only that one, is
-	// theirs: one the user chose is left as it is.
+	// theirs: one the user chose is left as it is. The previous log, which
+	// such a release made too, goes with it.
 	if info, err := f.Stat(); err == nil && info.Mode().Perm() == 0o644 {
 		f.Chmod(0o600)
+		if info, err := os.Lstat(l.Path + ".1"); err == nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o644 {
+			os.Chmod(l.Path+".1", 0o600)
+		}
 	}
 	// One write per line keeps lines whole even if two writers interleave.
 	_, err = f.WriteString(line)

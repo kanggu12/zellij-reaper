@@ -8,8 +8,9 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ### Added
 
-- Every file of a release comes with a signed build provenance attestation: a record of the workflow run and the commit
-  it was built from, which `gh attestation verify FILE --repo kanggu12/zellij-reaper` checks. The setup guide says how.
+- Every archive, package and installer of a release, all that `checksums.txt` lists, comes with a signed build
+  provenance attestation: a record of the workflow run and the commit it was built from, which
+  `gh attestation verify FILE --repo kanggu12/zellij-reaper` checks. The setup guide says how.
 
 ### Changed
 
@@ -30,8 +31,9 @@ that only fixes raises the patch number. Each release's section here is its rele
   bytes as they are, so the prompt hook reads a session's exact name.
 - The log holds pane titles and command lines, and was made readable by everyone, in a folder anyone could list: on a
   machine that hides other users' processes, it showed them yours. The log, the lock, the name lists and the settings
-  are made 0600 now, in folders of 0700. A log an earlier release made 0644 becomes 0600 at its next line; a mode you
-  chose stays.
+  are made 0600 now, in folders of 0700. On an upgrade, `install`, which the install scripts run, takes the program's
+  own two folders from 0755 to 0700 and the files in them from 0644 to 0600; a log elsewhere goes to 0600 at its next
+  line, with the one before it. A mode other than those an earlier release made was chosen, and stays.
 - `recover --aggressive` sends `SIGTERM`, then `SIGKILL` a second later to a server still there. A server that ended in
   that second could pass its pid to another process of yours, which would have got the `SIGKILL`. It is sent only to the
   process that started when the server did.
@@ -39,7 +41,8 @@ that only fixes raises the patch number. Each release's section here is its rele
   the newest v2, built without the shared module cache. `install.sh` downloads from GitHub over HTTPS only, redirects
   included, with TLS 1.2 or newer; a mirror in `ZELLIJ_REAPER_BASE_URL` is still taken as given.
 - A crontab line carries the installing shell's `XDG_RUNTIME_DIR`, which was the one value put there without the check
-  for a line break the others get. A session's metadata and layout files are read up to 4 MiB.
+  for a line break the others get. A session whose metadata or layout file is over 4 MiB is kept, its files unread: cut,
+  the file would lose the commands past the cut, a protected program among them.
 
 ## [0.12.0] - 2026-11-10
 

@@ -26,8 +26,8 @@ the JetBrains Mono font. Their licenses follow.
 | `github.com/spf13/pflag` | v1.0.9 | BSD-3-Clause | https://pkg.go.dev/github.com/spf13/pflag |
 | `github.com/xo/terminfo` | v1.0.0 | MIT | https://pkg.go.dev/github.com/xo/terminfo |
 | `golang.org/x/sync` | v0.22.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sync |
-| `golang.org/x/sys` | v0.47.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
-| Go standard library | 1.26.0 | BSD-3-Clause | https://go.dev |
+| `golang.org/x/sys` | v0.50.0 | BSD-3-Clause | https://pkg.go.dev/golang.org/x/sys |
+| Go standard library | 1.26.10 | BSD-3-Clause | https://go.dev |
 | zellij (the word lists in `internal/core/rename/generated.go`, which tell a name it made up from one someone chose) | 0.45.1 | MIT | https://github.com/zellij-org/zellij |
 | JetBrains Mono (the lettering of the logo and the figures) | 2.211 | OFL-1.1 | https://github.com/JetBrains/JetBrainsMono |
 
@@ -680,7 +680,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## golang.org/x/sys v0.47.0
+## golang.org/x/sys v0.50.0
 
 ```text
 Copyright 2009 The Go Authors.

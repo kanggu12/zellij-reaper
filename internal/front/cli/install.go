@@ -69,6 +69,12 @@ func install(cmd *cobra.Command, a *app.App, reload func() (*app.App, error)) er
 		a = b
 	}
 	println(w, ok(t)+i18n.T("install.enabled", duration.Format(a.Config.Interval)))
+	// Releases before 0.13 made the program's folders and files readable by
+	// anyone, the log with its command lines among them: an upgrade makes
+	// them the user's own.
+	if changed := config.TightenOld(a.Env); len(changed) > 0 {
+		println(w, ok(t)+i18n.TN("install.private", len(changed), len(changed)))
+	}
 	// Lingering is systemd's alone.
 	if linger := res.Linger; linger != "" {
 		switch linger {

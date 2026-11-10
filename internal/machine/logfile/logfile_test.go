@@ -50,17 +50,24 @@ func TestTheLogIsTheUsersOwnAndRunsNoControls(t *testing.T) {
 			t.Errorf("%s: %v, %v", p, info.Mode().Perm(), err)
 		}
 	}
-	// One an earlier release made 0644 becomes the user's own; a mode the
-	// user chose stays.
+	// One an earlier release made 0644 becomes the user's own, with the
+	// previous log; a mode the user chose stays.
 	for mode, want := range map[os.FileMode]os.FileMode{0o644: 0o600, 0o640: 0o640} {
-		if err := os.Chmod(l.Path, mode); err != nil {
-			t.Fatal(err)
+		for _, p := range []string{l.Path, l.Path + ".1"} {
+			if err := os.WriteFile(p, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(p, mode); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if err := l.Printf("another line"); err != nil {
 			t.Fatal(err)
 		}
-		if info, _ := os.Stat(l.Path); info.Mode().Perm() != want {
-			t.Errorf("a log of %v became %v", mode, info.Mode().Perm())
+		for _, p := range []string{l.Path, l.Path + ".1"} {
+			if info, _ := os.Stat(p); info.Mode().Perm() != want {
+				t.Errorf("%s of %v became %v", filepath.Base(p), mode, info.Mode().Perm())
+			}
 		}
 	}
 }

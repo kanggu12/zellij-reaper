@@ -40,6 +40,11 @@ archives:
 
 checksum:
   name_template: checksums.txt
+  # The installers too: people pipe them into a shell, and the release's
+  # build provenance attests what checksums.txt lists.
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/install.ps1
 
 nfpms:
   - package_name: zellij-reaper

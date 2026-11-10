@@ -159,13 +159,28 @@ func TestUnquoteKDL(t *testing.T) {
 	}
 }
 
-func TestASessionFileIsReadOnlySoFar(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "session-layout.kdl")
-	if err := os.WriteFile(path, make([]byte, maxSessionFile+1000), 0o600); err != nil {
+func TestASessionFileTooLargeIsNotReadAndTheSessionIsKept(t *testing.T) {
+	info := t.TempDir()
+	dir := filepath.Join(info, "work")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "session-layout.kdl")
+	// At the limit it is read whole.
+	if err := os.WriteFile(path, make([]byte, maxSessionFile), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if b, err := readAtMost(path, maxSessionFile); err != nil || len(b) != maxSessionFile {
 		t.Errorf("read %d bytes: %v", len(b), err)
+	}
+	// One byte past it, not at all: read in part, the commands past the
+	// cut, a protected one among them, would be lost. ReadFiles fails, and
+	// a survey keeps a session whose files it cannot read.
+	if err := os.WriteFile(path, make([]byte, maxSessionFile+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadFiles(info, "work"); !errors.Is(err, errTooLarge) {
+		t.Errorf("ReadFiles of a layout too large: %v", err)
 	}
 }
 

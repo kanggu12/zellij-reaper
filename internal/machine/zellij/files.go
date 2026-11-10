@@ -452,27 +452,44 @@ func ReadFiles(infoDir, name string) (Files, error) {
 	}
 	if raw, err := readAtMost(filepath.Join(f.Dir, "session-metadata.kdl"), maxSessionFile); err == nil {
 		f.Metadata = ParseMetadata(string(raw))
+	} else if errors.Is(err, errTooLarge) {
+		return f, err
 	}
 	if raw, err := readAtMost(filepath.Join(f.Dir, "session-layout.kdl"), maxSessionFile); err == nil {
 		f.Layout = ParseLayout(string(raw))
 		f.HasLayout = true
+	} else if errors.Is(err, errTooLarge) {
+		return f, err
 	}
 	return f, nil
 }
 
 // maxSessionFile is the most of a session file read: zellij writes a few
-// kilobytes for a session with many panes. A file grown past it is read only
-// that far, so it cannot take the pass's memory with it.
+// kilobytes for a session with many panes. A file grown past it is not read
+// at all, so it cannot take the pass's memory with it; read in part, it would
+// have lost the commands past the cut, a protected program among them.
 const maxSessionFile = 4 << 20
 
-// readAtMost reads the start of the file at path, up to limit bytes.
+// errTooLarge is a session file past maxSessionFile. ReadFiles gives it as
+// its error, and a session whose files cannot be read is kept.
+var errTooLarge = errors.New("larger than a session file can be")
+
+// readAtMost reads the file at path when it holds no more than limit bytes.
 func readAtMost(path string, limit int64) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return io.ReadAll(io.LimitReader(f, limit))
+	// One byte more than the limit tells a file that is too large.
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%s: %w (%d bytes at most)", path, errTooLarge, limit)
+	}
+	return b, nil
 }
 
 // SessionDirs lists the names that have a directory under session_info,

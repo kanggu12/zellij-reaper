@@ -125,6 +125,41 @@ func TestSettingsFromTheEnvironmentAreNamedAsUnseenByTheTimer(t *testing.T) {
 	}
 }
 
+func TestInstallMakesAnOlderReleasesFilesTheUsersOwn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix modes")
+	}
+	home := isolate(t)
+	env := config.MapEnv{"HOME": home}
+	a := fakeApp(t, env)
+	// The state folder and a list, as 0.12 made them.
+	state := config.StateDir(env)
+	list := filepath.Join(state, "protected")
+	if err := os.MkdirAll(state, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(list, []byte("notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for p, mode := range map[string]os.FileMode{state: 0o755, list: 0o644} {
+		if err := os.Chmod(p, mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd, out := output()
+	if err := install(cmd, a, func() (*app.App, error) { return a, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "2 files and folders of zellij-reaper made yours only (0600, 0700)") {
+		t.Errorf("install said:\n%s", out)
+	}
+	for p, want := range map[string]os.FileMode{state: 0o700, list: 0o600} {
+		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != want {
+			t.Errorf("%s: %v (%v)", p, info.Mode().Perm(), err)
+		}
+	}
+}
+
 func TestDoctorSaysWhenThisShellKeepsItsFilesElsewhere(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the timer here is systemd's, which Windows does not have")

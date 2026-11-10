@@ -20,6 +20,7 @@ func TestControlsAreWrittenOut(t *testing.T) {
 		{"a\x9bb", `a\x9bb`, `a\x9bb`},
 		// A direction override shows what follows backwards.
 		{"evil\u202egnp.exe", `evil\u202egnp.exe`, `evil\u202egnp.exe`},
+		{"a\u200fb\u061cc", `a\u200fb\u061cc`, `a\u200fb\u061cc`},
 		// Line breaks and tabs: written out in a log line, kept on a screen.
 		{"a\nb\tc", `a\x0ab\x09c`, "a\nb\tc"},
 		// Colors: written out in a log line, kept on a screen.
@@ -42,12 +43,12 @@ func TestControlsAreWrittenOut(t *testing.T) {
 func TestALongTextTakesLinearTime(t *testing.T) {
 	// Escapes that start sequences which never end, and bytes that are no
 	// UTF-8: each is looked at a bounded number of times.
-	long := strings.Repeat("\x1b[1111111111\xa5", 200_000)
+	// 650 KB: a few hundredths of a second, ten times that with -race; work
+	// that grew with the square of it would take minutes.
+	long := strings.Repeat("\x1b[1111111111\xa5", 50_000)
 	start := time.Now()
-	for range 3 {
-		Terminal(long)
-		Text(long)
-	}
+	Terminal(long)
+	Text(long)
 	if took := time.Since(start); took > 2*time.Second {
 		t.Errorf("%d bytes took %s", len(long), took)
 	}

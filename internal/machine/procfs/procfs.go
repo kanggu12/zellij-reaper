@@ -248,14 +248,6 @@ func StartMark(root string, pid int) (int64, bool) {
 	return int64(start), ok
 }
 
-// startedMark is StartMark from a start time a native reader gave.
-func startedMark(p *Proc, ok bool) (int64, bool) {
-	if !ok || p.started.IsZero() {
-		return 0, false
-	}
-	return p.started.UnixNano(), true
-}
-
 // EnvVar reads one variable from the environment a process started with,
 // which a program's later changes to its own environment do not touch: zellij
 // starts a session's server with ZELLIJ_SESSION_NAME, the name the session

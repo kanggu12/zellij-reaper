@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
+	"github.com/kanggu12/zellij-reaper/internal/core/visible"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -34,7 +35,9 @@ func (m model) box(border lipgloss.Style, lines ...string) string {
 	w := min(64, m.width-4)
 	// The border takes a cell on each side and the padding two: the text
 	// gets the rest, or lipgloss wraps it a second time and strands a word.
-	body := lipgloss.NewStyle().Width(w - 6).Foreground(m.th.Ink).Render(strings.Join(lines, "\n"))
+	// A session's name in it is written out first, so the box is measured
+	// as it shows.
+	body := lipgloss.NewStyle().Width(w - 6).Foreground(m.th.Ink).Render(visible.Terminal(strings.Join(lines, "\n")))
 	return border.Border(lipgloss.RoundedBorder()).Padding(0, 2).Width(w).Render(body)
 }
 
