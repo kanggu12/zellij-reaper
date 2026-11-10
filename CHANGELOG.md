@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-11-10
+
 ### Fixed
 
 - The copy a rename leaves under the old name (0.13.1) was deleted whatever the name. A copy under a name the protect
@@ -675,7 +677,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.13.2
 [0.13.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.13.1
 [0.13.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.13.0
 [0.12.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.12.0
