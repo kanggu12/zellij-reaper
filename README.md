@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.12.0" src="docs/assets/badges/release.svg"></a>
+  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.13.0" src="docs/assets/badges/release.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="docs/assets/badges/demo.svg"></a>
   <img alt="Runs on Linux, macOS and Windows" src="docs/assets/badges/runs-on.svg">
