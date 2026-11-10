@@ -96,6 +96,10 @@ func TestDoctorSaysWhatCameOfTheLastPass(t *testing.T) {
 		"["+stamp+"] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
 		"["+stamp+"] zellij list-sessions failed: zellij list-sessions --no-formatting: no answer within 10s",
 		"["+stamp+"] === reaper end ===")
+	// The lock file a pass leaves, free: doctor takes it for its look.
+	if err := os.WriteFile(a.Reaper.LockPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cmd, out := output()
 	before, _ := doctor(context.Background(), a, cmd)
 	if !strings.Contains(out.String(), "stopped: zellij list-sessions failed: zellij list-sessions --no-formatting: no answer within 10s\n") {
