@@ -159,8 +159,11 @@ func TestDoctorSaysWhenTheLogCannotBeWritten(t *testing.T) {
 }
 
 func TestLogsReadsTheLogWhenTheProtectedListCannotBeRead(t *testing.T) {
-	home := isolate(t)
-	env := config.MapEnv{"HOME": home}
+	isolate(t)
+	// The places the command itself finds, from the environment isolate set:
+	// on Windows a map with HOME alone names other folders than the process's
+	// does, and the test wrote where logs did not read.
+	env := config.OSEnv{}
 	logPath := config.Default(env).LogPath
 	writeLog(t, logPath,
 		"[2026-11-04 09:00:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===")
