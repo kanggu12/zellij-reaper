@@ -454,4 +454,11 @@ func TestCronRefusesALineBreak(t *testing.T) {
 			t.Errorf("%s: the settings file was written", what)
 		}
 	}
+	// XDG_RUNTIME_DIR comes from the installing shell, onto the same line.
+	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000\n* * * * * /bin/false")
+	f := &rawCrontab{none: "no crontab for u\n"}
+	c := Cron{Env: config.MapEnv{"HOME": t.TempDir()}, Run: f.run, Running: func() bool { return true }}
+	if _, err := c.Install(base); err == nil || !strings.Contains(err.Error(), "XDG_RUNTIME_DIR") || f.exists {
+		t.Errorf("XDG_RUNTIME_DIR with a line break: %v, crontab written %t", err, f.exists)
+	}
 }

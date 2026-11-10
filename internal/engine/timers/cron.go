@@ -275,7 +275,7 @@ func (c Cron) Install(o InstallOptions) (Result, error) {
 	var r Result
 	// Refused before anything is written: a line break in one of these would
 	// end the crontab line it sits on and start a line of its own.
-	for _, p := range [][2]string{{"the zellij-reaper binary", o.Exe}, {"the settings file", o.ConfigFile}, {"zellij's directory", o.ZellijDir}} {
+	for _, p := range [][2]string{{"the zellij-reaper binary", o.Exe}, {"the settings file", o.ConfigFile}, {"zellij's directory", o.ZellijDir}, {"XDG_RUNTIME_DIR", os.Getenv("XDG_RUNTIME_DIR")}} {
 		if err := oneLine(p[0], p[1]); err != nil {
 			return r, err
 		}

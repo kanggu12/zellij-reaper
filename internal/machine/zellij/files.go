@@ -3,6 +3,7 @@ package zellij
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -449,14 +450,29 @@ func ReadFiles(infoDir, name string) (Files, error) {
 			f.Newest = info.ModTime()
 		}
 	}
-	if raw, err := os.ReadFile(filepath.Join(f.Dir, "session-metadata.kdl")); err == nil {
+	if raw, err := readAtMost(filepath.Join(f.Dir, "session-metadata.kdl"), maxSessionFile); err == nil {
 		f.Metadata = ParseMetadata(string(raw))
 	}
-	if raw, err := os.ReadFile(filepath.Join(f.Dir, "session-layout.kdl")); err == nil {
+	if raw, err := readAtMost(filepath.Join(f.Dir, "session-layout.kdl"), maxSessionFile); err == nil {
 		f.Layout = ParseLayout(string(raw))
 		f.HasLayout = true
 	}
 	return f, nil
+}
+
+// maxSessionFile is the most of a session file read: zellij writes a few
+// kilobytes for a session with many panes. A file grown past it is read only
+// that far, so it cannot take the pass's memory with it.
+const maxSessionFile = 4 << 20
+
+// readAtMost reads the start of the file at path, up to limit bytes.
+func readAtMost(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, limit))
 }
 
 // SessionDirs lists the names that have a directory under session_info,

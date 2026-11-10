@@ -233,3 +233,6 @@ func fileOwner(path string, servers []Server) (Server, bool) {
 
 // nativeRoot is the directory a table reads from; this system has no /proc.
 func nativeRoot(root string) string { return root }
+
+// startMarkNative is StartMark from the start time the native reader gives.
+func startMarkNative(pid int) (int64, bool) { return startedMark(processNative(pid)) }

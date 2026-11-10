@@ -159,6 +159,16 @@ func TestUnquoteKDL(t *testing.T) {
 	}
 }
 
+func TestASessionFileIsReadOnlySoFar(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "session-layout.kdl")
+	if err := os.WriteFile(path, make([]byte, maxSessionFile+1000), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := readAtMost(path, maxSessionFile); err != nil || len(b) != maxSessionFile {
+		t.Errorf("read %d bytes: %v", len(b), err)
+	}
+}
+
 func TestSessionInfoDir(t *testing.T) {
 	cache := t.TempDir()
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1"); got != filepath.Join(cache, "zellij", "contract_version_1", "session_info") {

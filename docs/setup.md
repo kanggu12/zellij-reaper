@@ -80,6 +80,14 @@ Other ways:
 | source: `go install github.com/kanggu12/zellij-reaper/cmd/zellij-reaper@latest` | `zellij-reaper install` |
 | a clone: `make install` | builds, copies to `~/.local/bin` and installs the timer |
 
+Every file of a release, from 0.13.0 on, comes with a signed record of the workflow run and commit it was built from.
+`checksums.txt` shows a download is the file the release lists; the record shows the release's files came from this
+repository's own build. With the [GitHub CLI](https://cli.github.com):
+
+```sh
+gh attestation verify zellij-reaper_0.13.0_linux_amd64.tar.gz --repo kanggu12/zellij-reaper
+```
+
 ### What `zellij-reaper install` does
 
 On Linux it:

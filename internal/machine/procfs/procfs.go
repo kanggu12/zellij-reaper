@@ -235,6 +235,27 @@ func Process(root string, pid int) (*Proc, bool) {
 	return readProc(root, pid)
 }
 
+// StartMark is when pid started, as a number to compare: a process that ends
+// may give its pid to another, which starts later, and the two then differ
+// here. On a directory laid out like /proc it is the starttime of stat, in
+// clock ticks since boot; elsewhere the start the native reader gives. ok is
+// false when no process has pid, or its start cannot be read.
+func StartMark(root string, pid int) (int64, bool) {
+	if root == Native {
+		return startMarkNative(pid)
+	}
+	_, start, ok := commAndStart(root, pid)
+	return int64(start), ok
+}
+
+// startedMark is StartMark from a start time a native reader gave.
+func startedMark(p *Proc, ok bool) (int64, bool) {
+	if !ok || p.started.IsZero() {
+		return 0, false
+	}
+	return p.started.UnixNano(), true
+}
+
 // EnvVar reads one variable from the environment a process started with,
 // which a program's later changes to its own environment do not touch: zellij
 // starts a session's server with ZELLIJ_SESSION_NAME, the name the session

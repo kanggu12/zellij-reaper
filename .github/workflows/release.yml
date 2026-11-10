@@ -20,13 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For the build provenance below: a token to sign it with, and the
+      # right to store it with the repository's attestations.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # Built from a clean module cache: one another workflow filled
+          # does not reach what is published.
+          cache: false
       - name: release notes from CHANGELOG.md
         run: |
           # The section for this tag, up to the next "## " heading.
@@ -36,12 +43,19 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           test -s "$RUNNER_TEMP/notes.md" || { echo "CHANGELOG.md has no section for $GITHUB_REF_NAME"; exit 1; }
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: "~> v2"
+          # The same goreleaser as `make snapshot`, not whichever is newest.
+          version: v2.19.0
           args: release --clean --config .github/goreleaser.yaml --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # A signed statement of where and from what each file in checksums.txt
+      # was built: `gh attestation verify FILE --repo kanggu12/zellij-reaper`
+      # checks a download against it.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
 
   # The demo image: the dashboard on demo sessions, without a clone or Go.
   demo-image:
@@ -51,10 +65,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -68,7 +82,7 @@ jobs:
             echo "date=$(git log -1 --format=%cs)"
             echo "commit=$(git rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: test/demo/Dockerfile

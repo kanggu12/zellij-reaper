@@ -188,7 +188,7 @@ func stopAll(in Inputs, sc Scan, note func(Step)) {
 			note(Step{Target: "pid " + itoa(o.PID), Session: o.said(), What: "kept orphan server: " + why})
 			continue
 		}
-		st := stop(in.signal(), o.PID, time.Second)
+		st := stop(in.signal(), o.PID, time.Second, in.sameProcess(o.PID))
 		st.Session = o.said()
 		note(st)
 		stopped = true
@@ -242,10 +242,26 @@ func stillStoppable(o Orphan, now map[int]Orphan) string {
 	return ""
 }
 
+// sameProcess returns a check that pid is still the process it is now: one
+// that ended may give its pid to another process of the same user, which
+// must not get the SIGKILL meant for the server. The process's start time
+// tells them apart. Where it cannot be read, the check passes, as before.
+func (in Inputs) sameProcess(pid int) func() bool {
+	mark, ok := procfs.StartMark(in.ProcRoot, pid)
+	if !ok {
+		return func() bool { return true }
+	}
+	return func() bool {
+		now, ok := procfs.StartMark(in.ProcRoot, pid)
+		return ok && now == mark
+	}
+}
+
 // stop ends one process: SIGTERM, then SIGKILL if it is still there after
-// wait. The step's words say which of the two it took, or that the signal
-// was refused.
-func stop(kill func(int, syscall.Signal) error, pid int, wait time.Duration) Step {
+// wait. same says whether pid is still the process signalled; once it is
+// not, the process ended, and no signal follows. The step's words say which
+// of the two it took, or that the signal was refused.
+func stop(kill func(int, syscall.Signal) error, pid int, wait time.Duration, same func() bool) Step {
 	st := Step{Target: "pid " + itoa(pid), What: "stopped orphan server"}
 	if err := kill(pid, syscall.SIGTERM); err != nil {
 		st.What, st.Err = "could not stop orphan server", err
@@ -253,11 +269,17 @@ func stop(kill func(int, syscall.Signal) error, pid int, wait time.Duration) Ste
 	}
 	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {
-		// Signal 0 only asks whether the process is still there.
-		if kill(pid, 0) != nil {
+		// Signal 0 only asks whether a process has the pid; the start time
+		// says whether it is still this one.
+		if kill(pid, 0) != nil || !same() {
 			return st
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	// Looked at once more right before the SIGKILL: the pid may have gone
+	// to another process since the last look.
+	if !same() {
+		return st
 	}
 	if err := kill(pid, syscall.SIGKILL); err != nil {
 		// Gone after the last look and before SIGKILL: SIGTERM ended it.

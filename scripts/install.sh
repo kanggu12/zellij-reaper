@@ -15,6 +15,11 @@ set -eu
 
 repo=kanggu12/zellij-reaper
 base=${ZELLIJ_REAPER_BASE_URL:-https://github.com/$repo/releases/download}
+# From GitHub, HTTPS only, redirects too, and TLS 1.2 or newer: a downgrade
+# on the way cannot hand over another binary with its own checksums. A mirror
+# named in ZELLIJ_REAPER_BASE_URL is taken as given.
+secure="--proto =https --proto-redir =https --tlsv1.2"
+[ -n "${ZELLIJ_REAPER_BASE_URL:-}" ] && from="" || from=$secure
 bin_dir=${ZELLIJ_REAPER_BIN_DIR:-$HOME/.local/bin}
 
 say() { printf '%s\n' "$*"; }
@@ -40,7 +45,8 @@ command -v tar >/dev/null 2>&1 || fail "tar is needed"
 # The latest release is where github.com/<repo>/releases/latest redirects.
 version=${ZELLIJ_REAPER_VERSION:-}
 if [ -z "$version" ]; then
-  url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest") ||
+  # shellcheck disable=SC2086 # the options are words of their own
+  url=$(curl $secure -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest") ||
     fail "could not find the latest release; on a network that cannot reach GitHub, set ZELLIJ_REAPER_BASE_URL and ZELLIJ_REAPER_VERSION, or follow docs/setup.md#without-internet-access"
   # A release redirects to its tag. With none published yet, GitHub lands on
   # the list of releases instead, whose last word is not a version.
@@ -64,8 +70,10 @@ trap 'rm -rf "$tmp"; exit 130' INT
 trap 'rm -rf "$tmp"; exit 143' TERM
 
 say "downloading zellij-reaper $version for $os/$arch"
-curl -fsSL "$base/$version/$archive" -o "$tmp/$archive" || fail "could not download $archive"
-curl -fsSL "$base/$version/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt"
+# shellcheck disable=SC2086 # the options are words of their own
+curl $from -fsSL "$base/$version/$archive" -o "$tmp/$archive" || fail "could not download $archive"
+# shellcheck disable=SC2086
+curl $from -fsSL "$base/$version/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt"
 
 # Refuse a download whose checksum does not match the release's list.
 want=$(grep " $archive\$" "$tmp/checksums.txt" | cut -d' ' -f1)

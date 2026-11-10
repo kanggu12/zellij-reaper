@@ -16,6 +16,12 @@ func readNative(sessions bool) (*Table, error) {
 // processNative reads one process from the machine's /proc.
 func processNative(pid int) (*Proc, bool) { return readProc(procRoot, pid) }
 
+// startMarkNative is StartMark on the machine's /proc.
+func startMarkNative(pid int) (int64, bool) {
+	_, start, ok := commAndStart(procRoot, pid)
+	return int64(start), ok
+}
+
 // envNative reads a variable from a process's environ in the machine's /proc.
 func envNative(pid int, key string) (string, bool) { return envDir(procRoot, pid, key) }
 

@@ -362,3 +362,6 @@ func lsofPath() string {
 	}
 	return "lsof"
 }
+
+// startMarkNative is StartMark from the start time the native reader gives.
+func startMarkNative(pid int) (int64, bool) { return startedMark(processNative(pid)) }
