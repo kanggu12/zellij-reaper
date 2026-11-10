@@ -2,6 +2,7 @@ package reaper_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +54,10 @@ func TestKeptNamesOutliveAListThatSaysNothing(t *testing.T) {
 		{"an index that cannot be read", func(w *world) {
 			if err := os.WriteFile(zellij.IndexFile(w.env.Sources.InfoDir), []byte("not a database"), 0o600); err != nil {
 				t.Fatal(err)
+			}
+			// As zellij does then: every session under its id.
+			for i := range w.zj.listed {
+				w.zj.listed[i].Name = fmt.Sprintf("%012x", i+1)
 			}
 		}},
 	} {

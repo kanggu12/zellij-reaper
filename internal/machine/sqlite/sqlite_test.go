@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -223,6 +224,40 @@ func TestATallTableWithOverflowPages(t *testing.T) {
 			t.Errorf("long-facts has %d bytes of facts", len(facts))
 		}
 	}
+}
+
+func TestASizeThatLiesIsNotMadeRoomFor(t *testing.T) {
+	const size = 512
+	d := &db{file: make([]byte, 3*size), pageSize: size, usable: size, pages: 3}
+	// A cell that says its record is 60 MiB: what fits on the page, then one
+	// overflow page, page 2, whose own next page is none. The chain ends
+	// long before 60 MiB.
+	total := 60 << 20
+	p := d.file[:size]
+	const off = 100
+	n := copy(p[off:], append(putVarint(uint64(total)), 1))
+	binary.BigEndian.PutUint32(p[off+n+d.localSize(total):], 2)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, _, err := d.leafCell(p, off, map[uint32]bool{})
+	runtime.ReadMemStats(&after)
+	if !errors.Is(err, ErrCorrupt) {
+		t.Errorf("err = %v, want ErrCorrupt", err)
+	}
+	// Room is made as the pages come, not for what the size field says.
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > 1<<20 {
+		t.Errorf("%d bytes allocated for a record of %d on two pages", grew, total)
+	}
+}
+
+// putVarint is SQLite's variable-length integer: seven bits a byte, high
+// bits first, each byte but the last with its top bit set (below 2^56).
+func putVarint(v uint64) []byte {
+	b := []byte{byte(v & 0x7f)}
+	for v >>= 7; v > 0; v >>= 7 {
+		b = append([]byte{byte(v&0x7f) | 0x80}, b...)
+	}
+	return b
 }
 
 func TestTwoCellsThatShareOverflowPagesStop(t *testing.T) {
