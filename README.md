@@ -75,8 +75,8 @@ dashboard. No install yet? [Try it in a sandbox](#try-it-in-a-sandbox).
 
 - **The session you are in stays.** A client in any terminal or a browser keeps its session, and zellij is asked again
   right before each delete.
-- **Running jobs stay.** A build, `npm run dev`, `tail -f`, an editor or a job in the background keeps its session.
-  Only a shell waiting at its prompt counts as idle.
+- **Running jobs stay.** A build, `npm run dev`, `tail -f`, an editor or a job in the background keeps its session,
+  one started seconds before the delete too. Only a shell waiting at its prompt counts as idle.
 - **Coding agents stay.** Claude Code, Codex, Gemini CLI, aider and opencode keep their session while they run, even at
   their prompt.
 - **Names that say what a session is.** With `auto_rename = true`, `brave-peach` becomes `fix-the-login-bug`.
