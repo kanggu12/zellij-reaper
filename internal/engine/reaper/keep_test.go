@@ -165,6 +165,52 @@ func TestAPassPastItsTimeLeavesTheRestAndEndsAsPassesDo(t *testing.T) {
 	}
 }
 
+func TestAPassEndsItsCallsToZellijByItsLimit(t *testing.T) {
+	w := newWorld(t)
+	defer func(b, l time.Duration) { reaper.PassBudget, reaper.PassLimit = b, l }(reaper.PassBudget, reaper.PassLimit)
+	// The budget leaves time to start both deletes; the limit does not.
+	reaper.PassBudget, reaper.PassLimit = time.Hour, 500*time.Millisecond
+	// idle-old's delete takes longer than the pass has left: zellij was slow.
+	w.zj.onDelete = func(name string) {
+		if name == "idle-old" {
+			time.Sleep(700 * time.Millisecond)
+		}
+	}
+	start := time.Now()
+	if _, err := reaper.Run(t.Context(), w.env, reaper.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	// gone, next, is not deleted: its second look at zellij is past the
+	// limit, and keeps it. The pass ends as passes do, well before a
+	// scheduler would stop it.
+	log := w.log(t)
+	if strings.Join(w.zj.deleted, ",") != "idle-old" || !strings.Contains(log, "  -> kept: gone :: could not list the sessions again: context deadline exceeded\n") ||
+		!strings.HasSuffix(log, "=== reaper end (1 reaped, 3 kept, 0 renamed) ===\n") {
+		t.Errorf("deleted %v, log:\n%s", w.zj.deleted, log)
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("took %s", took)
+	}
+}
+
+func TestANamesPassPastItsTimeRenamesNoMore(t *testing.T) {
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	defer func(d time.Duration) { reaper.PassBudget = d }(reaper.PassBudget)
+	reaper.PassBudget = -time.Second
+	if _, err := reaper.Run(t.Context(), w.env, reaper.Options{NamesOnly: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 0 {
+		t.Errorf("renamed %v", w.zj.renamed)
+	}
+	// With the budget there, it renames: the world has a session to name.
+	reaper.PassBudget = time.Hour
+	if _, err := reaper.Run(t.Context(), w.env, reaper.Options{NamesOnly: true}); err != nil || len(w.zj.renamed) == 0 {
+		t.Errorf("renamed %v, %v", w.zj.renamed, err)
+	}
+}
+
 func TestForgettingANameThatIsNotKeptChangesNothing(t *testing.T) {
 	w := newWorld(t)
 	if err := reaper.KeepName(t.Context(), w.env, "fresh", true, "the command line", time.Second); err != nil {

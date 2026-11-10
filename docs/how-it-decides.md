@@ -42,7 +42,8 @@ its wait over:
    listed as exited; and at the protected list. Anything that changed keeps the session, logged as
    `-> kept: NAME :: reason`. Otherwise it runs `zellij delete-session NAME --force` for a running session, and
    `zellij delete-session NAME` for an exited one, which zellij refuses if someone brought it back meanwhile. A pass
-   stops starting deletes after 50 seconds and leaves the rest to the next.
+   starts no delete after 40 seconds, its wait for the lock included, and leaves the rest to the next; every call it
+   makes to zellij ends by 50 seconds, so it ends before the minute systemd and the Task Scheduler give it.
 8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
    another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
    session for its clients once more first.
@@ -170,7 +171,7 @@ Every line the log can hold:
 | `  -> rename FAILED: OLD → NEW :: ERROR` | zellij refused the rename, or took it without listing the new name in time |
 | `  -> rename gave up: OLD → NEW (too many collisions)` | every numbered name was taken |
 | `  -> DRY_RUN: would run: zellij delete-session NAME --force`, `  -> DRY_RUN: would rename 'OLD' → 'NEW'` | a dry run; an exited session is deleted without `--force`, so a session brought back meanwhile is refused rather than killed |
-| `time is up after 50s: N sessions left for the next pass` | a pass that has run 50 seconds, its wait for the lock included, leaves the sessions it has not come to: systemd and the Task Scheduler stop a pass at a minute, and one stopped that way writes no end line |
+| `time is up after 40s: N sessions left for the next pass` | a pass that has run 40 seconds, its wait for the lock included, starts no more deletes and leaves the sessions it has not come to; a names pass says `time is up after 40s: the rest are named at the next pass`. systemd and the Task Scheduler stop a pass at a minute, and one stopped that way writes no end line |
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: `...; the server of NAME (pid N) is stopped: kill -CONT N lets it go on` |

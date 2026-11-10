@@ -13,19 +13,27 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 )
 
-// PassBudget is how long a pass acts, from when it began to wait for the lock,
-// before it leaves the sessions it has not come to for the next pass. systemd
-// and the Task Scheduler stop a pass after a minute, and one stopped from
-// outside writes no end line and keeps none of its book of quiet sessions;
-// under cron and launchd nothing stops it at all.
-var PassBudget = 50 * time.Second
+// PassBudget is how long a pass goes on starting deletes and renames, from
+// when it began to wait for the lock; PassLimit is when every call it makes to
+// zellij ends. systemd and the Task Scheduler stop a pass after a minute, and
+// one stopped from outside writes no end line and keeps none of its book of
+// quiet sessions; under cron and launchd nothing stops it at all. A delete
+// asks zellij up to four times, each call with a limit of its own: the last
+// one started by PassBudget is cut off by PassLimit at the latest, and the
+// pass still has time to write its end before the minute is up.
+var (
+	PassBudget = 40 * time.Second
+	PassLimit  = 50 * time.Second
+)
 
 // Run is one pass: take the lock, rotate the log, decide, act, log.
 func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
+	ctx, cancel := context.WithTimeout(ctx, PassLimit)
+	defer cancel()
+	began := time.Now()
 	if opts.NamesOnly {
-		return namesPass(ctx, e, opts)
+		return namesPass(ctx, e, opts, began)
 	}
-	began := e.Now()
 	l, err := lock.Acquire(e.LockPath, PassLockWait)
 	if err != nil {
 		return Report{}, err
@@ -73,7 +81,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		// Each delete can take seconds when zellij is slow to answer. Past
 		// the budget the rest waits, said once, and the pass ends as passes
 		// do. A dry run changes nothing and takes no such time.
-		if !dry && e.Now().Sub(began) > PassBudget {
+		if !dry && time.Since(began) > PassBudget {
 			left := r.Outcomes[i:]
 			e.Log.Printf("time is up after %s: %d sessions left for the next pass", duration.Format(PassBudget), len(left))
 			for j := range left {
@@ -294,7 +302,7 @@ func titleSummary(titles []string) string {
 // before a delete. It writes to the log only when a name changed, so attempts
 // that keep failing do not fill the log every few minutes; the hourly pass logs
 // those. A dry run does nothing: plan and the hourly dry pass show the names.
-func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
+func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Report, error) {
 	r := Report{Started: e.Now()}
 	if !e.Config.AutoRename || e.Config.DryRun || opts.DryRun {
 		return r, nil
@@ -321,6 +329,11 @@ func namesPass(ctx context.Context, e *Env, opts Options) (Report, error) {
 		// A session the next full pass deletes keeps its name until then.
 		if o.Verdict.Action == policy.Reap {
 			continue
+		}
+		// The names timer has the same minute as the full pass's.
+		if time.Since(began) > PassBudget {
+			e.Log.Printf("time is up after %s: the rest are named at the next pass", duration.Format(PassBudget))
+			break
 		}
 		e.name(ctx, &r, o, false, false, taken)
 	}

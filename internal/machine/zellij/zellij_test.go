@@ -454,6 +454,15 @@ func TestARenameCutShortIsUnconfirmed(t *testing.T) {
 	if err := c.Rename(ctx, "work", "journal"); !errors.Is(err, ErrUnconfirmed) {
 		t.Errorf("cancelled: %v", err)
 	}
+	// A caller whose time is up, as a pass at its limit, is said as such.
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := c.ListClients(ctx, "work"); err == nil || !strings.HasSuffix(err.Error(), "list-clients: cut off, out of time") {
+		t.Errorf("out of time: %v", err)
+	}
 	// zellij saying no is an answer: that one was refused.
 	s := &script{listed: "work [Created 1h ago]\n", renameErr: errors.New("exit status 1")}
 	if err := s.cli().Rename(context.Background(), "work", "journal"); err == nil || errors.Is(err, ErrUnconfirmed) {

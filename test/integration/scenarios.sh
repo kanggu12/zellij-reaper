@@ -269,6 +269,18 @@ for s in exited-old exited-new; do wait_saved "$s"; done
 for s in exited-old exited-new; do kill -9 "$(server_pid "$s")"; done
 for s in exited-old exited-new; do wait_exited "$s"; done
 touch -d '-4 days' "$INFO/$(file_of exited-old)"/*
+# A newer zellij that ran here once left its own data folder, with files of
+# the same names written just now. The folder the running servers' sockets
+# are in is this zellij's; read from the newer one, exited-old would read as
+# exited a moment ago, and every other session as having no files.
+case "$data" in
+  contract_version_*)
+    stale=~/.cache/zellij/contract_version_9/session_info/$(file_of exited-old)
+    mkdir -p "$stale"
+    printf 'layout {\n}\n' >"$stale/session-layout.kdl"
+    printf 'name "exited-old"\n' >"$stale/session-metadata.kdl"
+    ;;
+esac
 # Busy panes need their programs started before the terminals are aged.
 age_ptys shell-busy '-3 hours'
 age_ptys cmd-pane '-3 hours'
@@ -615,28 +627,6 @@ check "the idle orphan is stopped" stopped orph-idle
 check "the log names the server it stopped" grep -Eq '\] pid [0-9]+ \((first name|name): orph-idle\) :: recover: stopped orphan server' "$LOG"
 check "a healthy session is untouched" listed keepme
 
-if by_id; then
-  echo "-- an index that cannot be read"
-  # zellij keeps sessions by id and the names in its index. One that cannot be
-  # read, from a newer zellij say, leaves zellij listing ids, which no
-  # protection names: every session is kept, and recover repairs nothing,
-  # since no broken name can be told from a live one.
-  start idx-idle && age_ptys idx-idle '-3 hours'
-  check "the idle session is due" is_code idx-idle idle-old
-  # The servers keep the index they have open; zellij's commands and the
-  # reaper find one that cannot be read in its place.
-  mv "$INDEX" /tmp/index.kept
-  printf 'not a database' >"$INDEX"
-  check "every session reads as name unknown" sh -c "$R plan --json | jq -e '(.sessions | length) > 0 and all(.sessions[]; .code == \"name-unknown\")' >/dev/null"
-  check "a pass succeeds" $R run --quiet
-  check "and keeps every session" running idx-idle
-  check "it says why in the log" grep -q 'so every session is kept$' "$LOG"
-  check "recover changes nothing, and says so with its status" sh -c "! $R recover --aggressive >/tmp/recover.out 2>&1 && grep -q 'cannot be read' /tmp/recover.out"
-  check "the session is still there" running idx-idle
-  mv /tmp/index.kept "$INDEX"
-  check "with the index back, the name is read again" is_code idx-idle idle-old
-fi
-
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"
 check "doctor says how the last pass went" sh -c "$R doctor | grep -Eq '✓ last pass [0-9: -]+ \([0-9a-z ]+ ago\): [0-9]+ reaped, [0-9]+ kept'"
@@ -649,6 +639,32 @@ check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after 
 printf 'idle_after = = "1h"\n' >/tmp/broken.toml
 check "a command stops at settings that do not parse" sh -c "! ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R plan >/dev/null 2>&1"
 check "uninstall runs all the same" env ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R uninstall
+
+if by_id; then
+  echo "-- an index that cannot be read"
+  # zellij keeps sessions by id and the names in its index. One that cannot be
+  # read, from a newer zellij say, leaves zellij listing ids, which no
+  # protection names: every session is kept, and recover repairs nothing,
+  # since no broken name can be told from a live one. This comes last: the
+  # index does not come back whole.
+  start idx-idle && age_ptys idx-idle '-3 hours'
+  # The session's files are written a moment after it starts.
+  for _ in $(seq 100); do
+    [ -f "$INFO/$(file_of idx-idle)/session-metadata.kdl" ] && break
+    sleep 0.1
+  done
+  check "the idle session is due" is_code idx-idle idle-old
+  # The servers keep the index they have open, under its new name; zellij's
+  # commands and the reaper find one that cannot be read in its place.
+  mv "$INDEX" "$INDEX.kept"
+  printf 'not a database' >"$INDEX"
+  check "every session reads as name unknown" sh -c "$R plan --json | jq -e '(.sessions | length) > 0 and all(.sessions[]; .code == \"name-unknown\")' >/dev/null"
+  check "a pass succeeds" $R run --quiet
+  check "and keeps every session" running idx-idle
+  check "it says why in the log" grep -q 'so every session is kept$' "$LOG"
+  check "recover changes nothing, and says so with its status" sh -c "! $R recover --aggressive >/tmp/recover.out 2>&1 && grep -q 'cannot be read' /tmp/recover.out"
+  check "the session is still there" running idx-idle
+fi
 
 echo "passed $pass, failed $fail"
 [ "$fail" = 0 ]

@@ -104,6 +104,9 @@ func (c *CLI) call(parent context.Context, args ...string) (string, string, erro
 	// Name a timeout plainly ("signal: killed" says nothing to a reader), and
 	// tell this call's limit apart from the caller giving up.
 	switch {
+	// The caller's own time was up: a pass at its limit (reaper.PassLimit).
+	case errors.Is(parent.Err(), context.DeadlineExceeded):
+		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: cut off, out of time", strings.Join(args, " ")))
 	case parent.Err() != nil:
 		return out.String(), "", cutShort(fmt.Sprintf("zellij %s: cancelled", strings.Join(args, " ")))
 	case ctx.Err() == context.DeadlineExceeded:

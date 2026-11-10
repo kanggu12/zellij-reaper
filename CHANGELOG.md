@@ -47,10 +47,11 @@ that only fixes raises the patch number. Each release's section here is its rele
   saw sessions and could name them all.
 - A damaged index could make the SQLite reader copy one overflow chain for every cell that pointed at it: 2 GB from a
   10 MB file. A page is read once per table, and a size field is not made room for ahead of the pages that hold it.
-- systemd and the Task Scheduler stop a pass after a minute, and one stopped so writes no end line and keeps none of
-  its book of quiet sessions. A pass that has run 50 seconds, its wait for the lock included, leaves the sessions it
-  has not come to for the next pass, says so in the log (`time is up after 50s: 3 sessions left for the next pass`),
-  and ends as passes do.
+- systemd and the Task Scheduler stop a pass after a minute, and one stopped so writes no end line and keeps none of its
+  book of quiet sessions. A pass that has run 40 seconds, its wait for the lock included, starts no more deletes or
+  renames, leaves the sessions it has not come to for the next pass and says so in the log
+  (`time is up after 40s: 3 sessions left for the next pass`); every call it makes to zellij ends by 50 seconds, so the
+  pass ends as passes do, names passes too.
 - On macOS `lsof` had no time limit: a pane working in a directory on a file server that stopped answering held the
   pass and the lock for good. It gets 10 seconds. `systemctl`, `loginctl`, `launchctl`, PowerShell and `crontab` get a
   minute each, where one that never answered held `install`, `uninstall` and `doctor`.

@@ -49,7 +49,11 @@ type fakeZellij struct {
 }
 
 func (f *fakeZellij) Available() bool { return true }
-func (f *fakeZellij) ListSessions(context.Context) ([]zellij.Listed, error) {
+func (f *fakeZellij) ListSessions(ctx context.Context) ([]zellij.Listed, error) {
+	// As the real client does: past the caller's deadline zellij is not asked.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if f.during != nil {
 		f.during()
 		f.during = nil
@@ -62,7 +66,10 @@ func (f *fakeZellij) ListSessions(context.Context) ([]zellij.Listed, error) {
 	}
 	return f.listed, nil
 }
-func (f *fakeZellij) ListClients(_ context.Context, name string) ([]zellij.ClientRow, error) {
+func (f *fakeZellij) ListClients(ctx context.Context, name string) ([]zellij.ClientRow, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if f.lateErr[name] != nil {
 		return nil, f.lateErr[name]
 	}
@@ -71,7 +78,10 @@ func (f *fakeZellij) ListClients(_ context.Context, name string) ([]zellij.Clien
 	}
 	return nil, nil
 }
-func (f *fakeZellij) Delete(_ context.Context, name string) error {
+func (f *fakeZellij) Delete(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.deleted = append(f.deleted, name)
 	f.forced = append(f.forced, name)
 	if f.onDelete != nil {
@@ -79,14 +89,20 @@ func (f *fakeZellij) Delete(_ context.Context, name string) error {
 	}
 	return nil
 }
-func (f *fakeZellij) DeleteExited(_ context.Context, name string) error {
+func (f *fakeZellij) DeleteExited(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.deleted = append(f.deleted, name)
 	if f.onDelete != nil {
 		f.onDelete(name)
 	}
 	return nil
 }
-func (f *fakeZellij) Rename(_ context.Context, name, to string) error {
+func (f *fakeZellij) Rename(ctx context.Context, name, to string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if f.onRename != nil {
 		f.onRename(to)
 	}

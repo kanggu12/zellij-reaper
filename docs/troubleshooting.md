@@ -30,7 +30,7 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
   `zellij list-sessions` in a shell waits the same way. A server a signal stopped is named on that line, with the
   command that lets it go on (`kill -CONT PID`). One that is stuck some other way is not; `ps -o pid,stat,args -C
   zellij` lists the servers, and `kill PID` ends one that never answers, with its session.
-- **It came to only some sessions: `time is up after 50s`.** zellij answered slowly enough that the pass ran out of
+- **It came to only some sessions: `time is up after 40s`.** zellij answered slowly enough that the pass ran out of
   its time; the next pass goes on with the rest.
 - **Something holds the pass lock.** A pass waits up to 30 seconds for it, then gives up and leaves the work to the
   holder. `lsof ~/.local/state/zellij-reaper/lock` (on Linux also `fuser -v`) names the process. The system frees the
