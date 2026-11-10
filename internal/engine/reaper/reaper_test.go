@@ -28,6 +28,11 @@ type fakeZellij struct {
 	// during runs when the sessions are listed: something another process
 	// does while the pass reads the facts.
 	during func()
+	// lateCopy runs, once, at the first listing lateCopyAfter or more after
+	// a rename: zellij writing a copy under the old name a moment late.
+	lateCopy      func()
+	lateCopyAfter time.Duration
+	renamedAt     time.Time
 	// late are clients that appear before the second look: someone attaching
 	// between the check and the delete. The facts come from the socket table,
 	// so list-clients is asked only then.
@@ -60,6 +65,10 @@ func (f *fakeZellij) ListSessions(ctx context.Context) ([]zellij.Listed, error) 
 	if f.during != nil {
 		f.during()
 		f.during = nil
+	}
+	if f.lateCopy != nil && !f.renamedAt.IsZero() && time.Since(f.renamedAt) >= f.lateCopyAfter {
+		f.lateCopy()
+		f.lateCopy = nil
 	}
 	if f.listErr != nil {
 		return nil, f.listErr
@@ -123,6 +132,7 @@ func (f *fakeZellij) Rename(ctx context.Context, name, to string) error {
 		return zellij.ErrUnconfirmed
 	}
 	f.renamed = append(f.renamed, name+"->"+to)
+	f.renamedAt = time.Now()
 	return nil
 }
 

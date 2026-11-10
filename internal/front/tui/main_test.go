@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
@@ -16,6 +17,9 @@ import (
 func TestMain(m *testing.M) {
 	zellij.GOOS = "linux"
 	zellij.RenamesReachable = true
+	// No wait for a copy zellij may leave after a rename: the fake leaves
+	// it, when a test asks, before the rename returns.
+	reaper.LeftoverSettles = 0
 	os.Exit(m.Run())
 }
 

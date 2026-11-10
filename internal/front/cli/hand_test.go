@@ -28,7 +28,12 @@ type fakeSessions struct {
 	listed string
 	// clients is the number of clients attached to each running session.
 	clients map[string]int
-	calls   []string
+	// leaveCopy renames as zellij does when its rename races the job that
+	// writes the session's files: the old name stays, as an exited session.
+	leaveCopy bool
+	// onDelete runs as zellij is asked to delete a session.
+	onDelete func()
+	calls    []string
 }
 
 func (f *fakeSessions) run(_ context.Context, args ...string) (string, string, error) {
@@ -42,6 +47,9 @@ func (f *fakeSessions) run(_ context.Context, args ...string) (string, string, e
 		}
 		return f.listed, "", nil
 	case args[0] == "delete-session":
+		if f.onDelete != nil {
+			f.onDelete()
+		}
 		// The session leaves the list, as zellij would.
 		var kept []string
 		for _, line := range strings.SplitAfter(f.listed, "\n") {
@@ -59,6 +67,16 @@ func (f *fakeSessions) run(_ context.Context, args ...string) (string, string, e
 		}
 		return out.String(), "", nil
 	case len(args) == 5 && args[3] == "rename-session":
+		if f.leaveCopy {
+			var lines []string
+			for _, line := range strings.SplitAfter(f.listed, "\n") {
+				if strings.HasPrefix(line, args[1]+" ") {
+					line = args[1] + " [Created 0s ago] (EXITED - attach to resurrect)\n"
+				}
+				lines = append(lines, line)
+			}
+			f.listed = strings.Join(lines, "")
+		}
 		// The new name is listed from now on, as zellij would.
 		f.listed += args[4] + " [Created 1m ago]\n"
 		return "", "", nil
@@ -279,19 +297,29 @@ func TestRenameFromTheCommandLine(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("zellij on Windows cannot reach a session after a rename")
 	}
-	z := &fakeSessions{listed: "notes [Created 2h ago] \nold [Created 5d ago] (EXITED - attach to resurrect)\n"}
+	z := &fakeSessions{listed: "notes [Created 2h ago] \nold [Created 5d ago] (EXITED - attach to resurrect)\n", leaveCopy: true}
 	a := handApp(t, z)
 	b := tui.NewCommandLine(a)
 	cmd, out := output()
+	// zellij leaves a copy under the old name: deleted, as an exited
+	// session, once the rename has been said.
+	said := ""
+	z.onDelete = func() { said = out.String() }
 	if err := renameByHand(cmd, a, b, "notes", "release-notes"); err != nil {
 		t.Fatal(err)
 	}
 	if !z.did("--session notes action rename-session release-notes") || !strings.Contains(out.String(), "Renamed notes to release-notes") {
 		t.Errorf("calls %v, output:\n%s", z.calls, out)
 	}
-	if log := logged(t, a); !strings.Contains(log, "notes :: renamed from the command line to release-notes") {
-		t.Errorf("log:\n%s", log)
+	if !z.did("delete-session notes") || z.did("delete-session notes --force") || !strings.Contains(said, "Renamed notes to release-notes") {
+		t.Errorf("calls %v, output when the copy was deleted:\n%s", z.calls, said)
 	}
+	for _, want := range []string{"notes :: renamed from the command line to release-notes", "notes [EXITED] :: copy zellij left when it renamed the session to release-notes", "  -> deleted: notes"} {
+		if log := logged(t, a); !strings.Contains(log, want) {
+			t.Errorf("no %q in the log:\n%s", want, log)
+		}
+	}
+	z.leaveCopy, z.onDelete = false, nil
 	// As in the dashboard: an exited session and one nobody lists are refused.
 	for name, want := range map[string]string{"old": "An exited session cannot be renamed", "nobody": "no session is called nobody"} {
 		if err := renameByHand(cmd, a, b, name, "x"); err == nil || !strings.Contains(err.Error(), want) {

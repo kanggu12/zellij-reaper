@@ -37,6 +37,8 @@ type fake struct {
 	log       []string
 	// renameNote is the warning Rename returns.
 	renameNote string
+	// leftovers are the renames DropLeftover was asked to look after.
+	leftovers []string
 	// kept are the names KeepName was asked to keep.
 	kept []string
 	// inside runs the dashboard in a zellij pane; switched records SwitchTo
@@ -59,6 +61,9 @@ func (f *fake) Delete(_ context.Context, name string) error {
 func (f *fake) Rename(_ context.Context, name, to string) (string, error) {
 	f.renamed = append(f.renamed, name+"->"+to)
 	return f.renameNote, nil
+}
+func (f *fake) DropLeftover(_ context.Context, name, to string) {
+	f.leftovers = append(f.leftovers, name+"->"+to)
 }
 func (f *fake) KeepName(_ context.Context, name string) error {
 	f.kept = append(f.kept, name)
@@ -300,9 +305,26 @@ func TestActions(t *testing.T) {
 	// r renames through the input.
 	m = press(t, m, "r")
 	m.input.set("journal")
-	m = press(t, m, "enter")
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	next, cmd = next.(model).Update(runCmd(cmd))
+	m = next.(model)
 	if strings.Join(b.renamed, ",") != "notes->journal" {
 		t.Errorf("renamed %v", b.renamed)
+	}
+	// The toast shows at once; the look for a copy zellij left under the old
+	// name, which waits a moment, runs after it among the refreshes.
+	if !strings.Contains(m.toast, "journal") || len(b.leftovers) != 0 {
+		t.Errorf("toast %q, looked after %v", m.toast, b.leftovers)
+	}
+	if batch, ok := runCmd(cmd).(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if c != nil {
+				runCmd(c)
+			}
+		}
+	}
+	if strings.Join(b.leftovers, ",") != "notes->journal" {
+		t.Errorf("looked after %v", b.leftovers)
 	}
 	// f asks first when the pass would reap something; F always asks.
 	m = press(t, m, "f")

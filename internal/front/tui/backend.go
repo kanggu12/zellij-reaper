@@ -38,6 +38,10 @@ type Backend interface {
 	// Rename renames one session by hand. The text, when not empty, is a
 	// warning to show instead of the usual "renamed".
 	Rename(ctx context.Context, name, to string) (string, error)
+	// DropLeftover deletes the copy zellij may leave of a session renamed by
+	// hand under the name it had, and logs it (see reaper.DropLeftovers). It
+	// waits for zellij first, so it runs once the rename has been reported.
+	DropLeftover(ctx context.Context, name, to string)
 	// KeepName keeps a session's name as it is: passes leave it alone from then on.
 	KeepName(ctx context.Context, name string) error
 	// SetProtected adds a name to the protected list or removes it.
@@ -184,6 +188,10 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 		return err
 	}, "%s :: renamed from %s to %s", name, r.from, to)
 	return note, err
+}
+
+func (r real) DropLeftover(ctx context.Context, name, to string) {
+	r.a.Reaper.DropLeftovers(ctx, map[string]string{name: to})
 }
 
 // KeepName runs under the pass lock: a pass that read the list a moment before

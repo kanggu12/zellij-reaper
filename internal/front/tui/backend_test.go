@@ -231,6 +231,44 @@ func TestRenameByHandKeepsTheProtection(t *testing.T) {
 	}
 }
 
+func TestRenameByHandDeletesTheCopyZellijLeavesUnderTheOldName(t *testing.T) {
+	i18n.Set(i18n.English)
+	ctx := context.Background()
+	z := &fakeZellij{sessions: "notes [Created 2h ago] \n"}
+	b, a := backendFor(t, z, "")
+	// zellij's rename raced the job that writes the session's files: they
+	// are written once more under the old name, an exited session.
+	z.onRename = func() { z.sessions = "notes [Created 0s ago] (EXITED - attach to resurrect)\n" }
+	if _, err := b.Rename(ctx, "notes", "journal"); err != nil {
+		t.Fatal(err)
+	}
+	// The rename is reported first: the look comes after.
+	if z.did("delete-session") {
+		t.Errorf("deleted before the rename was reported: %v", z.calls)
+	}
+	b.DropLeftover(ctx, "notes", "journal")
+	if !z.did("delete-session notes") || z.did("delete-session notes --force") || strings.Contains(z.sessions, "notes ") {
+		t.Errorf("calls %v, sessions %q", z.calls, z.sessions)
+	}
+	log, _ := os.ReadFile(a.Reaper.Log.Path)
+	for _, want := range []string{"notes :: renamed from the dashboard to journal", "notes [EXITED] :: copy zellij left when it renamed the session to journal", "  -> deleted: notes"} {
+		if !strings.Contains(string(log), want) {
+			t.Errorf("no %q in the log:\n%s", want, log)
+		}
+	}
+
+	// Without a copy, nothing is deleted.
+	z = &fakeZellij{sessions: "todo [Created 2h ago] \n"}
+	b, _ = backendFor(t, z, "")
+	if _, err := b.Rename(ctx, "todo", "later"); err != nil {
+		t.Fatal(err)
+	}
+	b.DropLeftover(ctx, "todo", "later")
+	if z.did("delete-session") {
+		t.Errorf("calls %v", z.calls)
+	}
+}
+
 func TestRenameByHandSaysWhenThePatternNoLongerProtects(t *testing.T) {
 	i18n.Set(i18n.English)
 	ctx := context.Background()

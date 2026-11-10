@@ -46,15 +46,19 @@ its wait over:
    makes to zellij ends by 50 seconds, so it ends before the minute systemd and the Task Scheduler give it.
 8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
    another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
-   session for its clients once more first.
+   session for its clients once more first. zellij moves a renamed session's files to the new name, then tells the job
+   that writes them every second, and a write in between makes the old name's folder again: zellij then lists an exited
+   session under the old name, a copy that attach would bring back. So 1.5 seconds after its renames the pass deletes an
+   exited session under an old name, as it deletes exited sessions, never forced. Until the rename the name was the
+   renamed session's own, so no other session had it.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
 
 The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, and step 2 only when
-it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing, writes to the log
-only when a name changed, does nothing in a dry run, and leaves dropping tails (`auto_rename_drop_tail`) to the hourly
-pass.
+it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing but such a copy,
+writes to the log only when a name changed, does nothing in a dry run, and leaves dropping tails
+(`auto_rename_drop_tail`) to the hourly pass.
 
 ## The checks
 

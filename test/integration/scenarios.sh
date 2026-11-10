@@ -209,7 +209,7 @@ echo "-- sessions in every state"
 # only when no session is running, so this comes first, and it runs something so the
 # forced pass keeps it. The scenarios below start sessions under a few such names of
 # their own, so a pick among those is made again.
-reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak brave-yak '
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak brave-yak chatty-cactus '
 mkdir -p /srv/own-pick
 own=""
 for _ in 1 2 3 4 5; do
@@ -639,6 +639,41 @@ check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after 
 printf 'idle_after = = "1h"\n' >/tmp/broken.toml
 check "a command stops at settings that do not parse" sh -c "! ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R plan >/dev/null 2>&1"
 check "uninstall runs all the same" env ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R uninstall
+
+echo "-- a copy zellij leaves under an old name"
+# zellij moves a renamed session's files to the new name, then tells the job
+# that writes them every second: a write in between makes the old name's
+# folder again, which zellij lists as an exited session, a second copy for
+# attach to bring back. That happens by chance, about once in some hundreds
+# of renames, so the zellij here writes such a copy after every rename. A
+# zellij that keeps its sessions by id moves no files on a rename.
+if by_id; then
+  echo "  (not on a zellij that keeps its sessions by id)"
+else
+  # The lines are the wrapper's own, its $ signs for it to expand.
+  # shellcheck disable=SC2016
+  printf '%s\n' '#!/bin/sh' \
+    '# zellij whose rename always leaves a copy of the session under the old name.' \
+    "info='$INFO'" \
+    'zellij "$@" || exit' \
+    '[ "$1" = --session ] && [ "$3" = action ] && [ "$4" = rename-session ] || exit 0' \
+    'for _ in $(seq 50); do [ -d "$info/$5" ] && break; sleep 0.02; done' \
+    'cp -a "$info/$5" "$info/$2"' >/usr/local/bin/zellij-leftover
+  chmod +x /usr/local/bin/zellij-leftover
+  start chatty-cactus /tmp/watcher.kdl && wait_title chatty-cactus 'build watcher'
+  # zellij lists an exited session only once its layout is saved, a second or
+  # so after the start: without one, the copy would not be listed at all.
+  for _ in $(seq 100); do [ -s "$INFO/chatty-cactus/session-layout.kdl" ] && break; sleep 0.1; done
+  check "its layout is saved" test -s "$INFO/chatty-cactus/session-layout.kdl"
+  check "a pass through it succeeds" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_ZELLIJ=/usr/local/bin/zellij-leftover $R run --quiet
+  copy_to=$(sed -n 's/^\[[^]]*\]   -> renamed: chatty-cactus → //p' "$LOG" | tail -1)
+  check "it renames the session" test -n "$copy_to"
+  check "which runs on under its new name" sh -c "$Z list-sessions -n | grep -q '^$copy_to ' && ! $Z list-sessions -n | grep '^$copy_to ' | grep -q EXITED"
+  check "its server is the same" running chatty-cactus
+  check "the log tells of the copy zellij left" grep -q "] chatty-cactus \[EXITED\] :: copy zellij left when it renamed the session to $copy_to\$" "$LOG"
+  check "and that the pass deleted it" grep -q '\]   -> deleted: chatty-cactus$' "$LOG"
+  check "zellij lists no copy" gone chatty-cactus
+fi
 
 if by_id; then
   echo "-- an index that cannot be read"

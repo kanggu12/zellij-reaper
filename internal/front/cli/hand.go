@@ -187,5 +187,7 @@ func renameByHand(cmd *cobra.Command, a *app.App, b tui.Backend, name, to string
 	default:
 		println(w, ok(t)+i18n.T("toast.renamed", name, to))
 	}
+	// Said first: the look for a copy zellij left waits a moment.
+	b.DropLeftover(ctx, name, to)
 	return nil
 }

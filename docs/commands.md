@@ -67,12 +67,13 @@ warning alone still exits 0.
 ## Acting
 
 **`run`** runs one pass now, as the timer does, and prints a table of what it did, with the totals. `--dry-run` only
-logs; `--force` sets both waits to zero for this pass; `--names-only` renames what a pass would and deletes nothing,
-writing to the log only when it renames (the names timer's mode); `--quiet` (the timers' mode) prints only an error, or
-the line on failed deletes below. The exit status is 0 when the pass ran, when another pass holds the lock, or when
-zellij is missing. It is 1 when zellij refused a delete, with a line saying how many, also under `--quiet`, so the
-timer's own status shows it; and 1 on any other error, such as zellij failing to list its sessions. A session kept at
-the last moment, or a rename zellij refused, is no failure.
+logs; `--force` sets both waits to zero for this pass; `--names-only` renames what a pass would and deletes nothing but
+the copy zellij may leave under an old name ([how it decides](how-it-decides.md)), writing to the log only when it
+renames (the names timer's mode); `--quiet` (the timers' mode) prints only an error, or the line on failed deletes
+below. The exit status is 0 when the pass ran, when another pass holds the lock, or when zellij is missing. It is 1 when
+zellij refused a delete, with a line saying how many, also under `--quiet`, so the timer's own status shows it; and 1 on
+any other error, such as zellij failing to list its sessions. A session kept at the last moment, or a rename zellij
+refused, is no failure.
 
 **`protect NAME...`** adds sessions to the protected list; with no name it prints the list, one name a line (in a
 terminal, an empty list says so). **`unprotect NAME...`** takes them off, and says when a name was not on the list. A

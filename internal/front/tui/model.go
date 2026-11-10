@@ -48,9 +48,12 @@ type (
 	timerMsg struct{ st timers.TimerStatus }
 	tickMsg  time.Time
 	// doneMsg reports an action's result as a toast and asks for a refresh.
+	// After a rename, from and to name it, for the copy zellij may leave
+	// under the old name to be looked for once the toast shows.
 	doneMsg struct {
-		text string
-		cat  ui.Category
+		text     string
+		cat      ui.Category
+		from, to string
 	}
 	logMsg struct {
 		lines []string
@@ -257,6 +260,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.say(msg.text, msg.cat)
 		}
 		m.loading = true
+		if msg.from != "" {
+			return m, tea.Batch(m.loadPlan(), m.loadTimer(), m.loadLog(), m.dropLeftover(msg.from, msg.to))
+		}
 		return m, tea.Batch(m.loadPlan(), m.loadTimer(), m.loadLog())
 	case logMsg:
 		m.logLines = msg.lines

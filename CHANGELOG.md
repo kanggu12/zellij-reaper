@@ -6,6 +6,15 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- A rename could leave a second copy of the session under the name it had. zellij moves a renamed session's files to
+  the new name, then tells the job that writes them every second; a write in between makes the old name's folder
+  again, and zellij lists a session by that name as exited, which attach would bring back. It happened about once in
+  some hundreds of renames. A pass that renamed sessions, and a rename in the dashboard or with `rename`, now waits
+  1.5 s and deletes an exited session under an old name, as exited sessions are deleted, never forced, and the log
+  says so. Until the rename the name was the renamed session's own, so no other session had it.
+
 ## [0.13.0] - 2026-11-10
 
 ### Added

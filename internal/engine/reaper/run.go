@@ -95,6 +95,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 		}
 		e.act(ctx, &r, &r.Outcomes[i], dry, true, taken)
 	}
+	e.DropLeftovers(ctx, r.renames())
 	// Without the index the list holds ids, not names: every name would
 	// read as gone, kept ones too.
 	if !dry && r.IndexErr == nil {
@@ -364,6 +365,7 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 		}
 		e.name(ctx, &r, o, false, false, taken)
 	}
+	e.DropLeftovers(ctx, r.renames())
 	held := e.Log.Take()
 	_, _, renamed := r.Counts()
 	if renamed == 0 {

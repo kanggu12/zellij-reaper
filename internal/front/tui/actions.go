@@ -56,9 +56,19 @@ func (m model) rename(name, to string) tea.Cmd {
 		// Renamed, with something the person must know (it lost its
 		// protection): in the color of what the next pass may reap.
 		if note != "" {
-			return doneMsg{text: note, cat: ui.CatReap}
+			return doneMsg{text: note, cat: ui.CatReap, from: name, to: to}
 		}
-		return doneMsg{text: i18n.T("toast.renamed", name, to), cat: ui.CatBusy}
+		return doneMsg{text: i18n.T("toast.renamed", name, to), cat: ui.CatBusy, from: name, to: to}
+	}
+}
+
+// dropLeftover deletes the copy zellij may leave of a session renamed by
+// hand under its old name, after the toast, then shows the sessions again.
+func (m model) dropLeftover(name, to string) tea.Cmd {
+	b, ctx := m.b, m.ctx
+	return func() tea.Msg {
+		b.DropLeftover(ctx, name, to)
+		return doneMsg{}
 	}
 }
 
