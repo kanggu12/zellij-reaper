@@ -565,6 +565,7 @@ check "zellij lists the broken session" listed "$long"
 check "recover --aggressive --dry-run finds no orphan" sh -c "$R recover --aggressive --dry-run | grep -q 'every server serves a socket file'"
 check "recover repairs the long name" $R recover
 check "its directory is gone" test ! -d "$INFO/$long"
+check "and the log says so" grep -qF "] $long :: recover: removed $INFO/$long" "$LOG"
 check "the renamed session survives" listed second2
 
 echo "-- recover --aggressive keeps servers somebody uses"
@@ -603,6 +604,7 @@ check "the server with a client is kept" running orph-client
 check "the server with a busy pane is kept" running orph-busy
 check "the renamed server with a busy pane is kept" running orph-first
 check "the idle orphan is stopped" stopped orph-idle
+check "the log names the server it stopped" grep -Eq '\] pid [0-9]+ \((first name|name): orph-idle\) :: recover: stopped orphan server' "$LOG"
 check "a healthy session is untouched" listed keepme
 
 echo "-- the other commands"
@@ -611,6 +613,11 @@ check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version 
 check "the dashboard renders a frame" sh -c "$R tui --snapshot 120x30 | sed 's/\x1b\[[0-9;]*m//g' | grep -q zellij-reaper"
 check "logs prints the log" sh -c "$R logs -n 50 | grep -q 'reaper end'"
 check "config show lists the file" sh -c "$R config show | grep -Eq 'idle_after += \"1h\"'"
+# Settings that do not parse stop every command that needs them, but not the
+# one somebody reaches for to switch the reaper off.
+printf 'idle_after = = "1h"\n' >/tmp/broken.toml
+check "a command stops at settings that do not parse" sh -c "! ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R plan >/dev/null 2>&1"
+check "uninstall runs all the same" env ZELLIJ_REAPER_CONFIG=/tmp/broken.toml $R uninstall
 
 echo "passed $pass, failed $fail"
 [ "$fail" = 0 ]

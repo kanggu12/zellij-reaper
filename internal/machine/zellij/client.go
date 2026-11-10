@@ -79,6 +79,11 @@ func (c *CLI) call(parent context.Context, args ...string) (string, string, erro
 	cmd := exec.CommandContext(ctx, c.Bin, args...)
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
+	// Killing zellij at the time limit is not enough where something it
+	// started still holds its output: Wait waits for that too, and a pass
+	// measured with such a child hung until it was killed from outside, with
+	// the pass lock held. A second after the kill, the output is let go.
+	cmd.WaitDelay = time.Second
 	err := cmd.Run()
 	// Name a timeout plainly ("signal: killed" says nothing to a reader), and
 	// tell this call's limit apart from the caller giving up.
@@ -178,7 +183,7 @@ func (c *CLI) ListSessions(ctx context.Context) ([]Listed, error) {
 		if strings.Contains(errOut+out, "No active zellij sessions found") {
 			return nil, ErrNoSessions
 		}
-		return nil, fmt.Errorf("zellij list-sessions: %s", oneLine(errOut, err))
+		return nil, failed("zellij list-sessions", errOut, err)
 	}
 	sessions := ParseSessions(out)
 	// An empty list with exit status 0 means the same thing.
@@ -198,7 +203,7 @@ func (c *CLI) ListSessions(ctx context.Context) ([]Listed, error) {
 func (c *CLI) Delete(ctx context.Context, name string) error {
 	_, errOut, err := c.call(ctx, "delete-session", name, "--force")
 	if err != nil {
-		return fmt.Errorf("zellij delete-session %s: %s", name, oneLine(errOut, err))
+		return failed("zellij delete-session "+name, errOut, err)
 	}
 	return c.waitDeleted(ctx, name)
 }
@@ -224,7 +229,7 @@ func (c *CLI) waitDeleted(ctx context.Context, name string) error {
 		// Not forced: a session someone brought back meanwhile is theirs to keep.
 		case sessions[i].Exited:
 			if _, errOut, err := c.call(ctx, "delete-session", name); err != nil {
-				return fmt.Errorf("zellij delete-session %s: %s", name, oneLine(errOut, err))
+				return failed("zellij delete-session "+name, errOut, err)
 			}
 			return nil
 		case time.Now().After(deadline):
@@ -389,7 +394,7 @@ func (c *CLI) ListClients(ctx context.Context, name string) ([]ClientRow, error)
 func (c *CLI) askClients(ctx context.Context, name string) ([]ClientRow, error) {
 	out, errOut, err := c.call(ctx, "--session", name, "action", "list-clients")
 	if err != nil {
-		return nil, fmt.Errorf("zellij list-clients %s: %s", name, oneLine(errOut, err))
+		return nil, failed("zellij list-clients "+name, errOut, err)
 	}
 	return ParseClients(out)
 }
@@ -412,6 +417,18 @@ func (c *CLI) SwitchTo(ctx context.Context, name, here string) *exec.Cmd {
 		cmd.Env = append(os.Environ(), "ZELLIJ_SESSION_NAME="+here)
 	}
 	return cmd
+}
+
+// failed is a zellij command that did not succeed, worded once: what it was,
+// then what it printed or why it ended. A command cut short says what it was
+// already ("zellij list-sessions --no-formatting: no answer within 10s"), and
+// is handed on as it is, which also keeps it a cutShort for the callers that
+// ask.
+func failed(what, stderr string, err error) error {
+	if errors.As(err, new(cutShort)) {
+		return err
+	}
+	return fmt.Errorf("%s: %s", what, oneLine(stderr, err))
 }
 
 // oneLine keeps an error message to one line for the log.

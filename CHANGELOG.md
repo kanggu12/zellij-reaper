@@ -31,6 +31,11 @@ that only fixes raises the patch number. Each release's section here is its rele
   [table of the log's lines](https://github.com/kanggu12/zellij-reaper/blob/main/docs/how-it-decides.md#the-log).
 - `recover` ends with the number of orphan servers it leaves and the command that stops them, in a dry run too. It
   listed such a server and closed with "nothing to repair": only `--help` said that `--aggressive` stops it.
+- `doctor` says how the last pass went, read from the log: when it ran and what it did, or why it stopped. It also says
+  when the passes stopped coming, when something holds the pass lock so that every pass gives up, and when the log
+  cannot be written. Measured with each of these in a container, the timer went on running passes that ended with
+  status 0, and nothing showed it: a process holding the lock, a pass killed half way, a log on a read-only or full file
+  system, a zellij server that stopped answering.
 
 ### Fixed
 
@@ -62,6 +67,14 @@ that only fixes raises the patch number. Each release's section here is its rele
   renamed with `rename`, though the log has both.
 - A command that picks its colors in several places asked the terminal for its background each time. On a terminal that
   answers no such question each asking waited out its time limit, and `setup --hook` took 12 s; it asks once.
+- A zellij command stopped at its time limit kept a pass waiting where something it had started still held its output.
+  Measured with such a zellij, a pass hung until it was killed from outside, holding the pass lock: under cron or
+  launchd, which do not stop a pass, every later pass would have given up. The output is let go a second after the
+  limit, and the pass goes on.
+- `logs` stopped at a protected list that could not be read, which stops every pass as well: the log is where one looks
+  for why. It reads only the settings now.
+- An error from a zellij command stopped at its time limit named the command twice: "zellij list-sessions: zellij
+  list-sessions --no-formatting: no answer within 10s".
 - The `.deb` package had no section, and pacman showed "Unknown Packager".
 
 ## [0.10.1] - 2026-11-10

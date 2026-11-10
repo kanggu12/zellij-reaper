@@ -15,6 +15,7 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
 	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
 	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
+	"github.com/kanggu12/zellij-reaper/internal/settings/config"
 )
 
 func cmdRun() *cobra.Command {
@@ -142,12 +143,15 @@ func cmdLogs() *cobra.Command {
 			if n < 0 {
 				return fmt.Errorf("--lines must be 0 or more, not %d", n)
 			}
-			a, err := load()
+			// Only the settings, for where the log is. A protected list that
+			// cannot be read stops every pass, and the log is where one
+			// looks for why.
+			cfg, err := config.Load(configPath, config.OSEnv{})
 			if err != nil {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			lines, err := logfile.Tail(a.Config.LogPath, n)
+			lines, err := logfile.Tail(cfg.LogPath, n)
 			if err != nil && !os.IsNotExist(err) {
 				return err
 			}
@@ -167,7 +171,7 @@ func cmdLogs() *cobra.Command {
 				return nil
 			}
 			// Follow until interrupted; rotation is followed to the new file.
-			return logfile.Follow(a.Config.LogPath, lineWriter{w: w, t: t}, cmd.Context().Done())
+			return logfile.Follow(cfg.LogPath, lineWriter{w: w, t: t}, cmd.Context().Done())
 		},
 	}
 	cmd.Flags().IntVarP(&n, "lines", "n", 50, "how many lines to show")

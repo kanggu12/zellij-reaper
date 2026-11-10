@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -152,6 +153,113 @@ func TestParseAndKind(t *testing.T) {
 		if strings.HasPrefix(raw, "[") && (l.Time.IsZero() || strings.HasPrefix(l.Text, "[")) {
 			t.Errorf("%q: timestamp not split: %+v", raw, l)
 		}
+	}
+}
+
+func TestLastPassSaysHowItEnded(t *testing.T) {
+	at := func(s string) time.Time {
+		t.Helper()
+		v, err := time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	earlier := []string{
+		"[2026-11-04 08:31:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
+		"[2026-11-04 08:31:00] === reaper end (2 reaped, 1 kept, 0 renamed) ===",
+	}
+	for _, c := range []struct {
+		name  string
+		lines []string
+		want  Pass
+	}{
+		{"no pass at all", []string{"[2026-11-04 09:31:00] notes :: deleted from the dashboard"}, Pass{}},
+		{"one that acted", append(earlier,
+			"[2026-11-04 09:31:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
+			"[2026-11-04 09:31:00] scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 13h since last activity",
+			"[2026-11-04 09:31:01]   -> deleted: scratch",
+			"[2026-11-04 09:31:01] === reaper end (1 reaped, 4 kept, 2 renamed) ===",
+		), Pass{Found: true, Started: at("2026-11-04 09:31:00"), Ended: true, Acted: true, Reaped: 1, Kept: 4, Renamed: 2}},
+		// One that stopped before it acted says why on the line before its end.
+		{"one that stopped", append(earlier,
+			"[2026-11-04 09:31:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
+			"[2026-11-04 09:31:10] zellij list-sessions failed: zellij list-sessions --no-formatting: no answer within 10s",
+			"[2026-11-04 09:31:10] === reaper end ===",
+		), Pass{Found: true, Started: at("2026-11-04 09:31:00"), Ended: true, Stopped: "zellij list-sessions failed: zellij list-sessions --no-formatting: no answer within 10s"}},
+		// A pass ended from outside wrote no end line.
+		{"one with no end", append(earlier,
+			"[2026-11-04 09:31:00] === reaper start (dry_run=false idle_after=12h exited_after=3d) ===",
+			"[2026-11-04 09:31:00] scratch [RUNNING] panes={Pane #1} :: REAP IDLE, 13h since last activity",
+		), Pass{Found: true, Started: at("2026-11-04 09:31:00")}},
+		// A names pass and an action by hand after the last pass change
+		// nothing about it.
+		{"a names pass after it", append(earlier,
+			"[2026-11-04 08:35:00] === names start ===",
+			"[2026-11-04 08:35:00]   -> renamed: brave-peach → notes",
+			"[2026-11-04 08:35:00] === names end (1 renamed) ===",
+			"[2026-11-04 08:36:00] notes :: name kept from the command line",
+		), Pass{Found: true, Started: at("2026-11-04 08:31:00"), Ended: true, Acted: true, Reaped: 2, Kept: 1}},
+		// A log from before renames ends a pass with two counts.
+		{"two counts", []string{
+			"[2026-11-04 09:31:00] === reaper start (dry_run=false max_age=72h) ===",
+			"[2026-11-04 09:31:00] === reaper end (3 reaped, 1 kept) ===",
+		}, Pass{Found: true, Started: at("2026-11-04 09:31:00"), Ended: true, Acted: true, Reaped: 3, Kept: 1}},
+	} {
+		if got := LastPass(c.lines); got != c.want {
+			t.Errorf("%s: %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestWritableSaysWhyALineCouldNotBeAdded(t *testing.T) {
+	dir := t.TempDir()
+	// A log that is there, and one not made yet in a directory, or in
+	// directories that are not made yet either: a pass makes those.
+	there := filepath.Join(dir, "reaper.log")
+	if err := os.WriteFile(there, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{there, filepath.Join(dir, "new.log"), filepath.Join(dir, "a", "b", "reaper.log")} {
+		if err := Writable(p); err != nil {
+			t.Errorf("%s: %v", p, err)
+		}
+	}
+	// Nothing was made or changed on the way.
+	if b, _ := os.ReadFile(there); string(b) != "x\n" {
+		t.Errorf("the log is now %q", b)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("%d entries in the directory", len(entries))
+	}
+	// A directory where the log would be, and a file where its directory
+	// would be: no pass can write either, whoever runs it.
+	if err := os.Mkdir(filepath.Join(dir, "logdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Join(dir, "logdir"), filepath.Join(there, "reaper.log")} {
+		if err := Writable(p); err == nil {
+			t.Errorf("%s: no error", p)
+		}
+	}
+}
+
+func TestWritableSaysADirectoryMayNotBeWritten(t *testing.T) {
+	// Root writes anywhere, and Windows does not go by a directory's mode:
+	// the case comes up for neither.
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("a directory's mode keeps nothing from root, or on Windows")
+	}
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	// Writable again for the test's own cleanup.
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	// The log is not made yet, and the directory it goes in may not be
+	// written: a pass could not make it.
+	if err := Writable(filepath.Join(dir, "reaper.log")); err == nil || !strings.Contains(err.Error(), dir) {
+		t.Errorf("a read-only directory: %v", err)
 	}
 }
 

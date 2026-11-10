@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -15,6 +17,8 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
+	"github.com/kanggu12/zellij-reaper/internal/machine/lock"
+	"github.com/kanggu12/zellij-reaper/internal/machine/logfile"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
@@ -80,7 +84,9 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 		}
 	}
 
-	// The timer.
+	// The timer. every is how often it runs a pass, for the last pass to be
+	// measured by; 0 where no timer runs one.
+	var every time.Duration
 	switch {
 	case !a.System.Available() && a.System.Kind() == "systemd":
 		fail(i18n.T("doctor.systemd.none"))
@@ -93,6 +99,10 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 			pass(i18n.T("doctor.scheduler", a.System.Kind()))
 		}
 		st := a.System.Status()
+		if st.Installed && st.Enabled && st.Active {
+			// An interval the timer does not tell is the settings' one.
+			every = cmp.Or(st.Interval, a.Config.Interval)
+		}
 		switch {
 		case !st.Installed:
 			fail(i18n.T("doctor.timer.none"))
@@ -208,10 +218,85 @@ func doctor(ctx context.Context, a *app.App, cmd *cobra.Command) (int, int) {
 	} else {
 		pass(i18n.T("doctor.log.none", tilde(a.Config.LogPath)))
 	}
+	// A log that cannot be written leaves the passes without a record, and
+	// nothing else says so: they go on, and end with status 0.
+	if err := logfile.Writable(a.Config.LogPath); err != nil {
+		fail(i18n.T("doctor.log.unwritable", err))
+	}
+	// The last pass, as the log tells it. Passes that stop each time, or
+	// that never get the lock, say so nowhere else either: the timer runs
+	// them, and they end with status 0.
+	lines, _ := logfile.Tail(a.Config.LogPath, passLines)
+	mark, text := passWords(logfile.LastPass(lines), every, lockHeld(a.Reaper.LockPath), tilde(a.Reaper.LockPath), time.Now())
+	switch mark {
+	case "ok":
+		pass(text)
+	case "warn":
+		note(text)
+	case "bad":
+		fail(text)
+	}
 	if n := len(a.Protected.Names()); n > 0 {
 		pass(i18n.TN("doctor.protected", n, n))
 	}
 	return problems, warnings
+}
+
+// passLines is how many of the log's last lines are read for the last pass:
+// a pass writes a line or two for each session, and a few hundred sessions
+// is many.
+const passLines = 4000
+
+// stillStarting is how long a pass may run before doctor takes it for stuck:
+// a pass takes well under a second, and systemd stops one after a minute.
+const stillStarting = time.Minute
+
+// passWords is what doctor says about the last pass p: a mark ("ok", "warn"
+// or "bad", or "" for nothing to say) and the words. every is how often the
+// timer runs a pass, 0 where none does; held is whether the pass lock at
+// lockPath is held now.
+func passWords(p logfile.Pass, every time.Duration, held bool, lockPath string, now time.Time) (mark, text string) {
+	at := ui.Clock(p.Started)
+	ago := duration.Format(max(time.Minute, now.Sub(p.Started).Round(time.Minute)))
+	switch {
+	// A pass a moment old holds the lock while it runs.
+	case held && p.Found && !p.Ended && now.Sub(p.Started) < stillStarting:
+		return "ok", i18n.T("doctor.pass.running", at)
+	// One that has run for longer is stuck, and keeps every pass after it out.
+	case held && p.Found && !p.Ended:
+		return "bad", i18n.T("doctor.pass.stuck", at, ago, lockPath)
+	case held:
+		return "bad", i18n.T("doctor.pass.held", lockPath)
+	case !p.Found:
+		// The log's own line says whether there is one.
+		return "", ""
+	// Passes stopped coming. A machine that was off or asleep says this too,
+	// until its timer runs again: a note, with the times to judge it by.
+	case every > 0 && now.Sub(p.Started) > 2*every+10*time.Minute:
+		return "warn", i18n.T("doctor.pass.late", at, ago, duration.Format(every))
+	case !p.Ended:
+		return "warn", i18n.T("doctor.pass.unfinished", at, ago)
+	case p.Acted:
+		return "ok", i18n.T("doctor.pass", at, ago, p.Reaped, p.Kept, p.Renamed)
+	// With no sessions there was nothing to do.
+	case p.Stopped == "no sessions":
+		return "ok", i18n.T("doctor.pass.nosessions", at, ago)
+	}
+	return "bad", i18n.T("doctor.pass.stopped", at, ago, p.Stopped)
+}
+
+// lockHeld reports whether something holds the pass lock at path now. A lock
+// file that is not there is held by nobody, and is not made here.
+func lockHeld(path string) bool {
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	l, err := lock.Acquire(path, 0)
+	if err != nil {
+		return errors.Is(err, lock.ErrBusy)
+	}
+	l.Release()
+	return false
 }
 
 // size prints a byte count the way people read it.

@@ -164,7 +164,7 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
 | `install` / `uninstall [--purge]` | start the timers (systemd units or cron, launch agents, a scheduled task), or remove them; `--purge` also removes the settings, the log, the lists and the prompt hook |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
-| `doctor` | check zellij, the timers, the settings and the log |
+| `doctor` | check zellij, the timers, the settings, the log and how the last pass went |
 | `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket; `--aggressive` also stops servers that serve no socket file |
 | `resize [--dry-run] [--shallow]` | make zellij and the programs in its panes redraw at the right size |
 

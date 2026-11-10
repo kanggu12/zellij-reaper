@@ -21,6 +21,21 @@ Start with `zellij-reaper doctor`: one line per thing it needs, and what to do a
 - On Windows, the Task Scheduler lists `zellij-reaper` (`Get-ScheduledTask zellij-reaper` in PowerShell). It runs while
   you are logged in.
 
+## Passes run, but nothing happens
+
+`doctor` reads the last pass from the log and says what came of it.
+
+- **It stopped: `zellij list-sessions failed: ... no answer within 10s`.** `zellij list-sessions` asks every session's
+  server, and one server that stopped answering makes it wait: every pass then stops and keeps every session.
+  `zellij list-sessions` in a shell waits the same way. On Linux `ps -o pid,stat,args -C zellij` lists the servers; one
+  with a `T` was stopped (`kill -CONT PID` lets it go on), and one that never answers can be ended with `kill PID`,
+  which ends its session.
+- **Something holds the pass lock.** A pass waits up to 30 seconds for it, then gives up and leaves the work to the
+  holder. `lsof ~/.local/state/zellij-reaper/lock` (on Linux also `fuser -v`) names the process. The system frees the
+  lock when that process ends.
+- **The log cannot be written**, or the passes stopped coming: a full disk, a read-only file system, or a `log.path`
+  somewhere the timer may not write. The passes go on without a record.
+
 ## The log says `zellij not installed`, but zellij works in your shell
 
 The service has its own `PATH`. Run `zellij-reaper install` again from a shell where `zellij` resolves (its directory

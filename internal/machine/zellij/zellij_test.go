@@ -378,6 +378,39 @@ func TestDeleteLooksAtWhatIsLeft(t *testing.T) {
 	}
 }
 
+func TestACommandCutShortIsLetGoOfAndNamedOnce(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake zellij is a shell script")
+	}
+	// list-sessions never answers, and a child of it keeps its output open
+	// after the time limit has killed it. Measured with such a zellij, a pass
+	// hung until something outside killed it, holding the pass lock all along.
+	bin := filepath.Join(t.TempDir(), "zellij")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 5 &\nexec sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &CLI{Bin: bin, Timeout: 200 * time.Millisecond}
+	start := time.Now()
+	_, err := c.ListSessions(context.Background())
+	took := time.Since(start)
+	// The time limit and the second the output is given after it, not the
+	// five seconds of the child.
+	if took > 3*time.Second {
+		t.Errorf("took %s", took)
+	}
+	// The command says what it was once: it is not wrapped in its name again.
+	if err == nil || err.Error() != "zellij list-sessions --no-formatting: no answer within 200ms" {
+		t.Errorf("cut short: %v", err)
+	}
+	// A command that answered with an error is named, then its words follow.
+	c = &CLI{Bin: "zellij", Timeout: time.Second, Run: func(context.Context, ...string) (string, string, error) {
+		return "", "boom\n", errors.New("exit status 1")
+	}}
+	if _, err := c.ListSessions(context.Background()); err == nil || err.Error() != "zellij list-sessions: boom" {
+		t.Errorf("refused: %v", err)
+	}
+}
+
 func TestARenameCutShortIsUnconfirmed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake zellij is a shell script")

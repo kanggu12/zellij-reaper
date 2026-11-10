@@ -12,6 +12,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -107,6 +109,37 @@ func (l *Log) append(line string) error {
 	return err
 }
 
+// Writable says why a line could not be added to the log at path, or nil. It
+// writes nothing: a log that is there is opened for appending and closed, and
+// for one not made yet, the nearest directory that is there is checked, as a
+// pass makes the ones in between. A full disk is not found this way.
+func Writable(path string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err == nil {
+		return f.Close()
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	for dir := filepath.Dir(path); ; {
+		info, err := os.Stat(dir)
+		switch {
+		case err == nil && !info.IsDir():
+			return fmt.Errorf("%s is not a directory", dir)
+		case err == nil:
+			return dirWritable(dir)
+		case !errors.Is(err, os.ErrNotExist):
+			return err
+		}
+		// Gone too: the one above it decides.
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
+}
+
 // Line is one parsed log line.
 type Line struct {
 	// Time is the timestamp (zero if the line had none).
@@ -153,6 +186,58 @@ func (l Line) Kind() string {
 		return "failed"
 	}
 	return ""
+}
+
+// Pass is what the log says about a pass: when it started and how it ended.
+type Pass struct {
+	// Found is whether the lines hold a start line at all.
+	Found bool
+	// Started is the time on its start line.
+	Started time.Time
+	// Ended is whether an end line follows the start line. A pass without one
+	// is running, or was stopped from outside before it could write it.
+	Ended bool
+	// Acted is whether its end line has counts: a pass that stopped before it
+	// acted has none.
+	Acted bool
+	// Reaped, Kept and Renamed are the end line's counts.
+	Reaped, Kept, Renamed int
+	// Stopped is why a pass that did not act stopped: the line it wrote
+	// before its end.
+	Stopped string
+}
+
+// endCounts reads the counts off the end line of a pass that acted. Logs
+// from before renames end with two counts.
+var endCounts = regexp.MustCompile(`^=== reaper end \((\d+) reaped, (\d+) kept(?:, (\d+) renamed)?\) ===$`)
+
+// LastPass is the last pass in lines, oldest first, as Tail returns them. A
+// names pass, which writes only when it renames, is not one: its block has
+// lines of its own.
+func LastPass(lines []string) Pass {
+	var p Pass
+	// prev is the text of the line before, which says why a pass stopped.
+	prev := ""
+	for _, raw := range lines {
+		l := Parse(raw)
+		switch {
+		case strings.HasPrefix(l.Text, "=== reaper start"):
+			p = Pass{Found: true, Started: l.Time}
+		case strings.HasPrefix(l.Text, "=== reaper end") && p.Found && !p.Ended:
+			p.Ended = true
+			if m := endCounts.FindStringSubmatch(l.Text); m != nil {
+				p.Acted = true
+				p.Reaped, _ = strconv.Atoi(m[1])
+				p.Kept, _ = strconv.Atoi(m[2])
+				// An empty third count is no renames.
+				p.Renamed, _ = strconv.Atoi(m[3])
+			} else if !strings.HasPrefix(prev, "=== reaper start") {
+				p.Stopped = prev
+			}
+		}
+		prev = l.Text
+	}
+	return p
 }
 
 // tailWindow is how much of the end of a log file Tail reads.
