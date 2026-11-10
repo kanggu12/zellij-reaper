@@ -33,9 +33,8 @@ that only fixes raises the patch number. Each release's section here is its rele
   listed such a server and closed with "nothing to repair": only `--help` said that `--aggressive` stops it.
 - `doctor` says how the last pass went, read from the log: when it ran and what it did, or why it stopped. It also says
   when the passes stopped coming, when something holds the pass lock so that every pass gives up, and when the log
-  cannot be written. Measured with each of these in a container, the timer went on running passes that ended with
-  status 0, and nothing showed it: a process holding the lock, a pass killed half way, a log on a read-only or full file
-  system, a zellij server that stopped answering.
+  cannot be written. Measured in a container, a process holding the lock, a pass killed half way and a log on a
+  read-only or full file system each left the timer running passes that ended with status 0, with nothing to show it.
 
 ### Fixed
 
