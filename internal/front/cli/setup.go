@@ -341,7 +341,9 @@ func setupWith(cmd *cobra.Command, a *app.App, f setupFlags, reload func() (*app
 }
 
 // shellHook returns the startup file of the shell in $SHELL and the line that
-// adds the prompt hook to it, or "" for a shell that has no hook.
+// adds the prompt hook to it, or "" for a shell that has no hook. Each line
+// first asks whether the program is there, so a shell where it is not on the
+// PATH, or no longer installed, starts without a word about it.
 func shellHook(shell, home string) (file, line string) {
 	if home == "" {
 		return "", ""
@@ -352,9 +354,17 @@ func shellHook(shell, home string) (file, line string) {
 	case "zsh":
 		return filepath.Join(home, ".zshrc"), `command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"`
 	case "fish":
-		return filepath.Join(home, ".config", "fish", "config.fish"), `zellij-reaper shell-hook fish | source`
+		// type -q, which every fish has; command -q came later.
+		return filepath.Join(home, ".config", "fish", "config.fish"), `type -q zellij-reaper; and zellij-reaper shell-hook fish | source`
 	}
 	return "", ""
+}
+
+// oldHooks are the lines earlier releases of setup added, by shell: a purge
+// takes them out too. Up to 0.10 fish's line did not ask whether the program
+// was there, and once it was gone fish printed an error at every start.
+var oldHooks = map[string][]string{
+	"fish": {`zellij-reaper shell-hook fish | source`},
 }
 
 // hasHook reports whether a startup file has the prompt hook already.
@@ -413,8 +423,9 @@ type unhooked struct {
 }
 
 // removeHooks takes the line setup adds for the prompt hook out of the
-// startup file of every shell that has one, under home. All of them: the
-// shell an uninstall runs in need not be the one setup ran in.
+// startup file of every shell that has one, under home, and the lines earlier
+// releases added. All of them: the shell an uninstall runs in need not be the
+// one setup ran in.
 func removeHooks(home string) (u unhooked) {
 	for _, shell := range hookShells {
 		file, line := shellHook(shell, home)
@@ -422,7 +433,7 @@ func removeHooks(home string) (u unhooked) {
 			// No home to look in.
 			continue
 		}
-		removed, err := dropLine(file, line)
+		removed, err := dropLines(file, append([]string{line}, oldHooks[shell]...))
 		if err != nil {
 			u.failed = append(u.failed, err)
 			continue
@@ -439,13 +450,13 @@ func removeHooks(home string) (u unhooked) {
 	return u
 }
 
-// dropLine takes every line of the file at path that reads exactly as line
-// out of it, and reports whether there was one. No file is no line.
+// dropLines takes every line of the file at path that reads exactly as one of
+// lines out of it, and reports whether there was one. No file is no line.
 //
 // The file is changed where it is, not replaced by a new one: a startup file
 // is often a link into a directory of dotfiles, or mounted on its own into a
 // container, and a new file in its place would break either.
-func dropLine(path, line string) (bool, error) {
+func dropLines(path string, lines []string) (bool, error) {
 	// A first look that asks for no right to write. A startup file that
 	// cannot be written and has no hook in it, one a package manager keeps
 	// read-only say, is nothing to report.
@@ -456,7 +467,7 @@ func dropLine(path, line string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if _, at := without(b, line); at < 0 {
+	if _, at := without(b, lines); at < 0 {
 		return false, nil
 	}
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
@@ -469,7 +480,7 @@ func dropLine(path, line string) (bool, error) {
 	if b, err = io.ReadAll(f); err != nil {
 		return false, err
 	}
-	kept, at := without(b, line)
+	kept, at := without(b, lines)
 	if at < 0 {
 		return false, nil
 	}
@@ -486,9 +497,9 @@ func dropLine(path, line string) (bool, error) {
 	return true, f.Sync()
 }
 
-// without is text with every line that reads exactly as line taken out, and
-// where the first of them began: -1 when there is none.
-func without(text []byte, line string) (kept []byte, first int) {
+// without is text with every line that reads exactly as one of lines taken
+// out, and where the first of them began: -1 when there is none.
+func without(text []byte, lines []string) (kept []byte, first int) {
 	first = -1
 	for at := 0; at < len(text); {
 		// One line with its line break, which the last one may lack.
@@ -496,7 +507,7 @@ func without(text []byte, line string) (kept []byte, first int) {
 		if i := bytes.IndexByte(text[at:], '\n'); i >= 0 {
 			end = at + i + 1
 		}
-		if string(bytes.TrimSuffix(text[at:end], []byte("\n"))) == line {
+		if slices.Contains(lines, string(bytes.TrimSuffix(text[at:end], []byte("\n")))) {
 			if first < 0 {
 				first = at
 			}

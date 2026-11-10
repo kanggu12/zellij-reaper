@@ -87,7 +87,8 @@ that left the pane no longer counts: the pane looks idle. Protect that session b
 
 A session renamed to a name longer than its socket path allows keeps a server no zellij command can reach, and its
 files come back after every delete. `zellij-reaper recover --dry-run` shows what it would repair; without `--dry-run`
-it repairs it.
+it repairs it, and the log keeps each step. A server that serves no socket file at all is counted at the end, with the
+command that stops it: `zellij-reaper recover --aggressive`, which leaves one that somebody may still be using.
 
 ## Reporting a problem
 

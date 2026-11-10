@@ -225,7 +225,9 @@ directory leaves, with room for a stamp and a collision suffix. `recover` repair
 People grep months of the log, so its words stay. The verdict texts (`REAP IDLE`, `SKIP client attached`,
 ...) and the `=== reaper start/end ===` lines stay fixed; new kinds of lines may be added. The log rotates by
 renaming at the start of a pass, under the lock, so a pass is never split across the two files, and a rename that
-fails is written into the log instead of stopping the pass.
+fails is written into the log instead of stopping the pass. Whatever changes a session writes a line there: a pass, an
+action by hand from the dashboard or a command, and `recover`, which writes each step as it takes it, so a repair cut
+short has put down what it got done. A line that cannot be written stops none of them.
 
 ### One lock, and a second look
 

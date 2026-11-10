@@ -8,15 +8,61 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ### Added
 
+- zellij's main branch, its next release, names a session's socket and files by a short id that stays through renames,
+  and keeps the names in an SQLite index. zellij-reaper reads that index, without a database driver, so passes, the
+  dashboard, `recover` and `doctor` find the sessions there; until now every one of them read as unknown and was kept.
+  A session's first name comes from its server's environment, which keeps it through every rename, and an orphan server
+  of a session kept by id is named, and protected, by the name the index gives. The integration scenarios run on
+  zellij's main branch as well as on 0.43, 0.44 and 0.45.
+- `install` writes the places the installing shell keeps its files into the timer: `XDG_CONFIG_HOME`,
+  `XDG_STATE_HOME`, `XDG_CACHE_HOME`, `ZELLIJ_SOCKET_DIR`, and `TMPDIR` where it decides zellij's socket directory. With
+  one of them set, the dashboard protected a session in one list while the timer read another, or zellij listed the
+  sessions from a place the timer's zellij never looked, and the timer reaped what the dashboard showed as protected.
+  `doctor` notes each variable this shell sets otherwise than the timer.
+- `uninstall --purge` takes the prompt hook out of `~/.bashrc`, `~/.zshrc` and fish's `config.fish`: the line `setup`
+  added, where it still reads as `setup` wrote it. The file is changed in place, so a link into a directory of dotfiles
+  stays a link; a line that mentions the hook in other words stays, and is named. A purge also removes what a save cut
+  short left beside the settings and the lists, says which file it could not remove and why, names what is still in a
+  folder it had to leave, and ends with where the program is, since that stays.
 - `recover` writes what it does to the log, one line for each step as it takes it: a session deleted and its files
   cleared, an orphan server stopped (with `SIGKILL` where `SIGTERM` was not enough) or kept on the look right before the
   stop, and every step that did not go through. Long after, the log still says which servers a recover stopped and why
-  one was kept. A dry run writes nothing. The lines are in the [table of the log's lines](docs/how-it-decides.md#the-log).
+  one was kept. A dry run writes nothing. The lines are in the
+  [table of the log's lines](https://github.com/kanggu12/zellij-reaper/blob/main/docs/how-it-decides.md#the-log).
+- `recover` ends with the number of orphan servers it leaves and the command that stops them, in a dry run too. It
+  listed such a server and closed with "nothing to repair": only `--help` said that `--aggressive` stops it.
 
 ### Fixed
 
+- On Linux `uninstall` removed the timers of the scheduler chosen that day. After systemd was turned on or off (WSL),
+  the other one's timers ran on while `uninstall` said they were gone; it removes both now, the systemd units and the
+  reaper's lines in the crontab. A timer whose unit files are removed from a shell where the user's systemd does not
+  answer (`su`, `sudo`) stays loaded and keeps firing: `uninstall` says so there, and from a shell where systemd answers
+  it also stops the timers by name.
+- `uninstall` stopped at a settings file that does not parse, the state in which one reaches for it. It removes the
+  timers on the default settings now, and a purge says that a log `log.path` put elsewhere stays.
+- With the prompt hook in fish's startup file, every fish printed six lines of error once the program was gone: the
+  line `setup` wrote for fish did not ask whether the program was there, as the lines for bash and zsh do. `setup` writes
+  `type -q zellij-reaper; and zellij-reaper shell-hook fish | source` now, and `uninstall --purge` takes out the line
+  earlier releases wrote too.
+- On Alpine a user without a crontab could not install: busybox says "can't open" where cron and cronie say "no crontab
+  for", and only the latter was taken for an empty crontab. Where the crontab could not be read at all, `install` had
+  written the settings file before it failed; it reads the crontab first now. A crontab is written back byte for byte: a
+  blank line at its end, as in Alpine's default one, was dropped by `install` followed by `uninstall`.
+- A line break in the binary's path, the settings file, zellij's directory or a carried variable is refused for cron,
+  and in a carried variable for launchd, as it already was for systemd: it would end the line it sits on.
+- `uninstall` said "Removed the timers." where there were none; it says "Found no timers to remove." `doctor` says
+  "1 session".
+- Where no scheduler answers, the install script ended with `zellij-reaper install`, before the line about adding its
+  directory to `PATH`. It prints that line now, says the binary is in place and the timers are not, gives the command
+  to try again, and ends with that status.
+- `delete` with no name answered "requires at least 1 arg(s), only received 0"; it says "name a session to reap". Its
+  question said "Its panes are closed", which reads as the state the session is in; it says "This closes its panes".
 - The dashboard's recent decisions showed a name kept with `keep-name`, but not a session reaped with `delete` or
   renamed with `rename`, though the log has both.
+- A command that picks its colors in several places asked the terminal for its background each time. On a terminal that
+  answers no such question each asking waited out its time limit, and `setup --hook` took 12 s; it asks once.
+- The `.deb` package had no section, and pacman showed "Unknown Packager".
 
 ## [0.10.1] - 2026-11-10
 

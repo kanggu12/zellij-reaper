@@ -95,7 +95,9 @@ Add it to the shell's startup file:
 
   command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"   # ~/.bashrc
   command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"    # ~/.zshrc
-  zellij-reaper shell-hook fish | source                                         # fish config`,
+  type -q zellij-reaper; and zellij-reaper shell-hook fish | source                # fish config
+
+The test before each keeps a shell quiet where zellij-reaper is not on its PATH.`,
 		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish"},
 		RunE: func(cmd *cobra.Command, args []string) error {

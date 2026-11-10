@@ -309,6 +309,43 @@ func TestRemoveHooksTakesOutOnlyTheLineSetupWrote(t *testing.T) {
 	}
 }
 
+func TestEveryHookLineAsksForTheProgramFirst(t *testing.T) {
+	// Run by a shell where the program is gone, a line must say nothing.
+	// Measured with fish 3.6: the line without the test printed six lines of
+	// error at every start once the program was removed.
+	for shell, test := range map[string]string{
+		"bash": "command -v zellij-reaper >/dev/null && ",
+		"zsh":  "command -v zellij-reaper >/dev/null && ",
+		"fish": "type -q zellij-reaper; and ",
+	} {
+		if _, line := shellHook(shell, "home"); !strings.HasPrefix(line, test) {
+			t.Errorf("%s: %q", shell, line)
+		}
+	}
+}
+
+func TestRemoveHooksTakesOutFishsLineFromBefore(t *testing.T) {
+	home := t.TempDir()
+	file, line := shellHook("fish", home)
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The line setup wrote up to 0.10, without the test, and the one it
+	// writes now: a setup run again after an upgrade finds the hook there
+	// and adds none, so a file has one or the other, or both by hand.
+	old := "zellij-reaper shell-hook fish | source"
+	if err := os.WriteFile(file, []byte("set -x EDITOR vim\n"+old+"\n"+line+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	u := removeHooks(home)
+	if !slices.Equal(u.removed, []string{file}) || len(u.stays)+len(u.failed) != 0 {
+		t.Errorf("removed %q, stays %q, failed %v", u.removed, u.stays, u.failed)
+	}
+	if b, _ := os.ReadFile(file); string(b) != "set -x EDITOR vim\n" {
+		t.Errorf("%s is now %q", file, b)
+	}
+}
+
 func TestRemoveHooksGoesThroughEveryShellsFile(t *testing.T) {
 	home := t.TempDir()
 	// The shell an uninstall runs in need not be the one setup ran in.

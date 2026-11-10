@@ -167,7 +167,7 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting |
-| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass first found quiet starts its wait at the next one |
+| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |

@@ -377,11 +377,13 @@ with no zellij process. Add it to the shell's startup file:
 ```sh
 command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook bash)"     # ~/.bashrc
 command -v zellij-reaper >/dev/null && eval "$(zellij-reaper shell-hook zsh)"      # ~/.zshrc
-zellij-reaper shell-hook fish | source                                           # ~/.config/fish/config.fish
+type -q zellij-reaper; and zellij-reaper shell-hook fish | source                  # ~/.config/fish/config.fish
 ```
 
-In a shell started before you added the hook, run `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)` once. The
-`command -v` test keeps a login shell quiet when `~/.local/bin` joins `PATH` only after `~/.bashrc` runs.
+In a shell started before you added the hook, run `export ZELLIJ_SESSION_NAME=$(zellij-reaper here)` once. The test
+before each hook keeps a shell quiet where `zellij-reaper` is not on its `PATH`: a login shell that adds `~/.local/bin`
+only after the startup file runs, or a machine it was removed from. `setup` up to 0.10 wrote fish's line without it;
+`uninstall --purge` takes out that line too.
 
 The names timer runs a pass that only renames every `rename_interval` (5 minutes). It deletes nothing and writes to
 the log only when it renames. The hourly pass renames too. `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and
@@ -439,6 +441,10 @@ second old, so a pass or the dashboard never stops a session you are opening.
 
 zellij 0.44.2 prints nothing when `list-clients` calls overlap, so zellij-reaper does not overlap them. The version comes
 from `zellij --version`. Older releases may work; they are not tested.
+
+zellij's main branch, its next release, names a session's socket and its folder under `session_info` by a short id that
+stays through renames, and keeps the names in an SQLite index beside them. zellij-reaper reads that index, and the
+scenarios pass on that branch too; a weekly run checks them again as the branch moves.
 
 ## macOS
 

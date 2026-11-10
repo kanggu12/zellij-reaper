@@ -110,9 +110,10 @@ title that says nothing about the session goes in `agentTitles`. Try a change on
 ### A zellij release
 
 The weekly canary (`.github/workflows/canary.yml`) runs the scenarios on zellij's newest release and on its main branch,
-so a new release usually shows up there first. Its main job fails for now: zellij's main branch keys the session
-directory under `session_info` by a 12-character session id instead of the session name, which the reaper does not
-read yet. Run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that release's
+so a new release usually shows up there first. zellij's main branch names a session's socket and its directory under
+`session_info` by a 12-character id and keeps the names in an SQLite index, which `internal/machine/zellij/index.go`
+reads; `test/integration/run.sh main` runs the scenarios on a build of it at `test/integration/.cache/zellij-main`.
+For a release, run `make integration ZELLIJ_VERSIONS=x.y.z`. It downloads that release's
 word lists from zellij's source and compares them with `internal/core/rename/generated.go`, so a new word fails the run:
 add it to that file. Once the run passes, add the release to the matrix in `.github/workflows/ci.yml` and to
 `default_versions` in `test/integration/run.sh`. For a new minor, also add it to `testedMinors` and `TestedZellij` in

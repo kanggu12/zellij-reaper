@@ -162,10 +162,10 @@ It speaks English, and Korean when the locale is Korean (`ZELLIJ_REAPER_LANG=en`
 | `rename NAME NEW-NAME` | rename a session and keep the new name, as `r` does in the dashboard |
 | `here` | the current name of this shell's session |
 | `shell-hook bash\|zsh\|fish` | a prompt hook that keeps `ZELLIJ_SESSION_NAME` current after a rename |
-| `install` / `uninstall [--purge]` | the timers: systemd units (or cron), launch agents or a scheduled task |
+| `install` / `uninstall [--purge]` | start the timers (systemd units or cron, launch agents, a scheduled task), or remove them; `--purge` also removes the settings, the log, the lists and the prompt hook |
 | `config [show\|path\|init\|edit]` | the settings and where each value comes from |
 | `doctor` | check zellij, the timers, the settings and the log |
-| `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket |
+| `recover [--dry-run] [--aggressive]` | repair sessions whose name is too long for their socket; `--aggressive` also stops servers that serve no socket file |
 | `resize [--dry-run] [--shallow]` | make zellij and the programs in its panes redraw at the right size |
 
 [Commands](docs/commands.md) has every flag and the `plan --json` shape.
@@ -200,8 +200,9 @@ $ zellij-reaper logs
 11-05 11:49:05  === reaper end (1 reaped, 4 kept, 1 renamed) ===
 ```
 
-It lives in `~/.local/state/zellij-reaper/` (`%LOCALAPPDATA%\zellij-reaper` on Windows) and moves to `reaper.log.1`
-past `log.max_bytes` (1 MiB).
+What is done by hand, in the dashboard or with `delete` and `rename`, and what `recover` does are logged too. The log
+lives in `~/.local/state/zellij-reaper/` (`%LOCALAPPDATA%\zellij-reaper` on Windows) and moves to `reaper.log.1` past
+`log.max_bytes` (1 MiB).
 
 ## How it compares
 
@@ -231,6 +232,11 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their
 dry-run setting. See [setup](docs/setup.md#coming-from-the-shell-scripts).
+
+**How do I remove it?** `zellij-reaper uninstall --purge` removes the timers, the settings, the log, the lists and the
+prompt hook, and says what it left; then delete the program or remove its package
+([uninstall](docs/setup.md#upgrade-and-uninstall)). Without `--purge`, the settings and the log stay for a later
+install.
 
 ## Documentation
 
