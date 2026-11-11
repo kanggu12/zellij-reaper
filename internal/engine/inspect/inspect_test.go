@@ -152,8 +152,10 @@ func TestASessionZellijBroughtBackIsToldByItsSavedPanes(t *testing.T) {
 	m := newMachine(t)
 	const layout = "layout {\n}\n"
 	// Made anew: its socket first, then the file of panes zellij saves.
-	m.server(t, "fresh", "fresh", 800, testutil.Metadata(0, "x"), layout)
+	m.server(t, "fresh", "fresh", 800, testutil.Metadata(0, "x"), "")
 	m.pane(t, 801, 800, "bash", []string{"-bash"}, now)
+	time.Sleep(20 * time.Millisecond)
+	testutil.SavePanes(t, m.info, "fresh", layout)
 	// later starts a server whose socket comes after what is in its folder.
 	later := func(name string, pid int) {
 		time.Sleep(20 * time.Millisecond)
@@ -165,14 +167,15 @@ func TestASessionZellijBroughtBackIsToldByItsSavedPanes(t *testing.T) {
 	}
 	// Brought back from exited: the panes saved before, then the socket of
 	// the server that started now.
-	testutil.SessionFiles(t, m.info, "back", testutil.Metadata(0, "x"), layout, now.Add(-time.Minute))
+	testutil.SessionFiles(t, m.info, "back", testutil.Metadata(0, "x"), "", now.Add(-time.Minute))
+	testutil.SavePanes(t, m.info, "back", layout)
 	later("back", 810)
 	// A folder a session left before zellij saved its panes, and a new
 	// session under that name: its panes are saved after its socket.
 	testutil.SessionFiles(t, m.info, "stale", testutil.Metadata(0, "x"), "", now.Add(-time.Hour))
 	later("stale", 820)
 	time.Sleep(20 * time.Millisecond)
-	testutil.SessionFiles(t, m.info, "stale", "", layout, now)
+	testutil.SavePanes(t, m.info, "stale", layout)
 	// One whose panes are not saved yet says nothing.
 	testutil.SessionFiles(t, m.info, "young", testutil.Metadata(0, "x"), "", now.Add(-time.Hour))
 	later("young", 830)

@@ -182,12 +182,14 @@ A session zellij brought back from exited, after a restart say, starts under the
 nothing of who gave that name. The panes zellij saved for it do: zellij needs them to bring a session back, keeps them
 in `session-layout.kdl`, and writes that same file over, so for a session brought back the file is older than the new
 server's socket, by their birth times (`zellij.Born`: `statx` on Linux, the birth time on macOS; none are read
-elsewhere). A pass renames such a session again when the list of given names holds its name. A new session gets the file
-a while after its socket. That holds in a folder a session left too: `delete-session --force` removes the folder while
-the server, still stopping, can write its files once more, which leaves a folder with no saved panes. A session made
-anew under a name on the list is someone's choice, and the next pass that sees it takes the name off the list
-(`forgetChosen`), so the session keeps its name when zellij brings it back later. Until zellij has saved the panes, and
-where no birth times are read, the command line alone decides, as before 0.14.1.
+elsewhere). A pass renames such a session again when the list of given names holds its name. Until zellij has saved the
+panes, and where no birth times are read, the command line alone decides, as before 0.14.1.
+
+A new session gets the file a while after its socket (60 seconds by default), and so does one started in a folder a
+session left: a session deleted or stopped before zellij saved its panes can leave its metadata alone, which zellij does
+not list. A folder with saved panes lists as exited, and `zellij -s` refuses its name, while `zellij attach -c` brings
+that session back. A session made anew under a name on the list is someone's choice, and the next pass that sees it
+takes the name off the list (`forgetChosen`), so the session keeps its name when zellij brings it back later.
 
 zellij keeps nothing that tells a name it made up from the same words typed by a person: a session started either way,
 in a terminal or in the background, has the same server command line, environment and files. So a person keeps such a

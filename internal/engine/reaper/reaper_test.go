@@ -209,7 +209,8 @@ func newWorldRevived(t *testing.T, busy, startedAs string, given, byID, revived 
 			layout = "layout {\n}\n"
 		}
 		if back {
-			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), layout, now)
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+			testutil.SavePanes(t, info, file, layout)
 			time.Sleep(20 * time.Millisecond)
 		}
 		sock := testutil.Socket(t, sockDir, file)
@@ -231,7 +232,11 @@ func newWorldRevived(t *testing.T, busy, startedAs string, given, byID, revived 
 		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}, Env: env})
 		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: paneEnv})
 		if !back {
-			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), layout, now)
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+			if layout != "" {
+				time.Sleep(20 * time.Millisecond)
+				testutil.SavePanes(t, info, file, layout)
+			}
 		}
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")

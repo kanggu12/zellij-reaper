@@ -174,6 +174,17 @@ func SessionFiles(t *testing.T, infoDir, name, metadata, layout string, at time.
 	}
 }
 
+// SavePanes writes a session's session-layout.kdl as zellij saves it, and
+// leaves its times alone: on macOS a modification time set earlier than a
+// file's birth moves the birth too, and which of a session's files came first
+// tells a session zellij brought back (inspect.Session.Resurrected).
+func SavePanes(t *testing.T, infoDir, name, layout string) {
+	t.Helper()
+	dir := filepath.Join(infoDir, name)
+	must(t, os.MkdirAll(dir, 0o755))
+	must(t, os.WriteFile(filepath.Join(dir, "session-layout.kdl"), []byte(layout), 0o644))
+}
+
 // Metadata returns a minimal session-metadata.kdl with the given terminal
 // pane titles and client count.
 func Metadata(clients int, titles ...string) string {

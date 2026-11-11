@@ -752,18 +752,34 @@ echo "-- a session zellij brought back follows its panes again"
 # Someone starts a session under a name a pass once gave a session now gone:
 # the name is theirs. zellij then loses the server, as at a restart, and
 # brings the session back under the name it had; when a pass gave that name,
-# the session is the passes' to rename again. A shell in a folder shows the
-# same on every zellij: 0.43 and 0.44 bring a session back with a new shell
-# where the client starts it, 0.45 and later with the panes it saved.
+# the session is the passes' to rename again. zellij brings back only a
+# session whose panes it saved, which it does for a command pane. 0.45 and
+# later bring the panes back, titled as before; 0.43 and 0.44 bring a new
+# shell, where the client starts it.
 GIVEN=~/.local/state/zellij-reaper/named
 mkdir -p /srv/handbook
+printf 'layout {\n    pane name="Fix the login bug" command="sleep" {\n        args "100000"\n    }\n}\n' >/tmp/revive.kdl
+# saved waits until zellij has saved a session's panes.
+saved() {
+  for _ in $(seq 300); do
+    grep -q pane "$INFO/$(file_of "$1")/session-layout.kdl" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  return 1
+}
+# listed_any says whether one of the names is listed.
+listed_any() {
+  local n
+  for n; do listed "$n" && return 0; done
+  return 1
+}
 pushd /srv/handbook >/dev/null || exit 1
-start write-the-docs
+start write-the-docs /tmp/revive.kdl
 popd >/dev/null || exit 1
 printf 'write-the-docs\n' >>"$GIVEN"
-# zellij saves a new session's panes a while after its socket: until then
-# nothing tells a session made anew from one brought back.
-for _ in $(seq 300); do grep -q pane "$INFO/$(file_of write-the-docs)/session-layout.kdl" 2>/dev/null && break; sleep 0.1; done
+# Until zellij has saved the panes, nothing tells a session made anew from
+# one brought back.
+check "zellij saves the new session's panes" saved write-the-docs
 check "a names pass succeeds" names
 check "a session made anew keeps the name it was started under" listed write-the-docs
 check "and the name is no longer a given one" sh -c "! grep -qxF write-the-docs $GIVEN"
@@ -778,9 +794,9 @@ wait_reachable write-the-docs
 # The server it started writes the session's files anew every second.
 sleep 2
 check "a names pass succeeds" names
-check "the session zellij brought back is named after its folder" listed handbook
-check "and the log says so" grep -q "]   -> renamed: write-the-docs → handbook\$" "$LOG"
-for s in handbook write-the-docs; do
+check "the session zellij brought back is named after what it shows" listed_any fix-the-login-bug handbook
+check "and the log says so" grep -qE "]   -> renamed: write-the-docs → (fix-the-login-bug|handbook)\$" "$LOG"
+for s in fix-the-login-bug handbook write-the-docs; do
   $Z kill-session "$s" >/dev/null 2>&1
   $Z delete-session "$s" --force >/dev/null 2>&1
 done
