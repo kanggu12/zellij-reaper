@@ -136,5 +136,8 @@ func commAndStart(root string, pid int) (string, time.Duration, bool) {
 	if err != nil {
 		return "", 0, false
 	}
-	return s[open+1 : closing], time.Duration(ticks) * time.Second / clockTicks, true
+	// Whole seconds first: ticks times a second overflows an int64 after
+	// 2.9 years of uptime.
+	start := time.Duration(ticks/clockTicks)*time.Second + time.Duration(ticks%clockTicks)*time.Second/clockTicks
+	return s[open+1 : closing], start, true
 }

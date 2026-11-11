@@ -6,11 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
+	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
 	"github.com/kanggu12/zellij-reaper/internal/testutil"
 )
 
@@ -38,7 +39,12 @@ func newProjects(t *testing.T) projects {
 // in dir in the busy session.
 func agentWorld(t *testing.T, dir string) *world {
 	t.Helper()
-	w := newWorld(t)
+	return agentWorldIn(t, newWorld(t), dir)
+}
+
+// agentWorldIn is agentWorld made from another world.
+func agentWorldIn(t *testing.T, w *world, dir string) *world {
+	t.Helper()
 	w.env.ProjectsPath = filepath.Join(t.TempDir(), "projects")
 	tty := testutil.TTY(t, t.TempDir(), "agent", time.Now())
 	w.fp.Add(testutil.Proc{PID: agentPID, PPID: 200, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: dir, Started: 10 * time.Second})
@@ -230,8 +236,10 @@ func TestTheProjectBookIsAPassToWrite(t *testing.T) {
 	if book.Version != 1 || len(book.Sessions) != 1 {
 		t.Errorf("book %+v", book)
 	}
+	// The session by its server and the name it started under, which a
+	// rename does not change.
 	for key, e := range book.Sessions {
-		if !strings.HasPrefix(key, "200\t") || e["last"] != p.webApp {
+		if key != "200\t0\tquiet-mouse" || e["last"] != p.webApp {
 			t.Errorf("entry %q: %v", key, e)
 		}
 	}
@@ -241,8 +249,10 @@ func TestTheProjectBookIsAPassToWrite(t *testing.T) {
 			t.Errorf("mode %v: %v", info.Mode().Perm(), err)
 		}
 	}
-	// The names pass writes it whether or not it renames.
+	// The names pass writes it whether or not it renames, in a folder it
+	// makes when none is there.
 	w = agentWorld(t, p.root)
+	w.env.ProjectsPath = filepath.Join(t.TempDir(), "state", "projects")
 	w.env.Config.AutoRename = true
 	w.zj.refuse["htop"] = true
 	command(w, 261, p.webApp, 100*time.Second)
@@ -279,6 +289,111 @@ func TestTheProjectBookForgetsWhatNoPassSees(t *testing.T) {
 	pass(t, w)
 	if got := readBook(t, w); len(got.Sessions) != 1 {
 		t.Errorf("after a broken book: %v", got.Sessions)
+	}
+}
+
+// writeBook writes a project book with one session's entry.
+func writeBook(t *testing.T, w *world, key string, entry map[string]any) {
+	t.Helper()
+	entry["seen"] = time.Now().Unix()
+	raw, err := json.Marshal(map[string]any{"version": 1, "sessions": map[string]any{key: entry}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(w.env.ProjectsPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// busyKey is the busy session's key in the book: its server's pid, when the
+// server started, and the name it started under.
+func busyKey(start int64) string {
+	return "200\t" + strconv.FormatInt(start, 10) + "\tquiet-mouse"
+}
+
+func TestANewServerWithAnOldPidStartsOver(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorld(t, p.root)
+	// Its server started 7 s after boot.
+	w.fp.Remove(200)
+	w.fp.Add(testutil.Proc{PID: 200, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", filepath.Join(w.sockDir, "quiet-mouse")}, Sockets: []uint32{200}, Started: 7 * time.Second})
+	base := suggested(t, w)
+	start, ok := procfs.StartMark(w.fp.Root, 200)
+	if !ok {
+		t.Fatal("no start for the server")
+	}
+	// The book names this server's session after billing.
+	writeBook(t, w, busyKey(start), map[string]any{"project": p.billing})
+	if got := suggested(t, w); got != "billing" {
+		t.Fatalf("this server's entry: %q", got)
+	}
+	// From before a reboot: a server with the same pid and first name that
+	// started at another moment, and counted a command started far later
+	// than anything on this boot. It is another session.
+	writeBook(t, w, busyKey(start+1), map[string]any{"project": p.billing, "last": p.webApp, "mark": int64(1) << 60})
+	if got := suggested(t, w); got != base {
+		t.Errorf("took the old server's project: %q", got)
+	}
+	// Its own commands count from the start.
+	command(w, 280, p.webApp, 100*time.Second)
+	pass(t, w)
+	w.fp.Remove(280)
+	command(w, 281, p.webApp, 200*time.Second)
+	pass(t, w)
+	if got := suggested(t, w); got != "web-app" {
+		t.Errorf("its own project: %q", got)
+	}
+}
+
+func TestAnotherAgentInTheSessionStartsAfresh(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorld(t, p.root)
+	base := suggested(t, w)
+	command(w, 290, p.billing, 100*time.Second)
+	pass(t, w)
+	w.fp.Remove(290)
+	command(w, 291, p.billing, 200*time.Second)
+	pass(t, w)
+	if got := suggested(t, w); got != "billing" {
+		t.Fatalf("first agent: %q", got)
+	}
+	// It ends, and another starts in its place before the next pass: a new
+	// conversation, which has not worked in billing.
+	w.fp.Remove(291)
+	w.fp.Remove(agentPID)
+	tty := testutil.TTY(t, t.TempDir(), "agent2", time.Now())
+	w.fp.Add(testutil.Proc{PID: agentPID + 1, PPID: 200, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: p.root, Started: 300 * time.Second})
+	pass(t, w)
+	if got := suggested(t, w); got != base {
+		t.Errorf("the new agent: %q", got)
+	}
+}
+
+func TestACommandThatKeepsStartingProcessesCountsOnce(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorld(t, p.root)
+	base := suggested(t, w)
+	// A loop it left running in web-app starts another sleep before every
+	// pass: one command, however many processes it starts.
+	command(w, 300, p.webApp, 100*time.Second)
+	for i := range 3 {
+		w.fp.Add(testutil.Proc{PID: 310 + i, PPID: 300, Comm: "sleep", Argv: []string{"sleep", "5"}, Cwd: p.webApp, Started: time.Duration(200+100*i) * time.Second})
+		pass(t, w)
+		w.fp.Remove(310 + i)
+	}
+	if got := suggested(t, w); got != base {
+		t.Errorf("a loop: %q", got)
+	}
+}
+
+func TestTheBookKeysASessionKeptByIDByItsID(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorldIn(t, newWorldOf(t, "busy", "quiet-mouse", true, true), p.root)
+	command(w, 320, p.webApp, 100*time.Second)
+	pass(t, w)
+	book := readBook(t, w)
+	if _, ok := book.Sessions["200\t0\tid:"+busyID]; !ok || len(book.Sessions) != 1 {
+		t.Errorf("book %v", book.Sessions)
 	}
 }
 

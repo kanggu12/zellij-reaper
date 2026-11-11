@@ -75,7 +75,8 @@ func Suggest(in Input, maxBytes int) string {
 	// session outlives: the project it works in says what it does now. A
 	// repository whose name has no English word in it says nothing here,
 	// and the title has its turn.
-	if w := normalize(in.pathWord(in.Project)); w != "" {
+	// A bare repository's folder ends in .git, which says nothing.
+	if w := normalize(strings.TrimSuffix(in.pathWord(in.Project), ".git")); w != "" {
 		return Fit(w, maxBytes)
 	}
 	program := ""

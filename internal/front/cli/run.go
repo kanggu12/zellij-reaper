@@ -29,9 +29,9 @@ func cmdRun() *cobra.Command {
 		Long: `Run one pass, as the timer does: every session is judged, the ones that pass every
 check are deleted, the rest are named after what they show if auto_rename is on
 and nobody chose their name, and each decision is written to the log. --dry-run
-logs without changing anything; --force skips the waits (idle_after, exited_after)
-but keeps every other check. The status is 1 when zellij refused a delete, or on
-an error.`,
+logs the same and changes no session; --force skips the waits (idle_after,
+exited_after) but keeps every other check. The status is 1 when zellij refused a
+delete, or on an error.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a, err := load()

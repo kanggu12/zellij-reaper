@@ -153,8 +153,8 @@ zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run --protect api,no
 **`install`** writes a settings file and the timers, the systemd units with lingering on Linux (crontab lines where
 systemd has no user instance but cron runs), the launch agents on macOS and the scheduled task on Windows, and says
 when the first pass runs. **`uninstall`** removes the timers, also when the settings file does not load; `--purge` also
-removes the settings, the log, the protected list and the lists of given and kept names, and takes the prompt hook
-`setup` added out of the shells' startup files. Both list what they removed and name what they left; the program
+removes the settings, the log, the protected list, the lists of given and kept names and the notes passes keep, and
+takes the prompt hook `setup` added out of the shells' startup files. Both list what they removed and name what they left; the program
 itself stays. See [install](setup.md#install) and [uninstall](setup.md#upgrade-and-uninstall).
 
 **`config`** has four subcommands: `show` (the default) prints every setting with where its value comes from, `path`

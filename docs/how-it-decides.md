@@ -22,7 +22,7 @@ its wait over:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/pass-dark.svg">
-  <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes a session it looks again, and a session that changed is kept. A session it keeps gets a name from what its panes show when auto_rename is on, unless someone chose its name." src="assets/pass-light.svg">
+  <img alt="A pass takes the lock and rotates the log, lists the sessions, reads one snapshot of the kernel's tables and zellij's files, and decides every session from it. Then it goes through them one at a time, writing each verdict to the log. Before it deletes a session it looks again, and a session that changed is kept. A session it keeps gets a name from what its panes show, or the project its coding agent works in, when auto_rename is on, unless someone chose its name." src="assets/pass-light.svg">
 </picture>
 
 1.  **Takes the pass lock.** The timer, `zellij-reaper run` and the dashboard's actions share one lock, so two of them
@@ -67,8 +67,8 @@ A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps
 
 The names timer runs `run --names-only` every `rename_interval` (5 minutes): steps 1, 3 to 6 and 8, and step 2 only when
 it renames something, so a name follows its session sooner than the hourly pass. It deletes nothing but such a copy,
-writes to the log only when a name changed, does nothing in a dry run, and leaves dropping tails
-(`auto_rename_drop_tail`) to the hourly pass.
+writes down where coding agents work (`projects`), writes to the log only when a name changed, does nothing in a dry
+run, and leaves dropping tails (`auto_rename_drop_tail`) to the hourly pass.
 
 ## The checks
 
@@ -125,10 +125,11 @@ dashboard's detail panel marks with ✗.
 
 ## Where each fact comes from
 
-- **The project a coding agent works in** is the git repository of the directory its newest command runs in
-  (`/proc/<pid>/cwd`, and on macOS `lsof`): the first `.git` above it, a worktree counting as the repository it was made
-  from. Settled once two newer commands in a row ran there, and kept between commands
-  ([naming](setup.md#naming-sessions-after-what-they-show)).
+- **The project a coding agent works in** is the git repository its newest command runs in (`/proc/<pid>/cwd`, and on
+  macOS `lsof`; Windows tells no process's directory, and nothing is renamed there): the first `.git` at or above the
+  directory, below the home directory, a worktree counting as the repository it was made from. Each child of the
+  agent's process is one command, with what runs under it, and counts from when it started. Settled once two passes in
+  a row find a newer command there, and kept between commands ([naming](setup.md#naming-sessions-after-what-they-show)).
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
   files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every
@@ -198,7 +199,7 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: ``...; the server of NAME (pid N) is stopped: `kill -CONT N` lets it go on``, or ``the servers of NAME (pid N) and NAME (pid M) are stopped: `kill -CONT N M` lets them go on`` |
-| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass |
+| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) or of agents' projects (`projects`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass, and one whose agent moved on may take a pass longer to follow it |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |

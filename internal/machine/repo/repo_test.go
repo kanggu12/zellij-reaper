@@ -97,21 +97,54 @@ func TestRootRemembersWhatItFoundForOneSurvey(t *testing.T) {
 
 func TestADotGitFileThatSaysSomethingElseStillMarksACheckout(t *testing.T) {
 	root := t.TempDir()
-	mkdirs(t, root, "a/src", "b/src", "c/src", "repo.git/worktrees/x", "d/src")
+	mkdirs(t, root, "a/src", "b/src", "d/src")
 	write(t, root, "a/.git", "not a gitdir line\n")
 	write(t, root, "b/.git", "")
-	// A worktree of a bare repository: no .git directory to stand for the
-	// project, so the worktree is the project.
-	write(t, root, "c/.git", "gitdir: "+filepath.Join(root, "repo.git/worktrees/x")+"\n")
 	// A .git linked to a checkout's data elsewhere.
 	mkdirs(t, root, "data/d.git")
 	if err := os.Symlink(filepath.Join(root, "data/d.git"), filepath.Join(root, "d/.git")); err != nil {
 		t.Fatal(err)
 	}
 	f := &Finder{}
-	for _, name := range []string{"a", "b", "c", "d"} {
+	for _, name := range []string{"a", "b", "d"} {
 		if got := f.Root(filepath.Join(root, name, "src")); got != filepath.Join(root, name) {
 			t.Errorf("%s: %q", name, got)
 		}
+	}
+}
+
+func TestAWorktreeOfABareRepositoryIsThatRepository(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root,
+		// A bare repository on its own, and a worktree of it elsewhere.
+		"srv/billing.git/worktrees/feature", "work/feature/src",
+		// A bare repository in a hidden folder of the project, next to its
+		// worktrees, which name it with a relative gitdir.
+		"code/api/.bare/worktrees/main", "code/api/main/cmd",
+	)
+	write(t, root, "work/feature/.git", "gitdir: "+filepath.Join(root, "srv/billing.git/worktrees/feature")+"\n")
+	write(t, root, "code/api/main/.git", "gitdir: ../.bare/worktrees/main\n")
+	f := &Finder{}
+	for dir, want := range map[string]string{
+		"work/feature/src":  "srv/billing.git",
+		"code/api/main/cmd": "code/api",
+	} {
+		if got := f.Root(filepath.Join(root, dir)); got != filepath.Join(root, want) {
+			t.Errorf("Root(%s) = %q, want %s", dir, got, want)
+		}
+	}
+}
+
+func TestAHomeReachedThroughALinkIsNoProjectEither(t *testing.T) {
+	root := t.TempDir()
+	// The home is a link to a folder kept in git; a process's directory is
+	// read with the link resolved.
+	mkdirs(t, root, "data/me/.git", "data/me/notes")
+	if err := os.Symlink(filepath.Join(root, "data/me"), filepath.Join(root, "home")); err != nil {
+		t.Fatal(err)
+	}
+	f := &Finder{Home: filepath.Join(root, "home")}
+	if got := f.Root(filepath.Join(root, "data/me/notes")); got != "" {
+		t.Errorf("Root under the home's real folder = %q", got)
 	}
 }

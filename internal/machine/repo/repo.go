@@ -19,6 +19,22 @@ type Finder struct {
 	Home string
 	// roots holds the answer for each directory asked about.
 	roots map[string]string
+	// home holds Home as given and where its links lead: a process's
+	// directory is read with its links resolved (/proc/<pid>/cwd).
+	home map[string]bool
+}
+
+// homes is the home directory as given and as its links resolve, worked out
+// once per Finder.
+func (f *Finder) homes() map[string]bool {
+	if f.home != nil || f.Home == "" {
+		return f.home
+	}
+	f.home = map[string]bool{filepath.Clean(f.Home): true}
+	if real, err := filepath.EvalSymlinks(f.Home); err == nil {
+		f.home[filepath.Clean(real)] = true
+	}
+	return f.home
 }
 
 // Root is the top of the repository dir is in, "" when it is in none. A git
@@ -46,14 +62,11 @@ func (f *Finder) Root(dir string) string {
 
 // find walks up from dir to the first directory holding a .git entry.
 func (f *Finder) find(dir string) string {
-	home := ""
-	if f.Home != "" {
-		home = filepath.Clean(f.Home)
-	}
+	homes := f.homes()
 	for d := dir; ; {
 		// The home directory and the root say nothing about a project, and
 		// a repository above them would hold every project.
-		if d == home || d == filepath.Dir(d) {
+		if homes[d] || d == filepath.Dir(d) {
 			return ""
 		}
 		if top, ok := topOf(d); ok {
@@ -96,18 +109,23 @@ func topOf(d string) (string, bool) {
 		gitdir = filepath.Join(d, gitdir)
 	}
 	gitdir = filepath.Clean(gitdir)
-	// A worktree's gitdir is <repository>/.git/worktrees/<name>: the project
-	// is the repository. A submodule's is <parent>/.git/modules/<name>, and
-	// the submodule is a project of its own.
+	// A worktree's gitdir is <git data>/worktrees/<name>: the project is
+	// the repository the data is. A submodule's is <parent>/.git/modules/
+	// <name>, and the submodule is a project of its own.
 	parent, name := filepath.Split(gitdir)
 	if name == "" || filepath.Base(filepath.Clean(parent)) != "worktrees" {
 		return d, true
 	}
-	dotGit := filepath.Dir(filepath.Clean(parent))
-	if filepath.Base(dotGit) != ".git" {
-		return d, true
+	data := filepath.Dir(filepath.Clean(parent))
+	// The data is a checkout's .git, or a bare repository kept in a hidden
+	// folder of the project's (.bare, next to its worktrees): the folder
+	// that holds it is the repository. A bare repository on its own
+	// (billing.git) is the repository itself; its name loses .git when the
+	// session is named (rename.Suggest).
+	if strings.HasPrefix(filepath.Base(data), ".") {
+		return filepath.Dir(data), true
 	}
-	return filepath.Dir(dotGit), true
+	return data, true
 }
 
 // maxGitFile is the most of a .git file read: one line, "gitdir: <path>".

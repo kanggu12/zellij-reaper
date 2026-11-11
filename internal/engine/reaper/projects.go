@@ -3,6 +3,7 @@ package reaper
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -16,10 +17,11 @@ import (
 // in a row, each time a command newer than the one before: an agent that goes
 // through many repositories, one command each, keeps its name, and one that
 // works in a project is named after it within two passes that catch it at it.
-// A process that keeps running, such as a language server or a dev server,
-// counts once, when it is new. Until anything is settled, an agent started in
-// a repository works there. A pass writes this down; plan and the dashboard
-// only read it.
+// A command that keeps running, such as a dev server or a loop that keeps
+// starting processes, counts once, when it is new. Until anything is
+// settled, an agent started in a repository works there; another agent in
+// the session starts afresh. A pass writes this down; plan and the
+// dashboard only read it.
 
 // projectTTL is how long the book keeps a session no survey has seen: its
 // server is gone, or was not found for a while.
@@ -33,6 +35,9 @@ type projectEntry struct {
 	// a later command counts only if it started after it.
 	Last string `json:"last,omitempty"`
 	Mark int64  `json:"mark,omitempty"`
+	// Agent is the agent counted for (inspect.AgentWork.ID): another one in
+	// the session starts afresh.
+	Agent string `json:"agent,omitempty"`
 	// Seen is the last survey that saw the session with its agent, in Unix
 	// seconds.
 	Seen int64 `json:"seen"`
@@ -74,8 +79,10 @@ func loadProjects(path string) *projectBook {
 }
 
 // projectKey names a session in the book by what stays through a rename: its
-// server's process and the id or name the server started under. "" when its
-// server was not found, and then the book neither helps nor forgets it.
+// server's process, when that started, and the id or name the server started
+// under. A server that got the pid of an earlier one, after a reboot say, is
+// another session. "" when its server was not found, and then the book
+// neither helps nor forgets it.
 func projectKey(s inspect.Session) string {
 	if s.Server == nil {
 		return ""
@@ -84,7 +91,7 @@ func projectKey(s inspect.Session) string {
 	if s.ByID {
 		who = "id:" + s.ID
 	}
-	return strconv.Itoa(s.Server.PID) + "\t" + who
+	return strconv.Itoa(s.Server.PID) + "\t" + strconv.FormatInt(s.ServerStart, 10) + "\t" + who
 }
 
 // apply settles each agent session's project from what this survey saw, and
@@ -107,6 +114,15 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		}
 		e := b.at[key]
 		before := e
+		// Another agent than the one counted for, started after it ended
+		// between two passes: what it works on is its own. An agent whose
+		// start could not be read this time is taken for the same.
+		if id := s.Agent.ID; id != "" {
+			if e.Agent != "" && e.Agent != id {
+				e = projectEntry{}
+			}
+			e.Agent = id
+		}
 		// The newest command, if it started after the last one counted: the
 		// same repository twice in a row settles it.
 		if w := s.Agent.Work; len(w) > 0 && w[0].Mark > e.Mark {
@@ -123,7 +139,7 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		// A book whose sessions only aged is not written on every pass, but
 		// once an hour, so a session its passes keep seeing does not outlive
 		// projectTTL on disk.
-		if e.Project != before.Project || e.Last != before.Last || e.Mark != before.Mark || e.Seen-before.Seen > int64(time.Hour/time.Second) {
+		if e.Project != before.Project || e.Last != before.Last || e.Mark != before.Mark || e.Agent != before.Agent || e.Seen-before.Seen > int64(time.Hour/time.Second) {
 			b.changed = true
 		}
 		b.at[key] = e
@@ -145,6 +161,9 @@ func (b *projectBook) save() error {
 	}
 	raw, err := json.Marshal(projectFile{Version: 1, Sessions: b.at})
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(b.path), 0o700); err != nil {
 		return err
 	}
 	tmp := b.path + ".new"

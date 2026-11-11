@@ -133,6 +133,21 @@ func TestIdleAndBusyPanes(t *testing.T) {
 	}
 }
 
+func TestASessionKnowsWhenItsServerStarted(t *testing.T) {
+	m := newMachine(t)
+	m.server(t, "web", "web", 700, testutil.Metadata(0, "x"), "")
+	// Its server started 7 s after boot: another server that gets its pid
+	// later starts at another moment.
+	m.proc.Remove(700)
+	m.proc.Add(testutil.Proc{PID: 700, PPID: 1, Comm: "zellij", Argv: []string{"/usr/bin/zellij", "--server", filepath.Join(m.sockDir, "web")}, Sockets: []uint32{7000}, Started: 7 * time.Second})
+	m.pane(t, 701, 700, "bash", []string{"-bash"}, now)
+	got := m.gather(t, true, running("web"))
+	want, _ := procfs.StartMark(m.proc.Root, 700)
+	if len(got) != 1 || want == 0 || got[0].ServerStart != want {
+		t.Errorf("server start %+v, want %d", got, want)
+	}
+}
+
 func TestAServersHelpersAreNotPanes(t *testing.T) {
 	m := newMachine(t)
 	m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")

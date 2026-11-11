@@ -183,9 +183,10 @@ in a terminal or in the background, has the same server command line, environmen
 name once for each session: `r`, Tab and Enter in the dashboard, or `zellij-reaper keep-name NAME`. The name goes on
 the list of kept names, which every pass reads first. A pass that cannot read that list renames nothing.
 
-A name has to stay put to be useful, so it changes only when what the session shows changes. The shell version added the
-time of last use to every name, which renamed a session in use on every pass: 20,536 of the 20,839 renames in its author's
-log moved nothing but the time. `auto_rename_stamp` brings the stamp back for those who want it, by the day or the minute.
+A name has to stay put to be useful, so it changes only when what the session shows changes, or the project its agent
+works in. The shell version added the time of last use to every name, which renamed a session in use on every pass:
+20,536 of the 20,839 renames in its author's log moved nothing but the time. `auto_rename_stamp` brings the stamp back
+for those who want it, by the day or the minute.
 
 A pass renames sessions someone is attached to as well: on a machine whose sessions stay attached, renaming only the
 others left nothing to rename. The person in such a session sees its name change, and its panes keep the old name in
@@ -193,13 +194,19 @@ others left nothing to rename. The person in such a session sees its name change
 other session runs. The prompt hook (`shell-hook`) keeps that variable current. `auto_rename_attached = false` renames
 only the sessions nobody is attached to.
 
-In a session where a coding agent runs, `inspect` lists the repositories the agent's descendants work in, each with the
-start of its newest process there (`procfs.StartMark`). `repo.Finder` walks up from a process's directory to a `.git`,
-without running git, counting a worktree as the repository it was made from and a home kept in git as no project. A pass
-keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file): the repository of the newest
-command, when it started after the last one counted and ran in the same repository as that one, becomes the project,
-which `rename.Suggest` takes before any title. The book keeps it between commands, forgets it when the agent ends, and
-drops a session no pass has seen for a day.
+In a session where a coding agent runs, `inspect` takes each child of the agent's process for a command, with what runs
+under it, and lists the repositories the commands work in, each with the start of its newest command there
+(`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on Linux). A loop that starts a process
+every few seconds is one command that way, and so is a language server. An agent that starts itself again as its only
+child, as Gemini CLI does for more memory, works through that child. An agent is a program by its own name, or a script
+an interpreter runs (`node .../claude-code/cli.js`); another program's argument is a file it works on. `repo.Finder`
+walks up from a process's directory to a `.git`, without running git, counting a worktree as the repository it was made
+from, a bare repository's too, and the home directory, also through a link, as no project. A pass keeps a book of what
+it settled on (`reaper/projects.go`, the `projects` state file), keyed by the server's pid and start and the name or id
+it started under, which a rename does not change: the repository of the newest command, when it started after the last
+one counted and ran in the same repository as that one, becomes the project, which `rename.Suggest` takes before any
+title. The book keeps it between commands, starts afresh for another agent, forgets it when the agent ends, and drops a
+session no pass has seen for a day.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say

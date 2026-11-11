@@ -248,6 +248,17 @@ func StartMark(root string, pid int) (int64, bool) {
 	return int64(start), ok
 }
 
+// StartMarkOf is StartMark for a process of a table, without reading it again
+// where the reader gave its start: the native readers of macOS and Windows
+// give what StartMark would, and the /proc reader gives none, so StartMark
+// reads stat.
+func StartMarkOf(root string, p *Proc) (int64, bool) {
+	if !p.started.IsZero() {
+		return p.started.UnixNano(), true
+	}
+	return StartMark(root, p.PID)
+}
+
 // EnvVar reads one variable from the environment a process started with,
 // which a program's later changes to its own environment do not touch: zellij
 // starts a session's server with ZELLIJ_SESSION_NAME, the name the session

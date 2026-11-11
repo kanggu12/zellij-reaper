@@ -239,7 +239,7 @@ uninstall also works where the settings file does not load.`,
 			return uninstall(cmd, a, purge, unread)
 		},
 	}
-	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list, the lists of given and kept names, and the prompt hook")
+	cmd.Flags().BoolVar(&purge, "purge", false, "also remove the settings, the log, the protected list, the lists of given and kept names, the notes passes keep, and the prompt hook")
 	return cmd
 }
 

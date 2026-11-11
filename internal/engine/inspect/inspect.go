@@ -150,6 +150,10 @@ type Session struct {
 	// Agent is where a coding agent in the session works, as its processes
 	// show now; zero when none runs.
 	Agent AgentWork
+	// ServerStart is when its server started (procfs.StartMark), which tells
+	// it from a later server that got the same pid, after a reboot say; 0
+	// when it could not be read.
+	ServerStart int64
 	// Project is the repository a pass settled on for the session's agent
 	// from what it saw over several surveys (reaper's project book), which
 	// auto_rename names the session after; "" when it has none.
@@ -347,6 +351,11 @@ func (v snapshot) running(s *Session) {
 	}
 	s.Facts.ProtectedCommand = protectedCommand(v.table, s.Server, s.Files, v.rules.ProtectCommands)
 	s.Agent = agentWork(v.table, s.Panes, v.rules.Agents, v.repos, v.src.ProcRoot)
+	if s.Server != nil {
+		if p := v.table.ByPID[s.Server.PID]; p != nil {
+			s.ServerStart, _ = procfs.StartMarkOf(v.src.ProcRoot, p)
+		}
+	}
 }
 
 // now reads the clock, the real one when none was set.

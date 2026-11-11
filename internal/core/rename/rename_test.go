@@ -134,6 +134,11 @@ func TestAnAgentsSessionIsNamedAfterItsProject(t *testing.T) {
 	if got := Suggest(in, MaxBase); got != "payments_service" {
 		t.Errorf("case: %q", got)
 	}
+	// A bare repository's folder loses its .git.
+	in.Project = "/srv/billing.git"
+	if got := Suggest(in, MaxBase); got != "billing" {
+		t.Errorf("bare: %q", got)
+	}
 	// A long one is cut as any name is.
 	in.Project = "/srv/" + strings.Repeat("platform-", 8) + "core"
 	if got := Suggest(in, MaxBase); len(got) > MaxWidth || !strings.HasPrefix(got, "platform-") {
