@@ -126,9 +126,10 @@ they show, so the session list reads like a list of what you were doing:
   <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code running its commands in a billing repository becomes billing. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A name you chose stays: only names zellij made up, and ones a pass gave, change. Names change within five minutes, and
-the session list shows the next one (`→ fix-the-login-bug`). `r` in the dashboard renames by hand; `keep-name NAME`
-keeps a name as it is. Not on Windows, where zellij cannot reach a renamed session.
+A session where a coding agent runs takes the name of the git repository the agent's commands run in, and follows it to
+the next one. A name you chose stays: only names zellij made up, and ones a pass gave, change. Names change within five
+minutes, and the session list shows the next one (`→ fix-the-login-bug`). `r` in the dashboard renames by hand;
+`keep-name NAME` keeps a name as it is. Not on Windows, where zellij cannot reach a renamed session.
 [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules and the zsh and fish hooks.
 
 ## The dashboard
