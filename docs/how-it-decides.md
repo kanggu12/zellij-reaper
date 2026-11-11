@@ -200,7 +200,7 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: ``...; the server of NAME (pid N) is stopped: `kill -CONT N` lets it go on``, or ``the servers of NAME (pid N) and NAME (pid M) are stopped: `kill -CONT N M` lets them go on`` |
-| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) or of agents' projects (`projects`) could not be written. A session this pass was the first to find quiet starts its wait again at the next pass; an agent's command this pass counted is forgotten, and while the file cannot be written no session follows its agent to another project |
+| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) or of agents' projects (`projects`) could not be written. A session this pass was the first to find quiet starts its wait again at the next pass; an agent's command this pass counted is forgotten, so its session may follow the agent later |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |

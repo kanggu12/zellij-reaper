@@ -132,7 +132,9 @@ func newestFirst(children []*procfs.Proc, root string) []command {
 		if len(out) == maxAgentProcs {
 			break
 		}
-		if c == nil {
+		// A child that ended runs nowhere, and a pile of them must not take
+		// the places of the commands.
+		if c == nil || c.IsZombie() {
 			continue
 		}
 		if mark, ok := procfs.StartMarkOf(root, c); ok {
@@ -235,8 +237,9 @@ func scriptIs(script, agent string) bool {
 		if parts[i] != "node_modules" {
 			continue
 		}
+		// The package's own folder may be the script: node runs its main.
 		pkg := parts[i+1]
-		if strings.HasPrefix(pkg, "@") && i+2 < len(parts)-1 {
+		if strings.HasPrefix(pkg, "@") && i+2 < len(parts) {
 			pkg = parts[i+2]
 		}
 		return wordMatch(pkg, agent)

@@ -140,6 +140,25 @@ func TestABigOldCommandLeavesTheNewOnesSeen(t *testing.T) {
 	}
 }
 
+func TestEndedChildrenLeaveTheCommandsSeen(t *testing.T) {
+	ws := projectsDir(t)
+	fp := testutil.NewFakeProc(t)
+	tty := testutil.TTY(t, t.TempDir(), "pane", time.Now())
+	fp.Add(testutil.Proc{PID: 600, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/tmp/y"}, Started: time.Second})
+	fp.Add(testutil.Proc{PID: 601, PPID: 600, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: ws, Started: 2 * time.Second})
+	// More ended children than a survey reads, waiting to be collected,
+	// and then a command in billing.
+	for i := range maxAgentProcs {
+		fp.Add(testutil.Proc{PID: 2000 + i, PPID: 601, Comm: "bash", State: "Z", Started: 10 * time.Second})
+	}
+	fp.Add(testutil.Proc{PID: 9000, PPID: 601, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "billing"), Started: 100 * time.Second})
+	table := readTable(t, fp)
+	w := only(t, agentsAt(table, panes(table, 600, shellSet(nil)), []string{"claude"}, &repo.Finder{}, fp.Root))
+	if len(w.Work) != 1 || w.Work[0].Repo != filepath.Join(ws, "billing") {
+		t.Errorf("work %+v", w.Work)
+	}
+}
+
 func TestAnAgentStartedInAProjectWorksThere(t *testing.T) {
 	ws := projectsDir(t)
 	fp := testutil.NewFakeProc(t)
@@ -225,6 +244,8 @@ func TestWhatIsAnAgent(t *testing.T) {
 		{"node", []string{"node", "/usr/local/lib/node_modules/@google/gemini-cli/dist/index.js"}, "gemini"},
 		{"node", []string{"node", `C:\Users\me\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\cli.js`}, "claude"},
 		{"python3", []string{"python3", "-m", "aider.main"}, "aider"},
+		// The package's folder itself, whose main node runs.
+		{"node", []string{"node", "/usr/local/lib/node_modules/@anthropic-ai/claude-code"}, "claude"},
 		// A folder of someone's own with an agent's name in it.
 		{"python3", []string{"python3", "/root/claude-workspace/web/server.py"}, ""},
 		{"bash", []string{"bash", "/home/me/codex-notes/run.sh"}, ""},
