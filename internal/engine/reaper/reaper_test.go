@@ -180,6 +180,13 @@ const busyID = "0a1b2c3d4e5f"
 // are named by their names, as sessions from an earlier zellij are next to it.
 func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 	t.Helper()
+	return newWorldRevived(t, busy, startedAs, given, byID, false)
+}
+
+// newWorldRevived is newWorldOf, with the busy session one zellij brought back
+// from exited when revived is set: its folder was made before its socket.
+func newWorldRevived(t *testing.T, busy, startedAs string, given, byID, revived bool) *world {
+	t.Helper()
 	now := time.Now()
 	fp := testutil.NewFakeProc(t)
 	sockDir := testutil.SocketDir(t)
@@ -191,6 +198,13 @@ func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 		file := name
 		if byID && name == busy {
 			file = busyID
+		}
+		// Brought back: the folder from before, and the socket of the server
+		// that started now.
+		back := revived && name == busy
+		if back {
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+			time.Sleep(20 * time.Millisecond)
 		}
 		sock := testutil.Socket(t, sockDir, file)
 		servers[name] = pid
@@ -210,7 +224,9 @@ func newWorldOf(t *testing.T, busy, startedAs string, given, byID bool) *world {
 		}
 		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}, Env: env})
 		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: paneEnv})
-		testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+		if !back {
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+		}
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")
 	add(busy, 200, "htop", []string{"htop"}, now.Add(-5*time.Hour), "htop")
@@ -843,7 +859,7 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 	}
 	for _, c := range []struct {
 		what, name, startedAs string
-		given, kept           bool
+		given, kept, revived  bool
 		stamp                 string
 		log                   []string
 		want                  string
@@ -864,6 +880,9 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 		// The list holds names, not sessions: this one is on it from a session now
 		// gone, and whoever started this one under that name chose it.
 		{what: "started under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true},
+		// zellij brought it back from exited, under the name a pass gave it.
+		{what: "brought back under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true, revived: true, want: "htop"},
+		{what: "brought back under a name someone chose", name: "my-project", startedAs: "my-project", revived: true},
 		// Two words from zellij's lists, and nothing made them up.
 		{what: "zellij's words given by hand", name: "lucky-duck", startedAs: "my-notes"},
 		{what: "zellij's words a pass gave", name: "lucky-duck", startedAs: "my-notes", given: true, want: "htop"},
@@ -876,7 +895,10 @@ func TestWhichNamesAPassMayReplace(t *testing.T) {
 		{what: "a stamped name a pass gave", name: "web-app_1104-0931", startedAs: fromZellij, given: true, stamp: "time", want: "htop_"},
 	} {
 		t.Run(c.what, func(t *testing.T) {
-			w := newWorldWith(t, c.name, c.startedAs, c.given)
+			if c.revived {
+				skipWithoutBirthTimes(t)
+			}
+			w := newWorldRevived(t, c.name, c.startedAs, c.given, false, c.revived)
 			w.env.Config.AutoRename = true
 			if c.stamp != "" {
 				w.env.Config.AutoRenameStamp = c.stamp
@@ -921,7 +943,7 @@ func TestWhichNamesAPassMayReplaceOnASessionKeptByID(t *testing.T) {
 	const fromZellij = "brave-peach"
 	for _, c := range []struct {
 		what, name, startedAs string
-		given, kept           bool
+		given, kept, revived  bool
 		want                  string
 	}{
 		{what: "a name zellij made up", name: fromZellij, startedAs: fromZellij, want: "htop"},
@@ -929,6 +951,7 @@ func TestWhichNamesAPassMayReplaceOnASessionKeptByID(t *testing.T) {
 		{what: "a name someone started it under", name: "my-project", startedAs: "my-project"},
 		{what: "a name a pass gave", name: "build-watcher", startedAs: fromZellij, given: true, want: "htop"},
 		{what: "started under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true},
+		{what: "brought back under a name a pass gave", name: "build-watcher", startedAs: "build-watcher", given: true, revived: true, want: "htop"},
 		{what: "zellij's words given by hand", name: "lucky-duck", startedAs: "my-notes"},
 		// Without the name it started under, a name zellij could have made
 		// up may as well be one someone chose: it stays.
@@ -939,7 +962,10 @@ func TestWhichNamesAPassMayReplaceOnASessionKeptByID(t *testing.T) {
 		{what: "the shape of an earlier version's stamp", name: "web-app_1104-0931", startedAs: fromZellij},
 	} {
 		t.Run(c.what, func(t *testing.T) {
-			w := newWorldOf(t, c.name, c.startedAs, c.given, true)
+			if c.revived {
+				skipWithoutBirthTimes(t)
+			}
+			w := newWorldRevived(t, c.name, c.startedAs, c.given, true, c.revived)
 			w.env.Config.AutoRename = true
 			if c.kept {
 				if err := w.env.Kept.Set(c.name, true); err != nil {
@@ -1266,5 +1292,77 @@ func TestASessionTheQuietBookHasNotRecordedStartsItsWaitAtThePass(t *testing.T) 
 	o.Session.QuietFromNow = false
 	if !r.ReapsAt(o, now.Add(42*time.Minute)) {
 		t.Error("a recorded quiet session is not due 42 minutes on, past its 30m wait")
+	}
+}
+
+// skipWithoutBirthTimes skips a test that needs to know which of two files
+// was made first, where the file system keeps no birth times.
+func skipWithoutBirthTimes(t *testing.T) {
+	t.Helper()
+	if _, ok := zellij.Born(t.TempDir()); !ok {
+		t.Skip("this file system keeps no birth times")
+	}
+}
+
+func TestASessionMadeAnewUnderAGivenNameKeepsIt(t *testing.T) {
+	skipWithoutBirthTimes(t)
+	// A pass gave build-watcher to a session that is gone, and someone
+	// started this one under that name: its folder came after its socket.
+	for _, c := range []struct {
+		what   string
+		opts   reaper.Options
+		dry    bool
+		forget bool
+	}{
+		{what: "a names pass", opts: reaper.Options{NamesOnly: true}, forget: true},
+		{what: "a full pass", forget: true},
+		{what: "a dry run", dry: true},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			w := newWorldWith(t, "build-watcher", "build-watcher", true)
+			w.env.Config.AutoRename = true
+			w.env.Config.DryRun = c.dry
+			// plan only reads the list.
+			if _, err := reaper.Plan(context.Background(), w.env, reaper.Options{}); err != nil {
+				t.Fatal(err)
+			}
+			if !w.env.Given.Has("build-watcher") {
+				t.Fatal("plan took the name off the list")
+			}
+			if _, err := reaper.Run(context.Background(), w.env, c.opts); err != nil {
+				t.Fatal(err)
+			}
+			back, err := protect.Load(w.env.Given.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if back.Has("build-watcher") == c.forget {
+				t.Errorf("given after the pass: %v, want %v", back.Has("build-watcher"), !c.forget)
+			}
+			// The session keeps the name all the same.
+			for _, r := range w.zj.renamed {
+				if strings.HasPrefix(r, "build-watcher->") {
+					t.Errorf("renamed %s", r)
+				}
+			}
+		})
+	}
+}
+
+func TestASessionBroughtBackKeepsItsGivenName(t *testing.T) {
+	skipWithoutBirthTimes(t)
+	// zellij brought back a session a pass named htop, after the htop it
+	// runs: nothing to rename, and the name stays the passes' to change.
+	w := newWorldRevived(t, "htop", "htop", true, false, true)
+	w.env.Config.AutoRename = true
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true}); err != nil {
+		t.Fatal(err)
+	}
+	back, err := protect.Load(w.env.Given.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !back.Has("htop") || len(w.zj.renamed) != 0 {
+		t.Errorf("given %v, renamed %v", back.Names(), w.zj.renamed)
 	}
 }

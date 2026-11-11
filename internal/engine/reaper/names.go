@@ -77,7 +77,9 @@ func (e *Env) renameTarget(o Outcome, taken map[string]bool, dropTail bool) (des
 // started under through every rename, is what tells them apart:
 //
 //   - A session that still has that name was never renamed, so no pass gave it. Only
-//     two words from zellij's lists can go, since that is what zellij makes up.
+//     two words from zellij's lists can go, since that is what zellij makes up. A
+//     session zellij brought back from exited is the exception: it starts under the
+//     name it had, and a name a pass gave it goes as before.
 //     zellij keeps nothing that tells such a name from one someone typed (`zellij -s
 //     quiet-mouse`): its command line, environment and files are the same. So a
 //     person says so, with r and Enter in the dashboard, and the name is kept.
@@ -95,6 +97,13 @@ func (e *Env) replaceable(s inspect.Session) bool {
 		return false
 	}
 	if s.StartedAs() == name {
+		// Unless zellij brought it back: a session it resurrects starts again
+		// under the name it had, and a name a pass gave it is the pass's
+		// still. A session made anew under such a name is someone's choice,
+		// and forgetChosen takes the name off the list.
+		if s.Resurrected && e.Given.Has(name) {
+			return true
+		}
 		return rename.Generated(name)
 	}
 	if e.Given.Has(name) {
@@ -230,6 +239,25 @@ func (e *Env) remember(name string) {
 	}
 	if err := e.Given.Set(name, true); err != nil {
 		e.Log.Printf("  -> could not record the name %s: %v", name, err)
+	}
+}
+
+// forgetChosen takes a session made anew under a given name off the list of
+// given names: the session a pass gave it to was deleted, and someone started
+// this one under that name, which is theirs. Left on the list, the name would
+// read as a pass's once zellij brought this session back (replaceable).
+func (e *Env) forgetChosen(outcomes []Outcome) {
+	if e.Given == nil {
+		return
+	}
+	for _, o := range outcomes {
+		s := o.Session
+		// Only a running session whose folder says it was made anew: one
+		// the file system says nothing about keeps the list as it is.
+		if s.Listed.Exited || !s.MadeAnew || s.StartedAs() != s.Name() || !e.Given.Has(s.Name()) {
+			continue
+		}
+		_ = e.Given.Set(s.Name(), false)
 	}
 }
 

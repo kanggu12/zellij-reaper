@@ -426,6 +426,10 @@ type Files struct {
 	HasLayout bool
 	// Newest is the latest modification time of any file in Dir.
 	Newest time.Time
+	// Born is when Dir was made (Born), zero where the file system does not
+	// say. zellij keeps a session's folder when it brings the session back,
+	// so it can be older than the session's server.
+	Born time.Time
 }
 
 // ReadFiles reads a session's directory. A missing directory is reported
@@ -441,6 +445,7 @@ func ReadFiles(infoDir, name string) (Files, error) {
 		return f, err
 	}
 	f.Exists = true
+	f.Born, _ = Born(f.Dir)
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil || info.IsDir() {

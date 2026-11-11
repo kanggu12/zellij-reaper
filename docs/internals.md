@@ -178,6 +178,14 @@ keeps that from costing anyone a name: a session someone starts under a name on 
 under. The decision log is no help here. It says which name a pass gave, not to which session, and zellij gives a name
 out again once its session is gone; 0.3.2 read it, and replaced names people chose.
 
+A session zellij brought back from exited, after a restart say, starts under the name it had, so its command line says
+nothing of who gave that name. Its folder of files does: zellij keeps it when it brings a session back, and makes one
+for a new session a moment after the server's socket. A folder older than the socket, by their birth times
+(`zellij.Born`: `statx` on Linux, the birth time on macOS), is a session brought back, and a pass renames it again when
+the list holds its name. A folder made after the socket, under a name on the list, is a session someone started anew,
+and a pass takes the name off the list (`forgetChosen`), so the session keeps its name when zellij brings it back too.
+Where the file system keeps no birth times, the command line alone decides, as before 0.14.1.
+
 zellij keeps nothing that tells a name it made up from the same words typed by a person: a session started either way,
 in a terminal or in the background, has the same server command line, environment and files. So a person keeps such a
 name once for each session: `r`, Tab and Enter in the dashboard, or `zellij-reaper keep-name NAME`. The name goes on

@@ -100,6 +100,7 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	// read as gone, kept ones too.
 	if !dry && r.IndexErr == nil {
 		e.forgetGone(taken, true)
+		e.forgetChosen(r.Outcomes)
 	}
 	// The book of quiet sessions is bookkeeping, like the log: a dry run
 	// keeps it too, or a session would never come due in one. A session this
@@ -376,6 +377,11 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 	// write is said with its renames, as every failure of this pass is.
 	if err := r.projects.save(); err != nil {
 		e.Log.Printf("could not write %s: %v", e.ProjectsPath, err)
+	}
+	// So is a given name someone took for a new session, before zellij can
+	// bring that session back.
+	if r.IndexErr == nil {
+		e.forgetChosen(r.Outcomes)
 	}
 	held := e.Log.Take()
 	_, _, renamed := r.Counts()

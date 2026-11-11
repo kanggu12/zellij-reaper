@@ -748,6 +748,38 @@ work stop
 $Z kill-session billing >/dev/null 2>&1
 $Z delete-session billing --force >/dev/null 2>&1
 
+echo "-- a session zellij brought back follows its panes again"
+# Someone starts a session under a name a pass once gave a session now gone:
+# the name is theirs. zellij then loses the server, as at a restart, and
+# brings the session back under the name it had; when a pass gave that name,
+# the session is the passes' to rename again.
+GIVEN=~/.local/state/zellij-reaper/named
+printf 'layout {\n    pane name="Fix the login bug" command="sleep" {\n        args "100000"\n    }\n}\n' >/tmp/revive.kdl
+start write-the-docs /tmp/revive.kdl
+printf 'write-the-docs\n' >>"$GIVEN"
+# zellij makes the session's folder a moment after its socket: until then
+# nothing tells a session made anew from one brought back.
+for _ in $(seq 100); do grep -q 'title "Fix the login bug"' "$INFO/$(file_of write-the-docs)/session-metadata.kdl" 2>/dev/null && break; sleep 0.1; done
+check "a names pass succeeds" names
+check "a session made anew keeps the name it was started under" listed write-the-docs
+check "and the name is no longer a given one" sh -c "! grep -qxF write-the-docs $GIVEN"
+# The same session as if a pass had named it, brought back from exited.
+printf 'write-the-docs\n' >>"$GIVEN"
+wait_saved write-the-docs
+kill -9 "$(server_pid write-the-docs)"
+wait_exited write-the-docs
+timeout 20 $Z attach --create-background write-the-docs >/dev/null 2>&1
+wait_reachable write-the-docs
+# The server it started writes the session's files anew every second.
+sleep 2
+check "a names pass succeeds" names
+check "the session zellij brought back is named after its pane" listed fix-the-login-bug
+check "and the log says so" grep -q "]   -> renamed: write-the-docs → fix-the-login-bug\$" "$LOG"
+for s in fix-the-login-bug write-the-docs; do
+  $Z kill-session "$s" >/dev/null 2>&1
+  $Z delete-session "$s" --force >/dev/null 2>&1
+done
+
 if by_id; then
   echo "-- an index that cannot be read"
   # zellij keeps sessions by id and the names in its index. One that cannot be

@@ -148,6 +148,35 @@ func TestASessionKnowsWhenItsServerStarted(t *testing.T) {
 	}
 }
 
+func TestASessionZellijBroughtBackIsToldByItsFolder(t *testing.T) {
+	m := newMachine(t)
+	// Made anew: its socket first, then its folder, as zellij makes them.
+	m.server(t, "fresh", "fresh", 800, testutil.Metadata(0, "x"), "")
+	m.pane(t, 801, 800, "bash", []string{"-bash"}, now)
+	// Brought back from exited: the folder from before, then the socket of
+	// the server that started now.
+	testutil.SessionFiles(t, m.info, "back", testutil.Metadata(0, "x"), "", now.Add(-time.Minute))
+	time.Sleep(20 * time.Millisecond)
+	sock := testutil.Socket(t, m.sockDir, "back")
+	m.proc.Add(testutil.Proc{PID: 810, PPID: 1, Comm: "zellij", Argv: []string{"/usr/bin/zellij", "--server", sock}, Sockets: []uint32{8100}})
+	ino, dev, _ := procfs.FileID(sock)
+	m.socks = append(m.socks, procfs.UnixSocket{Inode: 8100, State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
+	m.pane(t, 811, 810, "bash", []string{"-bash"}, now)
+	if _, ok := zellij.Born(sock); !ok {
+		t.Skip("this file system keeps no birth times")
+	}
+	got := map[string]inspect.Session{}
+	for _, s := range m.gather(t, true, running("fresh"), running("back")) {
+		got[s.Name()] = s
+	}
+	if s := got["fresh"]; s.Resurrected || !s.MadeAnew {
+		t.Errorf("fresh: resurrected %v, made anew %v", s.Resurrected, s.MadeAnew)
+	}
+	if s := got["back"]; !s.Resurrected || s.MadeAnew || s.Server == nil {
+		t.Errorf("back: resurrected %v, made anew %v, server %v", s.Resurrected, s.MadeAnew, s.Server)
+	}
+}
+
 func TestAServersHelpersAreNotPanes(t *testing.T) {
 	m := newMachine(t)
 	m.server(t, "s", "s", 100, testutil.Metadata(0, "x"), "")

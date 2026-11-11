@@ -76,11 +76,19 @@ A pass names a session after the focused pane of the tab a client looks at, or o
 since zellij then marks no tab active. When that title says nothing, the other running panes come next. Its row in
 `plan --json` lists `would_rename`, and `r` in the dashboard shows the name its panes, or its agent's project, point to.
 A session where a coding agent runs is named after the git repository of the agent's newest command, once two that
-passes counted in a row ran there; before that, after the repository the agent was started in, or as any other
-session when that is none. A command that starts and ends between two passes is not seen, and an agent that goes
-through many repositories, one command each, keeps its name.
-Give it a name with `r` or `zellij action rename-session`, and passes leave that name alone. To keep the name a running
-session has now, press `r`, then Tab and Enter. `auto_rename = false` turns renaming off.
+passes counted in a row ran there; before that, after the repository the agent was started in, or as any other session
+when that is none. A command that starts and ends between two passes is not seen, and an agent that goes through many
+repositories, one command each, keeps its name. Give it a name with `r` or `zellij action rename-session`, and passes
+leave that name alone. To keep the name a running session has now, press `r`, then Tab and Enter. `auto_rename = false`
+turns renaming off.
+
+## A session's name never changes
+
+A pass renames only a session whose name zellij made up or a pass gave; a name someone typed, or kept with `r` or
+`keep-name`, stays. A session zellij brought back from exited, after a restart say, starts under the name it had, and
+until 0.14.1 that read as a name someone typed, so it stayed for good. A pass now tells such a session by its folder of
+files, which zellij keeps and which is then older than the new server's socket, and renames it again when a pass gave
+the name. On a file system that keeps no birth times it cannot tell, and the name stays.
 
 ## A `zellij` command hangs in a renamed session
 
