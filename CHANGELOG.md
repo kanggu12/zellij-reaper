@@ -11,14 +11,14 @@ that only fixes raises the patch number. Each release's section here is its rele
 - A session where a coding agent runs (`claude`, `codex`, `gemini`, `aider`, `opencode`) is named after the git
   repository the agent works in, and follows it to the next one. Such sessions were named after the agent's title, the
   topic its conversation began with, and kept that name long after the work moved on. A pass looks at the commands the
-  agent is running at that moment, and settles on a repository once two passes in a row find its newest command there,
-  each a command started after the one before; the names timer looks every 5 minutes. An agent that looks through many
-  repositories, one command each, keeps its name, and a command that keeps running, such as a dev server or a loop that
-  keeps starting processes, counts once. A command that starts and ends between two passes is not seen. Between
-  commands the name stays, written down in `projects` in the state directory. An agent started inside a repository is
-  named after it at once, another agent in its place starts afresh, and a git worktree, a bare repository's too, counts
-  as the repository it was made from. When the agent ends, the session's titles and directory name it again. A
-  repository whose name has no English word leaves the title its turn.
+  agent is running at that moment and counts the newest, if it started after the last one counted; once two counted in
+  a row ran in the same repository, that repository is the project. The names timer looks every 5 minutes. An agent
+  that looks through many repositories, one command each, keeps its name, and a command that keeps running, such as a
+  dev server or a loop that keeps starting processes, counts once. A command that starts and ends between two passes
+  is not seen. Between commands the name stays, written down in `projects` in the state directory. An agent started
+  inside a repository is named after it at once, another agent in its place starts afresh, and a git worktree, a bare
+  repository's too, counts as the repository it was made from. When the agent ends, the session's titles and directory
+  name it again. A repository whose name has no English word leaves the title its turn.
 
 ## [0.13.2] - 2026-11-10
 
