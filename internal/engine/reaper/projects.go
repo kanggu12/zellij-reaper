@@ -19,9 +19,9 @@ import (
 // works in a project is named after it within two passes that catch it at it.
 // A command that keeps running, such as a dev server or a loop that keeps
 // starting processes, counts once, when it is new. Until anything is
-// settled, an agent started in a repository works there; another agent in
-// the session starts afresh. A pass writes this down; plan and the
-// dashboard only read it.
+// settled, an agent started in a repository works there. The agent counted
+// for speaks for the session while it runs, and the one after it starts
+// afresh. A pass writes this down; plan and the dashboard only read it.
 
 // projectTTL is how long the book keeps a session no survey has seen: its
 // server is gone, or was not found for a while.
@@ -105,7 +105,7 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 			continue
 		}
 		// The agent ended: the session is named by what else it shows.
-		if s.Agent.Program == "" {
+		if len(s.Agents) == 0 {
 			if _, ok := b.at[key]; ok {
 				delete(b.at, key)
 				b.changed = true
@@ -114,10 +114,11 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		}
 		e := b.at[key]
 		before := e
-		// Another agent than the one counted for, started after it ended
-		// between two passes: what it works on is its own. An agent whose
-		// start could not be read this time is taken for the same.
-		if id := s.Agent.ID; id != "" {
+		a := speaker(s.Agents, e.Agent)
+		// Another agent than the one counted for, once that one ended: what
+		// it works on is its own. An agent whose start could not be read this
+		// time is taken for the same.
+		if id := a.ID; id != "" {
 			if e.Agent != "" && e.Agent != id {
 				e = projectEntry{}
 			}
@@ -125,15 +126,15 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		}
 		// The newest command, if it started after the last one counted: the
 		// same repository twice in a row settles it.
-		if w := s.Agent.Work; len(w) > 0 && w[0].Mark > e.Mark {
+		if w := a.Work; len(w) > 0 && w[0].Mark > e.Mark {
 			if w[0].Repo == e.Last {
 				e.Project = w[0].Repo
 			}
 			e.Last, e.Mark = w[0].Repo, w[0].Mark
 		}
 		// Nothing settled yet: an agent works where it was started.
-		if e.Project == "" && s.Agent.Started != "" {
-			e.Project = s.Agent.Started
+		if e.Project == "" && a.Started != "" {
+			e.Project = a.Started
 		}
 		e.Seen = now.Unix()
 		// A book whose sessions only aged is not written on every pass, but
@@ -151,6 +152,18 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 			b.changed = true
 		}
 	}
+}
+
+// speaker is the agent that speaks for a session: the one the book counted
+// for, while it runs, whatever starts in the session's other panes, else the
+// first pane's.
+func speaker(agents []inspect.AgentWork, counted string) inspect.AgentWork {
+	for _, a := range agents {
+		if counted != "" && a.ID == counted {
+			return a
+		}
+	}
+	return agents[0]
 }
 
 // save writes the book when this survey changed it, through a temporary file

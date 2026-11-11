@@ -109,14 +109,23 @@ func topOf(d string) (string, bool) {
 		gitdir = filepath.Join(d, gitdir)
 	}
 	gitdir = filepath.Clean(gitdir)
-	// A worktree's gitdir is <git data>/worktrees/<name>: the project is
-	// the repository the data is. A submodule's is <parent>/.git/modules/
-	// <name>, and the submodule is a project of its own.
-	parent, name := filepath.Split(gitdir)
-	if name == "" || filepath.Base(filepath.Clean(parent)) != "worktrees" {
+	// git gives a worktree's gitdir a commondir file, the way to the git
+	// data of the repository it was made from ("../.."): the project is that
+	// repository. A submodule's gitdir has none, whatever its path, and the
+	// submodule is a project of its own.
+	common, err := readSmall(filepath.Join(gitdir, "commondir"))
+	if err != nil {
 		return d, true
 	}
-	data := filepath.Dir(filepath.Clean(parent))
+	data := strings.TrimSpace(string(common))
+	if data == "" {
+		return d, true
+	}
+	// A relative commondir is relative to the worktree's gitdir.
+	if !filepath.IsAbs(data) {
+		data = filepath.Join(gitdir, data)
+	}
+	data = filepath.Clean(data)
 	// The data is a checkout's .git, or a bare repository kept in a hidden
 	// folder of the project's (.bare, next to its worktrees): the folder
 	// that holds it is the repository. A bare repository on its own

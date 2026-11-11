@@ -369,6 +369,37 @@ func TestAnotherAgentInTheSessionStartsAfresh(t *testing.T) {
 	}
 }
 
+func TestASecondAgentDoesNotTakeTheSessionFromTheOneCounted(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorld(t, p.root)
+	command(w, 330, p.billing, 100*time.Second)
+	pass(t, w)
+	w.fp.Remove(330)
+	command(w, 331, p.billing, 200*time.Second)
+	pass(t, w)
+	if got := suggested(t, w); got != "billing" {
+		t.Fatalf("first agent: %q", got)
+	}
+	// Another agent, in a pane before the first one's, runs for a while
+	// and works in web-app twice: the session stays with the agent counted
+	// for, and keeps its project after the other ends.
+	tty := testutil.TTY(t, t.TempDir(), "other", time.Now())
+	w.fp.Add(testutil.Proc{PID: 205, PPID: 200, Comm: "codex", Argv: []string{"codex"}, Stdin: tty, Cwd: p.root, Started: 250 * time.Second})
+	for i, at := range []time.Duration{300, 400} {
+		w.fp.Add(testutil.Proc{PID: 340 + i, PPID: 205, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: p.webApp, Started: at * time.Second})
+		pass(t, w)
+		w.fp.Remove(340 + i)
+	}
+	if got := suggested(t, w); got != "billing" {
+		t.Errorf("with a second agent: %q", got)
+	}
+	w.fp.Remove(205)
+	pass(t, w)
+	if got := suggested(t, w); got != "billing" {
+		t.Errorf("after it: %q", got)
+	}
+}
+
 func TestACommandThatKeepsStartingProcessesCountsOnce(t *testing.T) {
 	p := newProjects(t)
 	w := agentWorld(t, p.root)

@@ -46,6 +46,15 @@ func readTable(t *testing.T, fp *testutil.FakeProc) *procfs.Table {
 	return table
 }
 
+// only is the agent of a session that has one, which the test fails without.
+func only(t *testing.T, ws []AgentWork) AgentWork {
+	t.Helper()
+	if len(ws) != 1 {
+		t.Fatalf("agents %+v, want one", ws)
+	}
+	return ws[0]
+}
+
 func TestAnAgentWorksWhereItsNewestCommandsRun(t *testing.T) {
 	ws := projectsDir(t)
 	fp := testutil.NewFakeProc(t)
@@ -66,7 +75,7 @@ func TestAnAgentWorksWhereItsNewestCommandsRun(t *testing.T) {
 	// An editor in docs-site: no agent, so where it is says nothing here.
 	fp.Add(testutil.Proc{PID: 120, PPID: 100, Comm: "vim", Argv: []string{"vim"}, Stdin: tty, Cwd: filepath.Join(ws, "docs-site"), Started: 4 * time.Second})
 	table := readTable(t, fp)
-	w := agentWork(table, panes(table, 100, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root)
+	w := only(t, agentsAt(table, panes(table, 100, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root))
 	// Each command counts from when it started: go under the one in web-app
 	// is part of it.
 	want := []Sighting{{filepath.Join(ws, "billing"), markOf(t, fp.Root, 112)}, {filepath.Join(ws, "web-app"), markOf(t, fp.Root, 110)}}
@@ -78,8 +87,8 @@ func TestAnAgentWorksWhereItsNewestCommandsRun(t *testing.T) {
 		t.Errorf("id %q, want %q", w.ID, id)
 	}
 	// With the agent out of the list, nothing here is an agent's.
-	if w := agentWork(table, panes(table, 100, shellSet(nil)), []string{"codex"}, &repo.Finder{}, fp.Root); w.Program != "" || w.ID != "" || len(w.Work) != 0 {
-		t.Errorf("no agent: %+v", w)
+	if ws := agentsAt(table, panes(table, 100, shellSet(nil)), []string{"codex"}, &repo.Finder{}, fp.Root); len(ws) != 0 {
+		t.Errorf("no agent: %+v", ws)
 	}
 }
 
@@ -99,12 +108,33 @@ func TestACommandThatKeepsStartingProcessesIsOneCommand(t *testing.T) {
 	fp.Add(testutil.Proc{PID: 171, PPID: 170, Comm: "go", Argv: []string{"go", "list"}, Cwd: filepath.Join(ws, "docs-site"), Started: 295 * time.Second})
 	fp.Add(testutil.Proc{PID: 180, PPID: 151, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "billing"), Started: 100 * time.Second})
 	table := readTable(t, fp)
-	w := agentWork(table, panes(table, 150, shellSet(nil)), []string{"claude"}, &repo.Finder{}, fp.Root)
+	w := only(t, agentsAt(table, panes(table, 150, shellSet(nil)), []string{"claude"}, &repo.Finder{}, fp.Root))
 	want := []Sighting{
 		{filepath.Join(ws, "billing"), markOf(t, fp.Root, 180)},
 		{filepath.Join(ws, "docs-site"), markOf(t, fp.Root, 170)},
 		{filepath.Join(ws, "web-app"), markOf(t, fp.Root, 160)},
 	}
+	if !slices.Equal(w.Work, want) {
+		t.Errorf("work %+v, want %+v", w.Work, want)
+	}
+}
+
+func TestABigOldCommandLeavesTheNewOnesSeen(t *testing.T) {
+	ws := projectsDir(t)
+	fp := testutil.NewFakeProc(t)
+	tty := testutil.TTY(t, t.TempDir(), "pane", time.Now())
+	fp.Add(testutil.Proc{PID: 500, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/tmp/x"}, Started: time.Second})
+	fp.Add(testutil.Proc{PID: 501, PPID: 500, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: ws, Started: 2 * time.Second})
+	// A build server it started long ago in web-app, with more workers than
+	// a survey reads, and a newer command in billing, with a higher pid.
+	fp.Add(testutil.Proc{PID: 510, PPID: 501, Comm: "bash", Argv: []string{"bash", "-c", "make serve"}, Cwd: filepath.Join(ws, "web-app"), Started: 20 * time.Second})
+	for i := range maxAgentProcs {
+		fp.Add(testutil.Proc{PID: 1000 + i, PPID: 510, Comm: "worker", Argv: []string{"worker"}, Cwd: filepath.Join(ws, "web-app"), Started: 21 * time.Second})
+	}
+	fp.Add(testutil.Proc{PID: 5000, PPID: 501, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "billing"), Started: 100 * time.Second})
+	table := readTable(t, fp)
+	w := only(t, agentsAt(table, panes(table, 500, shellSet(nil)), []string{"claude"}, &repo.Finder{}, fp.Root))
+	want := []Sighting{{filepath.Join(ws, "billing"), markOf(t, fp.Root, 5000)}, {filepath.Join(ws, "web-app"), markOf(t, fp.Root, 510)}}
 	if !slices.Equal(w.Work, want) {
 		t.Errorf("work %+v, want %+v", w.Work, want)
 	}
@@ -118,27 +148,29 @@ func TestAnAgentStartedInAProjectWorksThere(t *testing.T) {
 	fp.Add(testutil.Proc{PID: 200, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/tmp/t"}, Started: time.Second})
 	fp.Add(testutil.Proc{PID: 201, PPID: 200, Comm: "codex", Argv: []string{"codex"}, Stdin: tty, Cwd: filepath.Join(ws, "billing"), Started: 2 * time.Second})
 	table := readTable(t, fp)
-	w := agentWork(table, panes(table, 200, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root)
+	w := only(t, agentsAt(table, panes(table, 200, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root))
 	if w.Program != "codex" || w.Started != filepath.Join(ws, "billing") || len(w.Work) != 0 {
 		t.Errorf("agent work %+v", w)
 	}
 }
 
-func TestTheFirstPanesAgentAloneSpeaksForTheSession(t *testing.T) {
+func TestEachPanesAgentIsSeenOnItsOwn(t *testing.T) {
 	ws := projectsDir(t)
 	fp := testutil.NewFakeProc(t)
 	tty := testutil.TTY(t, t.TempDir(), "pane", time.Now())
-	// Two panes, an agent in each, at work in two projects: the second
-	// agent's newer command does not speak for the session.
+	// Two panes, an agent in each, at work in two projects: neither one's
+	// commands are the other's.
 	fp.Add(testutil.Proc{PID: 300, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/tmp/u"}, Started: time.Second})
 	fp.Add(testutil.Proc{PID: 301, PPID: 300, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: ws, Started: 2 * time.Second})
 	fp.Add(testutil.Proc{PID: 302, PPID: 300, Comm: "codex", Argv: []string{"codex"}, Stdin: tty, Cwd: ws, Started: 3 * time.Second})
 	fp.Add(testutil.Proc{PID: 310, PPID: 301, Comm: "make", Argv: []string{"make"}, Cwd: filepath.Join(ws, "web-app"), Started: 50 * time.Second})
 	fp.Add(testutil.Proc{PID: 311, PPID: 302, Comm: "make", Argv: []string{"make"}, Cwd: filepath.Join(ws, "billing"), Started: 60 * time.Second})
 	table := readTable(t, fp)
-	w := agentWork(table, panes(table, 300, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root)
-	if w.Program != "claude" || len(w.Work) != 1 || w.Work[0].Repo != filepath.Join(ws, "web-app") {
-		t.Errorf("agent work %+v", w)
+	got := agentsAt(table, panes(table, 300, shellSet(nil)), []string{"claude", "codex"}, &repo.Finder{}, fp.Root)
+	if len(got) != 2 ||
+		got[0].Program != "claude" || len(got[0].Work) != 1 || got[0].Work[0].Repo != filepath.Join(ws, "web-app") ||
+		got[1].Program != "codex" || len(got[1].Work) != 1 || got[1].Work[0].Repo != filepath.Join(ws, "billing") {
+		t.Errorf("agents %+v", got)
 	}
 }
 
@@ -154,7 +186,7 @@ func TestAnAgentStartedAgainUnderItselfWorksThroughItsChild(t *testing.T) {
 	fp.Add(testutil.Proc{PID: 410, PPID: 402, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "billing"), Started: 50 * time.Second})
 	fp.Add(testutil.Proc{PID: 411, PPID: 402, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "web-app"), Started: 60 * time.Second})
 	table := readTable(t, fp)
-	w := agentWork(table, panes(table, 400, shellSet(nil)), []string{"claude", "gemini"}, &repo.Finder{}, fp.Root)
+	w := only(t, agentsAt(table, panes(table, 400, shellSet(nil)), []string{"claude", "gemini"}, &repo.Finder{}, fp.Root))
 	want := []Sighting{{filepath.Join(ws, "web-app"), markOf(t, fp.Root, 411)}, {filepath.Join(ws, "billing"), markOf(t, fp.Root, 410)}}
 	if w.Program != "gemini" || !slices.Equal(w.Work, want) {
 		t.Errorf("agent work %+v, want gemini, %+v", w, want)
@@ -169,7 +201,7 @@ func TestAnAgentStartedAgainUnderItselfWorksThroughItsChild(t *testing.T) {
 	fp.Add(testutil.Proc{PID: 451, PPID: 450, Comm: "bash", Argv: []string{"bash", "-c", "make"}, Cwd: filepath.Join(ws, "docs-site"), Started: 70 * time.Second})
 	fp.Add(testutil.Proc{PID: 452, PPID: 450, Comm: "claude", Argv: []string{"claude", "mcp", "serve"}, Cwd: ws, Started: 5 * time.Second})
 	table = readTable(t, fp)
-	if w := agentWork(table, []Pane{{PID: 450}}, []string{"claude"}, &repo.Finder{}, fp.Root); len(w.Work) != 1 || w.Work[0].Repo != filepath.Join(ws, "docs-site") {
+	if w := only(t, agentsAt(table, []Pane{{PID: 450}}, []string{"claude"}, &repo.Finder{}, fp.Root)); len(w.Work) != 1 || w.Work[0].Repo != filepath.Join(ws, "docs-site") {
 		t.Errorf("an agent with its own name as a child: %+v", w)
 	}
 }
@@ -188,6 +220,15 @@ func TestWhatIsAnAgent(t *testing.T) {
 		{"python3.12", []string{"python3.12", "-m", "aider"}, "aider"},
 		// A script run by its shebang: the kernel names it after the file.
 		{"codex", []string{"/bin/sh", "/usr/local/sbin/codex"}, "codex"},
+		// Installed with npm, scoped or not, on Linux or Windows.
+		{"node", []string{"node", "/usr/local/lib/node_modules/@openai/codex/bin/codex.js"}, "codex"},
+		{"node", []string{"node", "/usr/local/lib/node_modules/@google/gemini-cli/dist/index.js"}, "gemini"},
+		{"node", []string{"node", `C:\Users\me\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\cli.js`}, "claude"},
+		{"python3", []string{"python3", "-m", "aider.main"}, "aider"},
+		// A folder of someone's own with an agent's name in it.
+		{"python3", []string{"python3", "/root/claude-workspace/web/server.py"}, ""},
+		{"bash", []string{"bash", "/home/me/codex-notes/run.sh"}, ""},
+		{"node", []string{"node", "/srv/gemini-playground/node_modules/vite/bin/vite.js"}, ""},
 		// Another program's argument is a file it works on.
 		{"vim", []string{"vim", "codex"}, ""},
 		{"less", []string{"less", "claude.md"}, ""},

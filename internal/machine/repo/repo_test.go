@@ -32,27 +32,34 @@ func TestRootFindsTheRepositoryADirectoryIsIn(t *testing.T) {
 		"srv/web-app/vendor/lib/.git", "srv/web-app/vendor/lib/src",
 		// A worktree of web-app elsewhere, and its git data in web-app.
 		"srv/web-app/.git/worktrees/fix-login", "work/fix-login/ui",
-		// A submodule, a project of its own.
+		// A submodule, a project of its own, and one in a folder named
+		// worktrees.
 		"srv/web-app/.git/modules/theme", "srv/web-app/theme/css",
+		"srv/web-app/.git/modules/worktrees/foo", "srv/web-app/worktrees/foo/src",
 		// No repository at all.
 		"tmp/scratch",
 		// A home kept in git, and a project under it.
 		"home/me/.git", "home/me/notes", "home/me/code/api/.git", "home/me/code/api/docs",
 	)
+	// As git writes them: a worktree's .git names its gitdir, which holds
+	// the way back to the repository's data; a submodule's names its own.
 	write(t, root, "work/fix-login/.git", "gitdir: "+filepath.Join(root, "srv/web-app/.git/worktrees/fix-login")+"\n")
+	write(t, root, "srv/web-app/.git/worktrees/fix-login/commondir", "../..\n")
 	write(t, root, "srv/web-app/theme/.git", "gitdir: ../.git/modules/theme\n")
+	write(t, root, "srv/web-app/worktrees/foo/.git", "gitdir: ../../.git/modules/worktrees/foo\n")
 	f := &Finder{Home: filepath.Join(root, "home/me")}
 	for dir, want := range map[string]string{
-		"srv/web-app":                "srv/web-app",
-		"srv/web-app/cmd/server":     "srv/web-app",
-		"srv/web-app/vendor/lib":     "srv/web-app/vendor/lib",
-		"srv/web-app/vendor/lib/src": "srv/web-app/vendor/lib",
-		"work/fix-login/ui":          "srv/web-app",
-		"srv/web-app/theme/css":      "srv/web-app/theme",
-		"tmp/scratch":                "",
-		"home/me":                    "",
-		"home/me/notes":              "",
-		"home/me/code/api/docs":      "home/me/code/api",
+		"srv/web-app":                   "srv/web-app",
+		"srv/web-app/cmd/server":        "srv/web-app",
+		"srv/web-app/vendor/lib":        "srv/web-app/vendor/lib",
+		"srv/web-app/vendor/lib/src":    "srv/web-app/vendor/lib",
+		"work/fix-login/ui":             "srv/web-app",
+		"srv/web-app/theme/css":         "srv/web-app/theme",
+		"srv/web-app/worktrees/foo/src": "srv/web-app/worktrees/foo",
+		"tmp/scratch":                   "",
+		"home/me":                       "",
+		"home/me/notes":                 "",
+		"home/me/code/api/docs":         "home/me/code/api",
 	} {
 		got := f.Root(filepath.Join(root, dir))
 		if want != "" {
@@ -123,7 +130,9 @@ func TestAWorktreeOfABareRepositoryIsThatRepository(t *testing.T) {
 		"code/api/.bare/worktrees/main", "code/api/main/cmd",
 	)
 	write(t, root, "work/feature/.git", "gitdir: "+filepath.Join(root, "srv/billing.git/worktrees/feature")+"\n")
+	write(t, root, "srv/billing.git/worktrees/feature/commondir", "../..\n")
 	write(t, root, "code/api/main/.git", "gitdir: ../.bare/worktrees/main\n")
+	write(t, root, "code/api/.bare/worktrees/main/commondir", "../..\n")
 	f := &Finder{}
 	for dir, want := range map[string]string{
 		"work/feature/src":  "srv/billing.git",
@@ -136,12 +145,18 @@ func TestAWorktreeOfABareRepositoryIsThatRepository(t *testing.T) {
 }
 
 func TestAHomeReachedThroughALinkIsNoProjectEither(t *testing.T) {
-	root := t.TempDir()
-	// The home is a link to a folder kept in git; a process's directory is
-	// read with the link resolved.
+	// A process's directory is read with every link resolved, so the test
+	// starts from the temporary folder's real path: on macOS it is under a
+	// link (/var), and on Windows it may be a short name (RUNNER~1).
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The home is a link to a folder kept in git.
 	mkdirs(t, root, "data/me/.git", "data/me/notes")
 	if err := os.Symlink(filepath.Join(root, "data/me"), filepath.Join(root, "home")); err != nil {
-		t.Fatal(err)
+		// Windows makes links only for an administrator or in developer mode.
+		t.Skipf("cannot make a link here: %v", err)
 	}
 	f := &Finder{Home: filepath.Join(root, "home")}
 	if got := f.Root(filepath.Join(root, "data/me/notes")); got != "" {

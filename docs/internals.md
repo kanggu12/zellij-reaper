@@ -194,19 +194,22 @@ others left nothing to rename. The person in such a session sees its name change
 other session runs. The prompt hook (`shell-hook`) keeps that variable current. `auto_rename_attached = false` renames
 only the sessions nobody is attached to.
 
-In a session where a coding agent runs, `inspect` takes each child of the agent's process for a command, with what runs
-under it, and lists the repositories the commands work in, each with the start of its newest command there
-(`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on Linux). A loop that starts a process
-every few seconds is one command that way, and so is a language server. An agent that starts itself again as its only
-child, as Gemini CLI does for more memory, works through that child. An agent is a program by its own name, or a script
-an interpreter runs (`node .../claude-code/cli.js`); another program's argument is a file it works on. `repo.Finder`
-walks up from a process's directory to a `.git`, without running git, counting a worktree as the repository it was made
-from, a bare repository's too, and the home directory, also through a link, as no project. A pass keeps a book of what
-it settled on (`reaper/projects.go`, the `projects` state file), keyed by the server's pid and start and the name or id
-it started under, which a rename does not change: the repository of the newest command, when it started after the last
-one counted and ran in the same repository as that one, becomes the project, which `rename.Suggest` takes before any
-title. The book keeps it between commands, starts afresh for another agent, forgets it when the agent ends, and drops a
-session no pass has seen for a day.
+In a session where a coding agent runs, `inspect` finds the agent under each pane, and takes each child of an agent's
+process for a command, with what runs under it, the newest first. It lists the repositories the commands work in, each
+with the start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or
+`stat` on Linux). A loop that starts a process every few seconds is one command that way, and so is a language server.
+An agent that starts itself again as its only child, as Gemini CLI does for more memory, works through that child. An
+agent is a program by its own name, or a script an interpreter runs, by the script's file name or the npm package it is
+in (`node .../claude-code/cli.js`); a folder of someone's own with an agent's name in it, or another program's argument,
+names nothing. `repo.Finder` walks up from a process's directory to a `.git`, without running git, counting a worktree
+as the repository it was made from, a bare repository's too (git gives a worktree's git folder a `commondir` file, and a
+submodule's none), and the home directory, also through a link, as no project. A pass keeps a book of what it settled on
+(`reaper/projects.go`, the `projects` state file), keyed by the server's pid and start and the name or id it started
+under, which a rename does not change: the repository of the newest command, when it started after the last one counted
+and ran in the same repository as that one, becomes the project, which `rename.Suggest` takes before any title. The
+agent the book counted for speaks for the session while it runs, whatever starts in its other panes. The book keeps the
+project between commands, starts afresh for the next agent once that one ends, forgets it when no agent runs, and drops
+a session no pass has seen for a day.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say

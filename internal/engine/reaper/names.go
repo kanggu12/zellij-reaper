@@ -143,7 +143,8 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 	desired = rename.Desired(base, rename.Stamp(e.Config.AutoRenameStamp), when)
 	// Named this way already, perhaps with a tail from a collision: nothing
 	// to do. The tail stays even once the other session is gone, because a
-	// name changes only when what the session shows changes.
+	// name changes only when what the session shows changes, or the project
+	// its agent works in.
 	if rename.Same(s.Name(), desired) {
 		// auto_rename_drop_tail: the plain name is free again, so the tail
 		// can go. Only names a pass may replace get here.

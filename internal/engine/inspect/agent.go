@@ -44,21 +44,24 @@ type Sighting struct {
 	Mark int64
 }
 
-// agentWork finds the first coding agent under the session's panes and what
-// it works on. Several agents in one session are rare, and the first pane's
-// alone speaks for it: two agents at work in two projects would otherwise
-// take the session's name back and forth between them.
-func agentWork(t *procfs.Table, panes []Pane, agents []string, repos *repo.Finder, root string) AgentWork {
-	var w AgentWork
-	var a *procfs.Proc
+// agentsAt finds the coding agent under each of the session's panes, the
+// first under each, in the panes' order, and what each works on, each on its
+// own: two agents at work in two projects would otherwise take the session's
+// name back and forth between them. Two in one session are rare; a pass lets
+// one speak for the session (reaper's project book).
+func agentsAt(t *procfs.Table, panes []Pane, agents []string, repos *repo.Finder, root string) []AgentWork {
+	var out []AgentWork
 	for _, p := range panes {
-		if a = findAgent(t, p.PID, agents); a != nil {
-			break
+		if a := findAgent(t, p.PID, agents); a != nil {
+			out = append(out, workOf(t, a, agents, repos, root))
 		}
 	}
-	if a == nil {
-		return w
-	}
+	return out
+}
+
+// workOf is where an agent works, as the commands it runs now show.
+func workOf(t *procfs.Table, a *procfs.Proc, agents []string, repos *repo.Finder, root string) AgentWork {
+	var w AgentWork
 	w.Program = agentName(a, agents)
 	// The agent as it was found names it: the process it may have started
 	// again under itself comes and goes with what it does.
@@ -74,22 +77,14 @@ func agentWork(t *procfs.Table, panes []Pane, agents []string, repos *repo.Finde
 	// (a language server, a tool's server), and what runs under it is part
 	// of it. A command counts from when it started: a loop or a watcher that
 	// keeps starting processes is one command, however long it runs.
-	for _, c := range t.Children(a.PID) {
+	for _, c := range newestFirst(t.Children(a.PID), root) {
 		if budget <= 0 {
 			break
 		}
-		if c == nil {
-			continue
-		}
 		// The command and what runs under it, within what is left to read.
-		procs := append([]*procfs.Proc{c}, t.Descendants(c.PID, budget-1)...)
+		procs := append([]*procfs.Proc{c.proc}, t.Descendants(c.proc.PID, budget-1)...)
 		budget -= len(procs)
-		// A command whose start cannot be read cannot be told new from
-		// old, and is left out rather than guessed at.
-		mark, ok := procfs.StartMarkOf(root, c)
-		if !ok {
-			continue
-		}
+		mark := c.mark
 		for _, d := range procs {
 			// A process that ended and waits to be collected runs nowhere.
 			if d == nil || d.IsZombie() {
@@ -116,6 +111,37 @@ func agentWork(t *procfs.Table, panes []Pane, agents []string, repos *repo.Finde
 		return w.Work[i].Repo < w.Work[j].Repo
 	})
 	return w
+}
+
+// command is a child of an agent's, and when it started.
+type command struct {
+	proc *procfs.Proc
+	mark int64
+}
+
+// newestFirst orders an agent's children by when they started, the newest
+// first, so a big old command, such as a build server with many workers,
+// cannot take what a survey reads from the newer ones. A child whose start
+// cannot be read cannot be told new from old, and is left out rather than
+// guessed at.
+func newestFirst(children []*procfs.Proc, root string) []command {
+	var out []command
+	for _, c := range children {
+		// An agent with more children than a survey reads has a fork bomb
+		// under it, not commands.
+		if len(out) == maxAgentProcs {
+			break
+		}
+		if c == nil {
+			continue
+		}
+		if mark, ok := procfs.StartMarkOf(root, c); ok {
+			out = append(out, command{c, mark})
+		}
+	}
+	// Equal starts keep the table's order, by pid.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].mark > out[j].mark })
+	return out
 }
 
 // maxRestarts bounds how far innermost goes down: a process tree has no
@@ -171,21 +197,51 @@ func isAgent(p *procfs.Proc, agents []string) bool {
 }
 
 // agentName is the agent a process is, "" when it is none: by its kernel name
-// or its program, or, for an interpreter, by the script it runs, by its name
-// or the package it is in ("node /usr/bin/claude", "node .../claude-code/
-// cli.js"). Another program's argument names nothing: "vim codex" edits a
-// file.
+// or its program, or, for an interpreter, by the script it runs (scriptIs).
+// Another program's argument names nothing: "vim codex" edits a file.
 func agentName(p *procfs.Proc, agents []string) string {
 	script := ""
 	if isInterpreter(p.Name()) {
 		script = scriptOf(p.Argv)
 	}
 	for _, a := range agents {
-		if p.Comm == a || p.Name() == a || (script != "" && wordMatch(script, a)) {
+		if p.Comm == a || p.Name() == a || (script != "" && scriptIs(script, a)) {
 			return a
 		}
 	}
 	return ""
+}
+
+// scriptIs reports whether a script is the agent: by its file's name, without
+// what follows a dot ("/usr/local/bin/claude", ".../bin/codex.js", the module
+// "aider.main"), or by the package it is installed in (".../node_modules/
+// @anthropic-ai/claude-code/cli.js"). A folder of someone's own with the
+// agent's name in it ("~/claude-workspace/server.py") names nothing.
+func scriptIs(script, agent string) bool {
+	parts := strings.FieldsFunc(script, func(r rune) bool { return r == '/' || r == '\\' })
+	if len(parts) == 0 {
+		return false
+	}
+	file := parts[len(parts)-1]
+	if i := strings.IndexByte(file, '.'); i > 0 {
+		file = file[:i]
+	}
+	if file == agent {
+		return true
+	}
+	// The package is the folder after the last node_modules, past its
+	// @scope.
+	for i := len(parts) - 2; i >= 0; i-- {
+		if parts[i] != "node_modules" {
+			continue
+		}
+		pkg := parts[i+1]
+		if strings.HasPrefix(pkg, "@") && i+2 < len(parts)-1 {
+			pkg = parts[i+2]
+		}
+		return wordMatch(pkg, agent)
+	}
+	return false
 }
 
 // isInterpreter reports whether a program runs a script it is given: a coding

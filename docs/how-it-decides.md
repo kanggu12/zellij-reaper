@@ -127,9 +127,10 @@ dashboard's detail panel marks with ✗.
 
 - **The project a coding agent works in** is the git repository its newest command runs in (`/proc/<pid>/cwd`, and on
   macOS `lsof`; Windows tells no process's directory, and nothing is renamed there): the first `.git` at or above the
-  directory, below the home directory, a worktree counting as the repository it was made from. Each child of the
-  agent's process is one command, with what runs under it, and counts from when it started. Settled once two passes in
-  a row find a newer command there, and kept between commands ([naming](setup.md#naming-sessions-after-what-they-show)).
+  directory, looking no higher than the home directory, a worktree counting as the repository it was made from. Each
+  child of the agent's process is one command, with what runs under it, and counts from when it started. A pass counts
+  the newest when it started after the last one counted; two counted in a row in one repository settle it, and it is
+  kept between commands ([naming](setup.md#naming-sessions-after-what-they-show)).
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
   files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every
@@ -199,7 +200,7 @@ Every line the log can hold:
 | `no sessions` | zellij lists none |
 | `zellij not installed, nothing to do` | zellij is not on the service's `PATH` |
 | `zellij list-sessions failed: ...`, `could not inspect the sessions: ...`, `could not read the protected list: ...` | the pass stops without acting. When zellij gave no answer and a server is stopped, the line names it: ``...; the server of NAME (pid N) is stopped: `kill -CONT N` lets it go on``, or ``the servers of NAME (pid N) and NAME (pid M) are stopped: `kill -CONT N M` lets them go on`` |
-| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) or of agents' projects (`projects`) could not be written; a session this pass was the first to find quiet starts its wait again at the next pass, and one whose agent moved on may take a pass longer to follow it |
+| `could not write PATH: ERROR` | the file of first quiet passes (`quiet`) or of agents' projects (`projects`) could not be written. A session this pass was the first to find quiet starts its wait again at the next pass; an agent's command this pass counted is forgotten, and while the file cannot be written no session follows its agent to another project |
 | `=== reaper end (N reaped, N kept, N renamed) ===` | a pass ends; just `=== reaper end ===` after a pass that stopped early |
 | `=== names start ===`, `=== names end (N renamed) ===` | around the renames of a names pass; a names pass that changes no name writes no line, not even a failure |
 | `NAME :: deleted from the dashboard`, `NAME :: renamed from the dashboard to NEW`, `NAME :: name kept from the dashboard` | done by hand in the dashboard |

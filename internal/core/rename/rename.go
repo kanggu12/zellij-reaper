@@ -3,7 +3,8 @@
 // title with the terminal noise taken out, or, when no pane says what it is
 // about, the directory it works in and the program it runs. Names come out
 // short, lower case and stable: the same title gives the same name on every
-// pass, so a session keeps its name until what it shows changes.
+// pass, so a session keeps its name until what it shows, or the project its
+// agent works in, changes.
 package rename
 
 import (

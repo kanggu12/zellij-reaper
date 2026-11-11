@@ -234,9 +234,9 @@ parses does not keep the timers on.
 
 `--purge` also removes the settings, the log, the protected list, the lists of given and kept names and the notes passes
 keep (`quiet`, `projects`), and takes the prompt hook out of `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish`:
-the line `setup` added, where it still reads as `setup` wrote it. The startup file is changed in place, so one that is a link into your dotfiles stays a link. What
-a purge leaves, it names: a hook line written another way, a file of yours in one of its folders, a file it could not
-remove.
+the line `setup` added, where it still reads as `setup` wrote it. The startup file is changed in place, so one that is
+a link into your dotfiles stays a link. What a purge leaves, it names: a hook line written another way, a file of yours
+in one of its folders, a file it could not remove.
 
 Neither removes the program, and the last line of a purge says where it is:
 
@@ -347,13 +347,13 @@ The name comes from the first of these that says something:
 
 1. **The project a coding agent works in.** In a session where a coding agent runs (`claude`, `codex`, `gemini`,
    `aider`, `opencode`), the git repository its commands run in. A pass looks at the commands the agent is running at
-   that moment, and settles on a repository once two passes in a row find its newest command there, each a command
-   started after the one before: an agent that looks through many repositories, one command each, keeps its name, and
-   a command that keeps running, such as a dev server or a loop, counts once. A command that starts and ends between two
-   passes is not seen, and between commands the name stays. An agent started inside a repository is named after it
-   until then, and another agent in its place starts afresh. A git worktree counts as the repository it was made from,
-   a bare repository's too. The agent's own title is the topic its conversation began with, which the work moves on
-   from. When the agent ends, the rules below name the session again.
+   that moment and counts the newest, if it started after the last one counted; once two counted in a row ran in the
+   same repository, that repository is the project. So an agent that looks through many repositories, one command each,
+   keeps its name, and a command that keeps running, such as a dev server or a loop, counts once. A command that starts
+   and ends between two passes is not seen, and between commands the name stays. An agent started inside a repository
+   is named after it until then, and another agent in its place starts afresh. A git worktree counts as the repository
+   it was made from, a bare repository's too. The agent's own title is the topic its conversation began with, which the
+   work moves on from. When the agent ends, the rules below name the session again.
 2. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
    tab active, so that is the first tab's focused pane.
 3. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:

@@ -147,9 +147,10 @@ type Session struct {
 	ServerSilent bool
 	// Facts is what the policy reads.
 	Facts policy.Facts
-	// Agent is where a coding agent in the session works, as its processes
-	// show now; zero when none runs.
-	Agent AgentWork
+	// Agents are the coding agents in the session, the first under each
+	// pane, in the panes' order, and where each works as its commands show
+	// now; none when no agent runs.
+	Agents []AgentWork
 	// ServerStart is when its server started (procfs.StartMark), which tells
 	// it from a later server that got the same pid, after a reboot say; 0
 	// when it could not be read.
@@ -350,7 +351,7 @@ func (v snapshot) running(s *Session) {
 		s.Facts.LastActive, s.Facts.ActivitySource = s.Files.Newest, "session files"
 	}
 	s.Facts.ProtectedCommand = protectedCommand(v.table, s.Server, s.Files, v.rules.ProtectCommands)
-	s.Agent = agentWork(v.table, s.Panes, v.rules.Agents, v.repos, v.src.ProcRoot)
+	s.Agents = agentsAt(v.table, s.Panes, v.rules.Agents, v.repos, v.src.ProcRoot)
 	if s.Server != nil {
 		if p := v.table.ByPID[s.Server.PID]; p != nil {
 			s.ServerStart, _ = procfs.StartMarkOf(v.src.ProcRoot, p)
