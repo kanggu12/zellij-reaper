@@ -85,14 +85,29 @@ wait_reachable() {
 
 # Start a background session, optionally from a layout file.
 start() {
-  # zellij's client waits for the new server's socket with no end: a server
-  # that dies starting would hold the run forever.
-  if [ -n "${2:-}" ]; then
-    timeout 20 $Z --layout "$2" attach --create-background "$1" >/dev/null 2>&1
-  else
-    timeout 20 $Z attach --create-background "$1" >/dev/null 2>&1
-  fi
-  wait_pane "$1" && wait_reachable "$1" && SOCK[$1]=$(file_of "$1")
+  local try
+  for try in 1 2; do
+    # zellij's client waits for the new server's socket with no end: a server
+    # that dies starting would hold the run forever.
+    if [ -n "${2:-}" ]; then
+      timeout 20 $Z --layout "$2" attach --create-background "$1" >/dev/null 2>&1
+    else
+      timeout 20 $Z attach --create-background "$1" >/dev/null 2>&1
+    fi
+    if wait_pane "$1" && wait_reachable "$1"; then
+      SOCK[$1]=$(file_of "$1")
+      return 0
+    fi
+    # zellij 0.45.1 can die starting a session while a client connects to
+    # another one, and leave no pane: what it left goes, and it starts once
+    # more.
+    if [ "$try" = 1 ]; then
+      echo "  (starting $1 again)"
+      $Z kill-session "$1" >/dev/null 2>&1
+      $Z delete-session "$1" --force >/dev/null 2>&1
+    fi
+  done
+  return 1
 }
 
 # How many clients the plan counts on one session.
@@ -209,7 +224,7 @@ echo "-- sessions in every state"
 # only when no session is running, so this comes first, and it runs something so the
 # forced pass keeps it. The scenarios below start sessions under a few such names of
 # their own, so a pick among those is made again.
-reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak brave-yak chatty-cactus '
+reserved=' quiet-mouse adept-magpie kind-viola rusty-pepper brave-peach glowing-duck lucky-duck kind-panda wise-yak brave-yak chatty-cactus curious-crab '
 mkdir -p /srv/own-pick
 own=""
 for _ in 1 2 3 4 5; do
@@ -679,6 +694,59 @@ else
   check "and that the pass deleted it" grep -q '\]   -> deleted the copy: chatty-cactus$' "$LOG"
   check "zellij lists no copy" gone chatty-cactus
 fi
+
+echo "-- a coding agent's session follows the project it works in"
+# A stand-in coding agent named as one: each line written to /tmp/agent-at
+# starts a command in that directory once the one before has ended, as an
+# agent runs its commands in the project it works on; "stop" ends the last.
+mkdir -p /srv/projects/web-app/.git /srv/projects/billing/.git
+# The lines are the script's own, its $ signs for it to expand.
+# shellcheck disable=SC2016
+printf '%s\n' '#!/bin/sh' \
+  'pid=' \
+  'while :; do' \
+  '  if [ -s /tmp/agent-at ]; then' \
+  '    dir=$(cat /tmp/agent-at); : >/tmp/agent-at' \
+  '    [ -n "$pid" ] && kill "$pid" 2>/dev/null; pid=' \
+  '    if [ "$dir" != stop ]; then (cd "$dir" && exec sleep 100000) & pid=$!; fi' \
+  '  fi' \
+  '  sleep 0.1' \
+  'done' >/usr/local/sbin/codex
+chmod +x /usr/local/sbin/codex
+printf 'layout {\n    cwd "/srv/projects"\n    pane command="codex"\n}\n' >/tmp/agent.kdl
+: >/tmp/agent-at
+# work has the agent run a command in a directory, and waits until it runs.
+work() {
+  printf '%s\n' "$1" >/tmp/agent-at
+  for _ in $(seq 50); do [ ! -s /tmp/agent-at ] && break; sleep 0.1; done
+  sleep 0.3
+}
+# names runs a names pass, the one the names timer runs every few minutes.
+names() { env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --names-only --quiet; }
+start curious-crab /tmp/agent.kdl && wait_reachable curious-crab
+for _ in $(seq 100); do grep -q 'title "codex"' "$INFO/$(file_of curious-crab)/session-metadata.kdl" 2>/dev/null && break; sleep 0.1; done
+check "a names pass succeeds" names
+first=$(sed -n 's/^\[[^]]*\]   -> renamed: curious-crab → //p' "$LOG" | tail -1)
+check "it names the session after its folder and its agent" test "$first" = projects-codex
+work /srv/projects/web-app
+check "a pass with one command in web-app succeeds" names
+check "one command is no project yet" listed "$first"
+work /srv/projects/web-app
+check "a pass with a second one succeeds" names
+check "the session is named after web-app" listed web-app
+check "and the log says so" grep -q "]   -> renamed: $first → web-app\$" "$LOG"
+work stop
+check "a pass with the agent between commands succeeds" names
+check "the name stays" listed web-app
+work /srv/projects/billing
+names
+check "one command in billing is not enough" listed web-app
+work /srv/projects/billing
+check "a pass with a second one succeeds" names
+check "the session follows it to billing" listed billing
+work stop
+$Z kill-session billing >/dev/null 2>&1
+$Z delete-session billing --force >/dev/null 2>&1
 
 if by_id; then
   echo "-- an index that cannot be read"

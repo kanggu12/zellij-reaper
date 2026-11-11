@@ -340,19 +340,27 @@ too, with `auto_rename` on or off.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/names-dark.svg">
-  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code working in web-app becomes web-app-claude-code. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="assets/names-light.svg">
+  <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code running its commands in a billing repository becomes billing. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="assets/names-light.svg">
 </picture>
 
 The name comes from the first of these that says something:
 
-1. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
+1. **The project a coding agent works in.** In a session where a coding agent runs (`claude`, `codex`, `gemini`,
+   `aider`, `opencode`), the git repository its commands run in. A pass settles on one once two of the agent's commands
+   in a row, each started after the one before, ran in it: a repository it only looks into does not count, and a process
+   that keeps running, such as a dev server, counts once. Between commands the name stays. An agent started inside a
+   repository is named after it until then. A git worktree counts as the repository it was made from. The agent's own
+   title is the topic its conversation began with, which the work moves on from. When the agent ends, the rules below
+   name the session again.
+2. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
    tab active, so that is the first tab's focused pane.
-2. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
+3. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
    `web-app-claude-code`, `api-npm-run-dev`. The directory is where the first pane works now, so it follows a `cd`. From
    a command line it takes only the plain words up to the first flag, since arguments can hold a password.
-3. **The directory alone**, for a shell with nothing running.
+4. **The directory alone**, for a shell with nothing running.
 
-Your home directory and `/` say nothing, so a shell at home with a title like `Pane #1` keeps its name.
+Your home directory and `/` say nothing, so a shell at home with a title like `Pane #1` keeps its name, and a
+home kept in git is no project.
 
 These parts of a title are dropped or shortened:
 
@@ -424,6 +432,7 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 | `~/.local/state/zellij-reaper/named`, `named.lock` | the list of given names: names a pass gave, so it can tell them from a name someone chose |
 | `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept with the dashboard or `keep-name`, which no pass renames |
 | `~/.local/state/zellij-reaper/quiet` | when a pass first found each session quiet, for sessions whose terminals cannot be read (every session on Windows) |
+| `~/.local/state/zellij-reaper/projects` | the repository each coding agent's session works in, as passes settled it, which its name follows |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. On macOS the same paths apply, and the timers are the launch agents

@@ -112,6 +112,10 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if err := r.quiet.save(); err != nil {
 		e.Log.Printf("could not write %s: %v", e.QuietPath, err)
 	}
+	// So is the book of agents' projects: what a dry run saw counts too.
+	if err := r.projects.save(); err != nil {
+		e.Log.Printf("could not write %s: %v", e.ProjectsPath, err)
+	}
 	reaped, kept, renamed := r.Counts()
 	e.Log.Printf("=== reaper end (%d reaped, %d kept, %d renamed) ===", reaped, kept, renamed)
 	return r, nil
@@ -367,6 +371,12 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 		e.name(ctx, &r, o, false, false, taken)
 	}
 	e.dropLeftovers(ctx, r, began)
+	// The names pass catches agents at work every few minutes, so what it saw
+	// is written down whether or not it renamed anything. A book it cannot
+	// write is said with its renames, as every failure of this pass is.
+	if err := r.projects.save(); err != nil {
+		e.Log.Printf("could not write %s: %v", e.ProjectsPath, err)
+	}
 	held := e.Log.Take()
 	_, _, renamed := r.Counts()
 	if renamed == 0 {

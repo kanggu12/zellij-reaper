@@ -66,18 +66,19 @@ func Load(configPath string) (*App, error) {
 	info := zellij.SessionInfoDir(config.ZellijCacheDir(env), ver, sockets...)
 	a := &App{Env: env, Config: cfg, Protected: pl, Zellij: zj, InfoDir: info, ZellijVersion: ver}
 	a.Reaper = &reaper.Env{
-		Config:    cfg,
-		Protected: pl,
-		Given:     protect.LoadGiven(config.GivenFile(env)),
-		Kept:      protect.LoadKept(config.KeptFile(env)),
-		Zellij:    zj,
-		Sources:   a.Sources(),
-		Log:       logfile.New(cfg.LogPath, cfg.LogMaxBytes),
-		LockPath:  config.LockFile(env),
-		QuietPath: config.QuietFile(env),
-		Now:       time.Now,
-		Home:      homeDir(),
-		Host:      hostName(),
+		Config:       cfg,
+		Protected:    pl,
+		Given:        protect.LoadGiven(config.GivenFile(env)),
+		Kept:         protect.LoadKept(config.KeptFile(env)),
+		Zellij:       zj,
+		Sources:      a.Sources(),
+		Log:          logfile.New(cfg.LogPath, cfg.LogMaxBytes),
+		LockPath:     config.LockFile(env),
+		QuietPath:    config.QuietFile(env),
+		ProjectsPath: config.ProjectsFile(env),
+		Now:          time.Now,
+		Home:         homeDir(),
+		Host:         hostName(),
 	}
 	a.System = timers.For(env, userName())
 	return a, nil

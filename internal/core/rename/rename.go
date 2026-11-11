@@ -1,4 +1,5 @@
-// Package rename makes a session's name from what the session shows: a pane's
+// Package rename makes a session's name from what the session shows: for a
+// coding agent's session, the repository the agent works in; else a pane's
 // title with the terminal noise taken out, or, when no pane says what it is
 // about, the directory it works in and the program it runs. Names come out
 // short, lower case and stable: the same title gives the same name on every
@@ -61,11 +62,22 @@ type Input struct {
 	// Host is this machine's name: a prompt title from another machine
 	// (an ssh session) names that machine, and this one is not news.
 	Host string
+	// Project is the repository a coding agent in the session works in, as
+	// passes settled it; "" for a session with no agent, or none known yet.
+	Project string
 }
 
-// Suggest picks a base name: the first title that says what the session is
-// about; else the directory it works in with the program it runs; else "".
+// Suggest picks a base name: the repository a coding agent in the session
+// works in; else the first title that says what the session is about; else the
+// directory it works in with the program it runs; else "".
 func Suggest(in Input, maxBytes int) string {
+	// An agent's title is the topic its conversation began with, which the
+	// session outlives: the project it works in says what it does now. A
+	// repository whose name has no English word in it says nothing here,
+	// and the title has its turn.
+	if w := normalize(in.pathWord(in.Project)); w != "" {
+		return Fit(w, maxBytes)
+	}
 	program := ""
 	for _, title := range in.Titles {
 		w := in.clean(title)

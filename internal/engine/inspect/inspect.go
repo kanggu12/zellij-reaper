@@ -12,6 +12,7 @@ import (
 
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/machine/procfs"
+	"github.com/kanggu12/zellij-reaper/internal/machine/repo"
 	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
@@ -91,6 +92,11 @@ type Rules struct {
 	ProtectCommands []string
 	// Shells are extra prompt programs (config.Shells).
 	Shells []string
+	// Agents are the coding agents (config.DefaultProtectCommands): a survey
+	// notes where one works, for a pass to name its session after the project.
+	Agents []string
+	// Home is this user's home, which stands for no project.
+	Home string
 }
 
 // Pane is one pane process of a running session.
@@ -141,6 +147,13 @@ type Session struct {
 	ServerSilent bool
 	// Facts is what the policy reads.
 	Facts policy.Facts
+	// Agent is where a coding agent in the session works, as its processes
+	// show now; zero when none runs.
+	Agent AgentWork
+	// Project is the repository a pass settled on for the session's agent
+	// from what it saw over several surveys (reaper's project book), which
+	// auto_rename names the session after; "" when it has none.
+	Project string
 	// QuietFromNow is set when the quiet book saw this session quiet for the
 	// first time in this survey. A plan does not write the book, so a pass
 	// later on is the first to record it, and its wait starts then.
@@ -221,6 +234,7 @@ func GatherFrom(ctx context.Context, src Sources, rules Rules, listed []zellij.L
 		owners: socketOwners(table, servers),
 		shells: shellSet(rules.Shells),
 		idx:    src.index(),
+		repos:  &repo.Finder{Home: rules.Home},
 	}
 	v.byCmdline = cmdlineTrusted(servers, v.dirs)
 	out := make([]Session, len(listed))
@@ -248,6 +262,9 @@ type snapshot struct {
 	// byCmdline is whether a server may be found by the socket its command
 	// line names: only while no session has been renamed (cmdlineTrusted).
 	byCmdline bool
+	// repos finds the repositories of the directories agents work in, each
+	// directory once for the whole survey.
+	repos *repo.Finder
 }
 
 // session gathers the facts of one listed session.
@@ -329,6 +346,7 @@ func (v snapshot) running(s *Session) {
 		s.Facts.LastActive, s.Facts.ActivitySource = s.Files.Newest, "session files"
 	}
 	s.Facts.ProtectedCommand = protectedCommand(v.table, s.Server, s.Files, v.rules.ProtectCommands)
+	s.Agent = agentWork(v.table, s.Panes, v.rules.Agents, v.repos, v.src.ProcRoot)
 }
 
 // now reads the clock, the real one when none was set.

@@ -70,8 +70,9 @@ func purgeState(env config.Env, logPath string, r *Result) {
 		files = append(files, list, protect.LockPath(list))
 		files = append(files, tempsOf(list)...)
 	}
-	// The quiet book is written as quiet.new first.
+	// The quiet book and the project book are written as .new first.
 	files = append(files, config.LockFile(env), config.QuietFile(env), config.QuietFile(env)+".new")
+	files = append(files, config.ProjectsFile(env), config.ProjectsFile(env)+".new")
 	for _, p := range files {
 		err := os.Remove(p)
 		switch {

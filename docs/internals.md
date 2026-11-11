@@ -193,6 +193,14 @@ others left nothing to rename. The person in such a session sees its name change
 other session runs. The prompt hook (`shell-hook`) keeps that variable current. `auto_rename_attached = false` renames
 only the sessions nobody is attached to.
 
+In a session where a coding agent runs, `inspect` lists the repositories the agent's descendants work in, each with the
+start of its newest process there (`procfs.StartMark`). `repo.Finder` walks up from a process's directory to a `.git`,
+without running git, counting a worktree as the repository it was made from and a home kept in git as no project. A pass
+keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file): the repository of the newest
+command, when it started after the last one counted and ran in the same repository as that one, becomes the project,
+which `rename.Suggest` takes before any title. The book keeps it between commands, forgets it when the agent ends, and
+drops a session no pass has seen for a day.
+
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
 becomes the name once the terminal noise is out of it: spinners and emoji, a command line's flags, the directories of
@@ -258,6 +266,7 @@ machine in `inspect` or `reaper`, a dashboard state, or an integration scenario.
 | Names | `internal/core/rename` | every kind of title, what says nothing, words in other writing systems, cuts at a word and by bytes, stamps, collision tails; fuzzing of names and tails |
 | Parsers | `internal/machine/zellij`, `internal/machine/logfile`, `internal/settings/config` | `list-sessions`, `list-clients`, metadata and layout files recorded from zellij 0.44.2 and 0.45.1 (`testdata/`), fuzzed from those, KDL strings, log lines, settings and their errors |
 | The kernel | `internal/machine/procfs` | `/proc` parsing on a fake tree, sock_diag against a real socket, matching a socket file to its server by start time |
+| Repositories | `internal/machine/repo` | checkouts, nested ones, worktrees, submodules, a home kept in git, a linked `.git` |
 | Facts | `internal/engine/inspect` | each kind of pane, a server's helpers, protected programs, the three sources of clients, renamed and exited sessions, on fake machines |
 | Passes | `internal/engine/reaper` | what is deleted and renamed, dry runs, force, the protected list, the lock, the log's exact lines |
 | Setup | `internal/engine/timers` | unit files, a fresh install, moving the shell scripts over, the timer's status, uninstall |

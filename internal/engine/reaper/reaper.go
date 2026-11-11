@@ -50,7 +50,10 @@ type Env struct {
 	// QuietPath is the book of when a pass first found a session quiet, for
 	// sessions whose terminals cannot be read (see quiet.go).
 	QuietPath string
-	Now       func() time.Time
+	// ProjectsPath is the book of the repositories coding agents' sessions
+	// work in, which they are named after (see projects.go).
+	ProjectsPath string
+	Now          func() time.Time
 	// Home and Host are this user's home and this machine's name, which a
 	// session's name has no use for repeating.
 	Home, Host string
@@ -115,6 +118,9 @@ type Report struct {
 	Started time.Time
 	// quiet is the book this survey read and updated; a pass saves it.
 	quiet *quietBook
+	// projects is the book of agents' projects this survey read and updated;
+	// a pass saves it.
+	projects *projectBook
 	// DryRun and Force are the effective mode.
 	DryRun, Force bool
 	// Thresholds are the waits that applied.
@@ -228,6 +234,10 @@ func (e *Env) rules() inspect.Rules {
 		},
 		ProtectCommands: e.Config.ProtectCommands,
 		Shells:          e.Config.Shells,
+		// The agents zellij-reaper knows, whatever protect_commands holds:
+		// naming does not change with what someone chose to protect.
+		Agents: config.DefaultProtectCommands,
+		Home:   e.Home,
 	}
 }
 
@@ -306,6 +316,8 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	now := e.Now()
 	r.quiet = loadQuiet(e.QuietPath)
 	r.quiet.apply(sessions, now)
+	r.projects = loadProjects(e.ProjectsPath)
+	r.projects.apply(sessions, now)
 	for _, s := range sessions {
 		r.Outcomes = append(r.Outcomes, Outcome{Session: s, Verdict: policy.Decide(s.Facts, r.Thresholds, now)})
 	}

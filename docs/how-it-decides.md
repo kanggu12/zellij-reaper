@@ -44,22 +44,23 @@ its wait over:
    `zellij delete-session NAME` for an exited one, which zellij refuses if someone brought it back meanwhile. A pass
    starts no delete after 40 seconds, its wait for the lock included, and leaves the rest to the next; every call it
    makes to zellij ends by 50 seconds, so it ends before the minute systemd and the Task Scheduler give it.
-8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes point to
-   another name. With `auto_rename_attached = false`, it renames only sessions nobody is attached to, and asks the
-   session for its clients once more first. zellij moves a renamed session's files to the new name, then tells the job
-   that writes them every second, and a write in between makes the old name's folder again: zellij then lists an exited
-   session under the old name, a copy that attach would bring back. So once the pass has been through its sessions, at
-   least 1.5 seconds after its last rename, it deletes an exited session under a name it renamed a session away from,
-   with `zellij delete-session NAME`, never `--force`, and without the `exited_after` wait: until the rename the name
-   was the renamed session's own, so no other session had it. It keeps such a copy when its name is protected, by the
-   protect pattern in the settings it read or by the protected list read again, and a protected copy stays as any
-   protected session does. It keeps one whose files were written more than 1.5 seconds after the rename, which someone
-   brought back meanwhile; those times are the file system's, so a clock set back, or a network file system whose clock
-   is off from this machine's, can blur the two. It keeps one zellij refuses because it runs again, and starts no such
-   delete past its 40 seconds. A copy zellij writes after the look, or one the pass does not get to, waits like any
-   exited session. A rename in the dashboard or with `rename` looks the same way, under the lock, once it has said the
-   rename is done; it moves the protected list's entry to the new name, so there only the pattern protects the old name.
-   Closed or stopped within those 1.5 seconds, it leaves the copy to wait like any exited session.
+8. **Renames a session it kept** when `auto_rename` is on, its name is not one someone chose, and its panes, or the
+   project its coding agent works in, point to another name. With `auto_rename_attached = false`, it renames only
+   sessions nobody is attached to, and asks the session for its clients once more first. zellij moves a renamed
+   session's files to the new name, then tells the job that writes them every second, and a write in between makes the
+   old name's folder again: zellij then lists an exited session under the old name, a copy that attach would bring back.
+   So once the pass has been through its sessions, at least 1.5 seconds after its last rename, it deletes an exited
+   session under a name it renamed a session away from, with `zellij delete-session NAME`, never `--force`, and without
+   the `exited_after` wait: until the rename the name was the renamed session's own, so no other session had it. It
+   keeps such a copy when its name is protected, by the protect pattern in the settings it read or by the protected list
+   read again, and a protected copy stays as any protected session does. It keeps one whose files were written more than
+   1.5 seconds after the rename, which someone brought back meanwhile; those times are the file system's, so a clock set
+   back, or a network file system whose clock is off from this machine's, can blur the two. It keeps one zellij refuses
+   because it runs again, and starts no such delete past its 40 seconds. A copy zellij writes after the look, or one the
+   pass does not get to, waits like any exited session. A rename in the dashboard or with `rename` looks the same way,
+   under the lock, once it has said the rename is done; it moves the protected list's entry to the new name, so there
+   only the pattern protects the old name. Closed or stopped within those 1.5 seconds, it leaves the copy to wait like
+   any exited session.
 
 A dry run (`dry_run = true`, or `run --dry-run`) does steps 1 to 6, and in steps 7 and 8 only logs what it would do.
 `plan` and the dashboard do steps 3 to 6 only: no lock, no log, no change.
@@ -124,6 +125,10 @@ dashboard's detail panel marks with ✗.
 
 ## Where each fact comes from
 
+- **The project a coding agent works in** is the git repository of the directory its newest command runs in
+  (`/proc/<pid>/cwd`, and on macOS `lsof`): the first `.git` above it, a worktree counting as the repository it was made
+  from. Settled once two newer commands in a row ran there, and kept between commands
+  ([naming](setup.md#naming-sessions-after-what-they-show)).
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
   files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every

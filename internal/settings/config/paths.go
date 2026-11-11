@@ -110,6 +110,10 @@ func StateDir(env Env) string {
 // terminals cannot be read, such as every session on Windows.
 func QuietFile(env Env) string { return filepath.Join(StateDir(env), "quiet") }
 
+// ProjectsFile is the repository each coding agent's session works in, as
+// passes settled it, which auto_rename names the session after.
+func ProjectsFile(env Env) string { return filepath.Join(StateDir(env), "projects") }
+
 // LockFile serializes passes: the timer's, a manual `run` and the TUI's actions.
 func LockFile(env Env) string { return filepath.Join(StateDir(env), "lock") }
 

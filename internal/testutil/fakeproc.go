@@ -94,6 +94,12 @@ func (f *FakeProc) Add(p Proc) {
 	}
 }
 
+// Remove takes a process out of the tree, as when it exits and is collected.
+func (f *FakeProc) Remove(pid int) {
+	f.t.Helper()
+	must(f.t, os.RemoveAll(filepath.Join(f.Root, strconv.Itoa(pid))))
+}
+
 // SetEnv replaces the environment a process already in the tree started with.
 func (f *FakeProc) SetEnv(pid int, env ...string) {
 	f.t.Helper()

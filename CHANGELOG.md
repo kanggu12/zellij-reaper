@@ -6,6 +6,17 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Changed
+
+- A session where a coding agent runs (`claude`, `codex`, `gemini`, `aider`, `opencode`) is named after the git
+  repository the agent works in, and follows it to the next one. Such sessions were named after the agent's title, the
+  topic its conversation began with, and kept that name long after the work moved on. A pass settles on a repository
+  once two of the agent's commands in a row, each started after the one before, ran in it, so an agent that looks
+  through many repositories keeps its name, and a process that keeps running counts once. Between commands the name
+  stays, written down in `projects` in the state directory. An agent started inside a repository is named after it at
+  once, and a git worktree counts as the repository it was made from. When the agent ends, the session's titles and
+  directory name it again. A repository whose name has no English word leaves the title its turn.
+
 ## [0.13.2] - 2026-11-10
 
 ### Fixed

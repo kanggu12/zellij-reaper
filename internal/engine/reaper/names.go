@@ -126,11 +126,12 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 		budget = rename.BaseBudgetFor(zellij.NameRoom(filepath.Dir(s.Socket)), rename.Stamp(e.Config.AutoRenameStamp))
 	}
 	base := rename.Suggest(rename.Input{
-		Titles: s.Files.Metadata.TitlesByFocus(),
-		Busy:   s.Facts.BusyWith,
-		Cwd:    s.WorkDir(),
-		Home:   e.Home,
-		Host:   e.Host,
+		Titles:  s.Files.Metadata.TitlesByFocus(),
+		Busy:    s.Facts.BusyWith,
+		Cwd:     s.WorkDir(),
+		Home:    e.Home,
+		Host:    e.Host,
+		Project: s.Project,
 	}, budget)
 	if base == "" {
 		return "", ""

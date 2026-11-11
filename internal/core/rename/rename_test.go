@@ -121,6 +121,34 @@ func TestAProgramsTitleSaysLessThanADirectory(t *testing.T) {
 	}
 }
 
+func TestAnAgentsSessionIsNamedAfterItsProject(t *testing.T) {
+	// The project an agent works in comes before the task its conversation
+	// began with.
+	in := here("✳ Fix the login bug")
+	in.Project = "/home/me/projects/billing-api"
+	if got := Suggest(in, MaxBase); got != "billing-api" {
+		t.Errorf("project: %q", got)
+	}
+	// A repository is named as a directory is: lower case, English words.
+	in.Project = "/srv/Payments_Service"
+	if got := Suggest(in, MaxBase); got != "payments_service" {
+		t.Errorf("case: %q", got)
+	}
+	// A long one is cut as any name is.
+	in.Project = "/srv/" + strings.Repeat("platform-", 8) + "core"
+	if got := Suggest(in, MaxBase); len(got) > MaxWidth || !strings.HasPrefix(got, "platform-") {
+		t.Errorf("long: %q", got)
+	}
+	// A repository whose name has no English word, the home directory and
+	// the root say nothing: the title has its turn.
+	for _, p := range []string{"/srv/프로젝트", "/home/me", "/", ""} {
+		in.Project = p
+		if got := Suggest(in, MaxBase); got != "fix-the-login-bug" {
+			t.Errorf("%q: %q", p, got)
+		}
+	}
+}
+
 func TestALaterPaneCanSayMore(t *testing.T) {
 	if got := Suggest(here("bash", "Claude Code", "✳ Fix the login bug"), MaxBase); got != "fix-the-login-bug" {
 		t.Errorf("got %q", got)
