@@ -10,9 +10,10 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 - A session zellij brought back from exited, after a restart say, kept the name a pass had given it for good: it starts
   under that name, which read as one someone typed, so passes left it alone, and neither its titles nor its agent's
-  project renamed it again. zellij keeps the folder of a session it brings back, so a pass now tells such a session by
-  that folder, older than the new server's socket, and renames it again when the name was a pass's. A session someone
-  starts anew under a name a pass once gave keeps it, and the name leaves the list of given names.
+  project renamed it again. zellij keeps the panes it saved for a session it brings back, so a pass now tells such a
+  session by that file, older than the new server's socket, and renames it again when the name was a pass's. A session
+  someone starts anew under a name a pass once gave keeps it: the next pass that sees it takes the name off the list of
+  given names.
 
 ## [0.14.0] - 2026-11-11
 

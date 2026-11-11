@@ -31,10 +31,19 @@ func TestBornTellsWhichFolderWasMadeFirst(t *testing.T) {
 	if age := time.Since(a); age < 0 || age > time.Minute {
 		t.Errorf("first made %v ago", age)
 	}
-	// A session's files give their folder's.
+	// A session's files give their saved panes' file's, and none before
+	// zellij saved them.
 	f, err := ReadFiles(dir, "first")
-	if err != nil || !f.Born.Equal(a) {
-		t.Errorf("ReadFiles: %v, %v; want %v", f.Born, err, a)
+	if err != nil || !f.LayoutBorn.IsZero() {
+		t.Errorf("no layout: %v, %v", f.LayoutBorn, err)
+	}
+	layout := filepath.Join(first, "session-layout.kdl")
+	if err := os.WriteFile(layout, []byte("layout {\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := Born(layout)
+	if f, err := ReadFiles(dir, "first"); err != nil || want.IsZero() || !f.LayoutBorn.Equal(want) {
+		t.Errorf("ReadFiles: %v, %v; want %v", f.LayoutBorn, err, want)
 	}
 	// Nothing there, nothing to tell.
 	if _, ok := Born(filepath.Join(dir, "none")); ok {

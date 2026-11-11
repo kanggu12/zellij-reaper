@@ -426,10 +426,13 @@ type Files struct {
 	HasLayout bool
 	// Newest is the latest modification time of any file in Dir.
 	Newest time.Time
-	// Born is when Dir was made (Born), zero where the file system does not
-	// say. zellij keeps a session's folder when it brings the session back,
-	// so it can be older than the session's server.
-	Born time.Time
+	// LayoutBorn is when session-layout.kdl was made (Born), zero when there
+	// is none or the file system does not say. zellij saves a session's
+	// panes there, which it needs to bring the session back, and writes the
+	// same file over: for a session it brought back, the file is older than
+	// the server. A folder left by a session that ended before zellij saved
+	// its panes has none, and a new session under that name makes one.
+	LayoutBorn time.Time
 }
 
 // ReadFiles reads a session's directory. A missing directory is reported
@@ -445,7 +448,6 @@ func ReadFiles(infoDir, name string) (Files, error) {
 		return f, err
 	}
 	f.Exists = true
-	f.Born, _ = Born(f.Dir)
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil || info.IsDir() {
@@ -463,6 +465,7 @@ func ReadFiles(infoDir, name string) (Files, error) {
 	if raw, err := readAtMost(filepath.Join(f.Dir, "session-layout.kdl"), maxSessionFile); err == nil {
 		f.Layout = ParseLayout(string(raw))
 		f.HasLayout = true
+		f.LayoutBorn, _ = Born(filepath.Join(f.Dir, "session-layout.kdl"))
 	} else if errors.Is(err, errTooLarge) {
 		return f, err
 	}

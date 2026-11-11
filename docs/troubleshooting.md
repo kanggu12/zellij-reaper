@@ -86,9 +86,9 @@ turns renaming off.
 
 A pass renames only a session whose name zellij made up or a pass gave; a name someone typed, or kept with `r` or
 `keep-name`, stays. A session zellij brought back from exited, after a restart say, starts under the name it had, and
-until 0.14.1 that read as a name someone typed, so it stayed for good. A pass now tells such a session by its folder of
-files, which zellij keeps and which is then older than the new server's socket, and renames it again when a pass gave
-the name. On a file system that keeps no birth times it cannot tell, and the name stays.
+until 0.14.1 that read as a name someone typed, so it stayed for good. A pass now tells such a session by the panes
+zellij saved for it, in a file zellij keeps, then older than the new server's socket, and renames it again when a pass
+gave the name. On a file system that keeps no birth times it cannot tell, and the name stays.
 
 ## A `zellij` command hangs in a renamed session
 

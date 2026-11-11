@@ -148,32 +148,50 @@ func TestASessionKnowsWhenItsServerStarted(t *testing.T) {
 	}
 }
 
-func TestASessionZellijBroughtBackIsToldByItsFolder(t *testing.T) {
+func TestASessionZellijBroughtBackIsToldByItsSavedPanes(t *testing.T) {
 	m := newMachine(t)
-	// Made anew: its socket first, then its folder, as zellij makes them.
-	m.server(t, "fresh", "fresh", 800, testutil.Metadata(0, "x"), "")
+	const layout = "layout {\n}\n"
+	// Made anew: its socket first, then the file of panes zellij saves.
+	m.server(t, "fresh", "fresh", 800, testutil.Metadata(0, "x"), layout)
 	m.pane(t, 801, 800, "bash", []string{"-bash"}, now)
-	// Brought back from exited: the folder from before, then the socket of
+	// later starts a server whose socket comes after what is in its folder.
+	later := func(name string, pid int) {
+		time.Sleep(20 * time.Millisecond)
+		sock := testutil.Socket(t, m.sockDir, name)
+		m.proc.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"/usr/bin/zellij", "--server", sock}, Sockets: []uint32{uint32(pid * 10)}})
+		ino, dev, _ := procfs.FileID(sock)
+		m.socks = append(m.socks, procfs.UnixSocket{Inode: uint32(pid * 10), State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
+		m.pane(t, pid+1, pid, "bash", []string{"-bash"}, now)
+	}
+	// Brought back from exited: the panes saved before, then the socket of
 	// the server that started now.
-	testutil.SessionFiles(t, m.info, "back", testutil.Metadata(0, "x"), "", now.Add(-time.Minute))
+	testutil.SessionFiles(t, m.info, "back", testutil.Metadata(0, "x"), layout, now.Add(-time.Minute))
+	later("back", 810)
+	// A folder a session left before zellij saved its panes, and a new
+	// session under that name: its panes are saved after its socket.
+	testutil.SessionFiles(t, m.info, "stale", testutil.Metadata(0, "x"), "", now.Add(-time.Hour))
+	later("stale", 820)
 	time.Sleep(20 * time.Millisecond)
-	sock := testutil.Socket(t, m.sockDir, "back")
-	m.proc.Add(testutil.Proc{PID: 810, PPID: 1, Comm: "zellij", Argv: []string{"/usr/bin/zellij", "--server", sock}, Sockets: []uint32{8100}})
-	ino, dev, _ := procfs.FileID(sock)
-	m.socks = append(m.socks, procfs.UnixSocket{Inode: 8100, State: 10, Name: sock, VFSIno: ino, VFSDev: dev})
-	m.pane(t, 811, 810, "bash", []string{"-bash"}, now)
-	if _, ok := zellij.Born(sock); !ok {
+	testutil.SessionFiles(t, m.info, "stale", "", layout, now)
+	// One whose panes are not saved yet says nothing.
+	testutil.SessionFiles(t, m.info, "young", testutil.Metadata(0, "x"), "", now.Add(-time.Hour))
+	later("young", 830)
+	if _, ok := zellij.Born(m.sockDir); !ok {
 		t.Skip("this file system keeps no birth times")
 	}
 	got := map[string]inspect.Session{}
-	for _, s := range m.gather(t, true, running("fresh"), running("back")) {
+	for _, s := range m.gather(t, true, running("fresh"), running("back"), running("stale"), running("young")) {
 		got[s.Name()] = s
 	}
-	if s := got["fresh"]; s.Resurrected || !s.MadeAnew {
-		t.Errorf("fresh: resurrected %v, made anew %v", s.Resurrected, s.MadeAnew)
-	}
-	if s := got["back"]; !s.Resurrected || s.MadeAnew || s.Server == nil {
-		t.Errorf("back: resurrected %v, made anew %v, server %v", s.Resurrected, s.MadeAnew, s.Server)
+	for name, want := range map[string][2]bool{
+		"fresh": {false, true},
+		"back":  {true, false},
+		"stale": {false, true},
+		"young": {false, false},
+	} {
+		if s := got[name]; s.Resurrected != want[0] || s.MadeAnew != want[1] || s.Server == nil {
+			t.Errorf("%s: resurrected %v, made anew %v, server %v; want %v", name, s.Resurrected, s.MadeAnew, s.Server, want)
+		}
 	}
 }
 

@@ -77,12 +77,12 @@ func (e *Env) renameTarget(o Outcome, taken map[string]bool, dropTail bool) (des
 // started under through every rename, is what tells them apart:
 //
 //   - A session that still has that name was never renamed, so no pass gave it. Only
-//     two words from zellij's lists can go, since that is what zellij makes up. A
-//     session zellij brought back from exited is the exception: it starts under the
-//     name it had, and a name a pass gave it goes as before.
+//     two words from zellij's lists can go, since that is what zellij makes up.
 //     zellij keeps nothing that tells such a name from one someone typed (`zellij -s
 //     quiet-mouse`): its command line, environment and files are the same. So a
-//     person says so, with r and Enter in the dashboard, and the name is kept.
+//     person says so, with r and Enter in the dashboard, and the name is kept. A
+//     session zellij brought back from exited is the exception: it starts under the
+//     name it had, and a name a pass gave it goes as before.
 //   - A session with another name was renamed, by a pass or by someone. A pass writes
 //     its names down, and only those go. Versions from before that list stamped every
 //     name, so the stamp tells those, unless stamps are on now: `r` in the dashboard
@@ -243,17 +243,18 @@ func (e *Env) remember(name string) {
 }
 
 // forgetChosen takes a session made anew under a given name off the list of
-// given names: the session a pass gave it to was deleted, and someone started
-// this one under that name, which is theirs. Left on the list, the name would
-// read as a pass's once zellij brought this session back (replaceable).
+// given names: the session a pass gave it to ended, or got another name by
+// hand, and someone started this one under that name, which is theirs. Left on
+// the list, the name would read as a pass's once zellij brought this session
+// back (replaceable). Until a pass sees the session, it has no way to know.
 func (e *Env) forgetChosen(outcomes []Outcome) {
 	if e.Given == nil {
 		return
 	}
 	for _, o := range outcomes {
 		s := o.Session
-		// Only a running session whose folder says it was made anew: one
-		// the file system says nothing about keeps the list as it is.
+		// Only a running session whose saved panes say it was made anew: one
+		// that says nothing yet keeps the list as it is.
 		if s.Listed.Exited || !s.MadeAnew || s.StartedAs() != s.Name() || !e.Given.Has(s.Name()) {
 			continue
 		}

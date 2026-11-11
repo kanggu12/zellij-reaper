@@ -152,11 +152,13 @@ type Session struct {
 	// now; none when no agent runs.
 	Agents []AgentWork
 	// Resurrected is true when zellij brought the session back from exited,
-	// after a restart say: its files' folder is older than the socket its
-	// server made when it started. zellij keeps the folder of a session it
-	// brings back, and makes one for a new session a moment after its socket.
-	// MadeAnew is the other case. Both are false where the file system does
-	// not say when the two were made.
+	// after a restart say: the file of panes it saved (zellij.Files.
+	// LayoutBorn), which it needs to bring a session back, is older than the
+	// socket the server made when it started. A new session gets that file a
+	// while after its socket. MadeAnew is the other case. Both are false
+	// until zellij has saved the panes, when the socket or the file cannot
+	// be read, and where the file system or the system (Windows) does not
+	// say when the two were made.
 	Resurrected, MadeAnew bool
 	// ServerStart is when its server started (procfs.StartMark), which tells
 	// it from a later server that got the same pid, after a reboot say; 0
@@ -359,9 +361,9 @@ func (v snapshot) running(s *Session) {
 	}
 	s.Facts.ProtectedCommand = protectedCommand(v.table, s.Server, s.Files, v.rules.ProtectCommands)
 	s.Agents = agentsAt(v.table, s.Panes, v.rules.Agents, v.repos, v.src.ProcRoot)
-	if s.Socket != "" && !s.Files.Born.IsZero() {
+	if s.Socket != "" && !s.Files.LayoutBorn.IsZero() {
 		if sock, ok := zellij.Born(s.Socket); ok {
-			s.Resurrected = s.Files.Born.Before(sock)
+			s.Resurrected = s.Files.LayoutBorn.Before(sock)
 			s.MadeAnew = !s.Resurrected
 		}
 	}

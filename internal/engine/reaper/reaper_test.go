@@ -199,11 +199,17 @@ func newWorldRevived(t *testing.T, busy, startedAs string, given, byID, revived 
 		if byID && name == busy {
 			file = busyID
 		}
-		// Brought back: the folder from before, and the socket of the server
+		// Brought back: the panes saved before, and the socket of the server
 		// that started now.
 		back := revived && name == busy
+		// The busy session's panes are saved, which bringing it back needs:
+		// before its socket when zellij brought it back, after it when not.
+		layout := ""
+		if name == busy {
+			layout = "layout {\n}\n"
+		}
 		if back {
-			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), layout, now)
 			time.Sleep(20 * time.Millisecond)
 		}
 		sock := testutil.Socket(t, sockDir, file)
@@ -225,7 +231,7 @@ func newWorldRevived(t *testing.T, busy, startedAs string, given, byID, revived 
 		fp.Add(testutil.Proc{PID: pid, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", first}, Sockets: []uint32{uint32(pid)}, Env: env})
 		fp.Add(testutil.Proc{PID: pid + 1, PPID: pid, Comm: comm, Argv: argv, Stdin: testutil.TTY(t, ttys, name, used), Env: paneEnv})
 		if !back {
-			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), "", now)
+			testutil.SessionFiles(t, info, file, testutil.Metadata(0, title), layout, now)
 		}
 	}
 	add("idle-old", 100, "bash", []string{"-bash"}, now.Add(-3*time.Hour), "vim notes.md")

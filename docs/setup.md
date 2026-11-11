@@ -323,9 +323,9 @@ command line, and that is how a pass tells who chose a name:
 
 - **A session that still has that name** was never renamed. A pass replaces its name only if it is two words from
   zellij's own lists (`brave-peach`), or if zellij brought the session back from exited, after a restart say, under a
-  name a pass gave: zellij keeps the folder of a session it brings back, which is then older than the new server's
-  socket. A session someone started anew under a name a pass once gave keeps it, and the name leaves the list of given
-  names.
+  name a pass gave: zellij keeps the panes it saved for a session it brings back, in a file then older than the new
+  server's socket. A session someone starts anew under a name a pass once gave keeps it: the next pass that sees it
+  takes the name off the list of given names.
 - **A session renamed since** keeps its name unless a pass gave it. Passes write the names they give in the list of
   given names. The shell version and 0.1 releases stamped theirs instead (`web-app_1104-0931`), and those go too, unless
   `auto_rename_stamp = "time"`. 0.2.0 did neither by default, so a name 0.2.0 gave stays until someone changes it.
