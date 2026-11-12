@@ -7,7 +7,7 @@ the session: keeping a session one more hour costs nothing, deleting one in use 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/goes-dark.svg">
-  <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="assets/goes-light.svg">
+  <img alt="A running session is deleted only if it is not protected, has no client attached, every pane is at a shell prompt and it has been idle long enough. Each check it fails keeps it, with the words the dashboard shows: protected: claude, attached, running npm run dev, reap in 11h 10m. An exited session is deleted once it has been gone long enough, unless protected. A fact it cannot read keeps the session too." src="assets/goes-light.svg">
 </picture>
 
 Idle time counts from the last input or output on any of the session's terminals, so coming back to a session starts

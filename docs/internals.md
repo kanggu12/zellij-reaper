@@ -11,7 +11,7 @@ that goes up, on I/O in the core layer, and on a folder that belongs to no layer
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/layers-dark.svg">
-  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and timers. settings holds config and protect. machine holds zellij, procfs, lock and logfile. core holds policy, rename and duration, and does no I/O. Imports go down the layers." src="assets/layers-light.svg">
+  <img alt="The packages under internal/ in layers, highest first. front holds cli, tui, ui and i18n. app wires the rest. engine holds reaper, inspect, repair, resize and timers. settings holds config and protect. machine holds zellij, procfs, repo, sqlite, lock and logfile. core holds policy, rename, visible and duration, and does no I/O. An import goes down the layers, never up, and internal/layers_test.go fails otherwise." src="assets/layers-light.svg">
 </picture>
 
 | Package | Holds |
@@ -19,9 +19,12 @@ that goes up, on I/O in the core layer, and on a folder that belongs to no layer
 | `internal/core/policy` | `Decide(facts, thresholds, now)`: the rules; every rule is a row in a table test |
 | `internal/core/rename` | names from what a session shows, within the socket path's byte budget |
 | `internal/core/duration` | the durations of the settings and the log, `1d12h` |
+| `internal/core/visible` | text from other programs, safe to show: a control character a terminal acts on is written out (`\x1b`) |
 | `internal/machine/procfs` | one read of the process table (`/proc` on Linux, sysctl and lsof on macOS, Toolhelp on Windows), the kernel's Unix socket table over netlink (sock_diag, Linux), and which server a socket file belongs to |
 | `internal/machine/zellij` | zellij's command line (`list-sessions`, `list-clients`, `delete-session`, rename) and its session files |
 | `internal/machine/lock`, `logfile` | the pass lock (`flock`, `LockFileEx` on Windows), the decision log |
+| `internal/machine/repo` | the git repository a directory is in, read from the file system without running git |
+| `internal/machine/sqlite` | the rows of one table of an SQLite file, read-only and without SQLite: zellij 0.46's session index |
 | `internal/settings/config`, `protect` | settings and their paths on each system, the protected list |
 | `internal/engine/inspect` | the facts for every listed session, from one snapshot |
 | `internal/engine/reaper` | `Plan`, the survey alone, and `Run`, the pass that acts on it |
@@ -40,7 +43,7 @@ commands. `recover` alone goes around zellij, because it is for sessions zellij 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, and install writes the settings and the timers. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
