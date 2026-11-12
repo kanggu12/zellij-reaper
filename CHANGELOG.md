@@ -6,6 +6,20 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- A session that came back to a name it had before kept the name it had for good, with a pass logging `rename FAILED`
+  every few minutes: with a client attached, zellij 0.44 and 0.45 take a rename back to a former name, tell only the
+  client, and keep the old name. A pass now reads that as the refusal it is and asks for the name with a tail (`-2`),
+  once: a server that keeps its name again is not acting on renames, and that stays a failure.
+- A coding agent's session could be named after a repository the agent did not work on: Claude Code runs a helper
+  agent's commands in the directory the agent stood in when it started the helper, and the helper names the files it
+  works on in full. A command now works in the repository its command line names (paths in full or under `~/`, not under
+  the home's hidden folders), and only else in the one it runs in; one naming two repositories as often counts for
+  neither.
+- Leaving a project settled on takes four counted commands in a row elsewhere, where two settle the first: a look into
+  another repository, or an errand there, no longer renames the session.
+
 ## [0.14.1] - 2026-11-11
 
 ### Fixed

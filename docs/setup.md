@@ -349,14 +349,17 @@ too, with `auto_rename` on or off.
 The name comes from the first of these that says something:
 
 1. **The project a coding agent works in.** In a session where a coding agent runs (`claude`, `codex`, `gemini`,
-   `aider`, `opencode`), the git repository its commands run in. A pass looks at the commands the agent is running at
+   `aider`, `opencode`), the git repository its commands work in. A pass looks at the commands the agent is running at
    that moment and counts the newest, if it started after the last one counted; once two counted in a row ran in the
-   same repository, that repository is the project. So an agent that looks through many repositories, one command each,
-   keeps its name, and a command that keeps running, such as a dev server or a loop, counts once. A command that starts
-   and ends between two passes is not seen, and between commands the name stays. An agent started inside a repository
-   is named after it until then, and another agent in its place starts afresh. A git worktree counts as the repository
-   it was made from, a bare repository's too. The agent's own title is the topic its conversation began with, which the
-   work moves on from. When the agent ends, the rules below name the session again.
+   same repository, that repository is the project, and leaving it takes four in a row elsewhere. A command works in the
+   repository its command line names, as a helper agent naming the files it works on in full does wherever it stands,
+   and else in the one it runs in; one naming two repositories as often works in neither. So an agent that looks through
+   many repositories, one command each, keeps its name, a look into another one, or an errand there, does not move it,
+   and a command that keeps running, such as a dev server or a loop, counts once. A command that starts and ends between
+   two passes is not seen, and between commands the name stays. An agent started inside a repository is named after it
+   until then, and another agent in its place starts afresh. A git worktree counts as the repository it was made from, a
+   bare repository's too. The agent's own title is the topic its conversation began with, which the work moves on from.
+   When the agent ends, the rules below name the session again.
 2. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
    tab active, so that is the first tab's focused pane.
 3. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
@@ -390,7 +393,9 @@ characters, at the end of a word, and within what the session's socket path leav
 
 A name changes only when what the session shows changes, or the project its agent works in, so a script that attaches
 by name keeps working until then. When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij
-refuses a name a session has had before, so a title that comes back gives a tail too.
+refuses a name a session has had before, so a title or a project that comes back gives a tail too. With a client
+attached, zellij 0.44 and 0.45 say so only to the client and keep the old name; a pass then asks for the name with a
+tail.
 
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a

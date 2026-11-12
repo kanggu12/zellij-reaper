@@ -31,6 +31,13 @@ var ErrNameTaken = errors.New("a session by this name already exists")
 // one, so a caller must not act as if nothing happened.
 var ErrUnconfirmed = errors.New("zellij took the rename but does not list the new name")
 
+// ErrKept is returned by Rename, wrapped with ErrUnconfirmed, when zellij took
+// the request and the session is still listed, running, under its old name.
+// zellij 0.44 and 0.45 do that with a name the session had before when a client
+// is attached: the refusal goes to the client, and the command exits 0. A
+// server too busy to act on a rename looks the same.
+var ErrKept = errors.New("zellij kept the session's old name")
+
 // cutShort is a command stopped before it finished, by the time limit or by the
 // caller. It may have done what it was asked all the same.
 type cutShort string
@@ -324,6 +331,10 @@ func (c *CLI) waitListed(ctx context.Context, name, to string) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
+			// Still running under the old name: zellij kept it.
+			if kept, err := c.running(ctx, name); err == nil && kept {
+				return fmt.Errorf("zellij rename-session %s to %s: %w (%w)", name, to, ErrKept, ErrUnconfirmed)
+			}
 			return fmt.Errorf("zellij rename-session %s to %s: %w", name, to, ErrUnconfirmed)
 		}
 		select {
@@ -332,6 +343,23 @@ func (c *CLI) waitListed(ctx context.Context, name, to string) error {
 		case <-time.After(25 * time.Millisecond):
 		}
 	}
+}
+
+// running reports whether zellij lists a running session by this name.
+func (c *CLI) running(ctx context.Context, name string) (bool, error) {
+	sessions, err := c.ListSessions(ctx)
+	if errors.Is(err, ErrNoSessions) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, l := range sessions {
+		if l.Name == name && !l.Exited {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // lists reports whether zellij lists a session by this name.

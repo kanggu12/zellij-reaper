@@ -129,6 +129,12 @@ is_code() {
   }
 }
 listed() { $Z list-sessions -n -s 2>/dev/null | grep -qxF "$1"; }
+# listed_any says whether one of the names is listed.
+listed_any() {
+  local n
+  for n; do listed "$n" && return 0; done
+  return 1
+}
 gone() { ! listed "$1"; }
 
 # Delete a session and wait for it to leave the list, as a pass does. A server caught
@@ -698,7 +704,9 @@ fi
 echo "-- a coding agent's session follows the project it works in"
 # A stand-in coding agent named as one: each line written to /tmp/agent-at
 # starts a command in that directory once the one before has ended, as an
-# agent runs its commands in the project it works on; "stop" ends the last.
+# agent runs its commands in the project it works on; "name:PATH" starts one
+# in the folder of projects that names PATH, as a command working on files in
+# full does; "stop" ends the last.
 mkdir -p /srv/projects/web-app/.git /srv/projects/billing/.git
 # The lines are the script's own, its $ signs for it to expand.
 # shellcheck disable=SC2016
@@ -708,7 +716,11 @@ printf '%s\n' '#!/bin/sh' \
   '  if [ -s /tmp/agent-at ]; then' \
   '    dir=$(cat /tmp/agent-at); : >/tmp/agent-at' \
   '    [ -n "$pid" ] && kill "$pid" 2>/dev/null; pid=' \
-  '    if [ "$dir" != stop ]; then (cd "$dir" && exec sleep 100000) & pid=$!; fi' \
+  '    case "$dir" in' \
+  '      stop) ;;' \
+  '      name:*) (cd /srv/projects && exec sh -c "sleep 100000; true" work "${dir#name:}") & pid=$! ;;' \
+  '      *) (cd "$dir" && exec sleep 100000) & pid=$! ;;' \
+  '    esac' \
   '  fi' \
   '  sleep 0.1' \
   'done' >/usr/local/sbin/codex
@@ -725,28 +737,39 @@ work() {
 names() { env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --names-only --quiet; }
 start curious-crab /tmp/agent.kdl && wait_reachable curious-crab
 for _ in $(seq 100); do grep -q 'title "codex"' "$INFO/$(file_of curious-crab)/session-metadata.kdl" 2>/dev/null && break; sleep 0.1; done
+# A client attached, as a terminal left open on it.
+script -qfec "$Z attach curious-crab" /dev/null >/dev/null 2>&1 &
+for _ in $(seq 100); do
+  $Z --session curious-crab action list-clients 2>/dev/null | grep -q '^[0-9]' && break
+  sleep 0.1
+done
 check "a names pass succeeds" names
 first=$(sed -n 's/^\[[^]]*\]   -> renamed: curious-crab → //p' "$LOG" | tail -1)
 check "it names the session after its folder and its agent" test "$first" = projects-codex
 work /srv/projects/web-app
 check "a pass with one command in web-app succeeds" names
 check "one command is no project yet" listed "$first"
-work /srv/projects/web-app
-check "a pass with a second one succeeds" names
+work name:/srv/projects/web-app/src
+check "a pass with a second one, naming web-app from no repository, succeeds" names
 check "the session is named after web-app" listed web-app
 check "and the log says so" grep -q "]   -> renamed: $first → web-app\$" "$LOG"
 work stop
 check "a pass with the agent between commands succeeds" names
 check "the name stays" listed web-app
+for _ in 1 2 3; do work /srv/projects/billing; names; done
+check "three commands in billing do not leave web-app" listed web-app
 work /srv/projects/billing
-names
-check "one command in billing is not enough" listed web-app
-work /srv/projects/billing
-check "a pass with a second one succeeds" names
+check "a pass with a fourth one succeeds" names
 check "the session follows it to billing" listed billing
+# Back to web-app: zellij 0.44 and 0.45 keep a name the session had before,
+# telling only the client attached, and the session gets a tail.
+for _ in 1 2 3 4; do work /srv/projects/web-app; names; done
+check "the session follows it back to web-app" listed_any web-app web-app-2
 work stop
-$Z kill-session billing >/dev/null 2>&1
-$Z delete-session billing --force >/dev/null 2>&1
+for s in billing web-app web-app-2; do
+  $Z kill-session "$s" >/dev/null 2>&1
+  $Z delete-session "$s" --force >/dev/null 2>&1
+done
 
 echo "-- a session zellij brought back follows its panes again"
 # Someone starts a session under a name a pass once gave a session now gone:
@@ -765,12 +788,6 @@ saved() {
     grep -q pane "$INFO/$(file_of "$1")/session-layout.kdl" 2>/dev/null && return 0
     sleep 0.1
   done
-  return 1
-}
-# listed_any says whether one of the names is listed.
-listed_any() {
-  local n
-  for n; do listed "$n" && return 0; done
   return 1
 }
 pushd /srv/handbook >/dev/null || exit 1

@@ -548,6 +548,16 @@ func TestRename(t *testing.T) {
 	if err := s.cli().Rename(ctx, "a", "b"); err == nil || !errors.Is(err, ErrUnconfirmed) {
 		t.Errorf("rename without effect: %v", err)
 	}
+	// Still listed, running, under the old name: zellij kept it, as 0.44 and
+	// 0.45 do with a name the session had before when a client is attached.
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrKept) || !errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("kept: %v", err)
+	}
+	// Listed only as exited, it may have the new name by now: no more is known.
+	s = &script{listed: "a [Created 1h ago] (EXITED - attach to resurrect)\n", ignoreRename: true}
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrUnconfirmed) || errors.Is(err, ErrKept) {
+		t.Errorf("exited under the old name: %v", err)
+	}
 }
 
 func TestListClientsAsksAgainWhenTheAnswerCannotHold(t *testing.T) {

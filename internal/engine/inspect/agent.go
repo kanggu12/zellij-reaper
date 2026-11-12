@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,26 +85,19 @@ func workOf(t *procfs.Table, a *procfs.Proc, agents []string, repos *repo.Finder
 		// The command and what runs under it, within what is left to read.
 		procs := append([]*procfs.Proc{c.proc}, t.Descendants(c.proc.PID, budget-1)...)
 		budget -= len(procs)
-		mark := c.mark
-		for _, d := range procs {
-			// A process that ended and waits to be collected runs nowhere.
-			if d == nil || d.IsZombie() {
-				continue
-			}
-			r := repos.Root(t.Cwd(d.PID))
-			if r == "" {
-				continue
-			}
-			if m, seen := newest[r]; !seen || mark > m {
-				newest[r] = mark
-			}
+		r := commandRepo(t, procs, repos)
+		if r == "" {
+			continue
+		}
+		if m, seen := newest[r]; !seen || c.mark > m {
+			newest[r] = c.mark
 		}
 	}
 	for r, m := range newest {
 		w.Work = append(w.Work, Sighting{Repo: r, Mark: m})
 	}
-	// Newest first. One command may run in two repositories, and then the
-	// two keep an order that does not change between runs.
+	// Newest first. Two commands that started at once keep an order that does
+	// not change between runs.
 	sort.Slice(w.Work, func(i, j int) bool {
 		if w.Work[i].Mark != w.Work[j].Mark {
 			return w.Work[i].Mark > w.Work[j].Mark
@@ -144,6 +138,99 @@ func newestFirst(children []*procfs.Proc, root string) []command {
 	// Equal starts keep the table's order, by pid.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].mark > out[j].mark })
 	return out
+}
+
+// commandRepo is the repository a command works in: the one its processes'
+// command lines name most, since a command may act on files away from where it
+// runs (Claude Code runs a helper agent's commands where the agent stood when
+// it started the helper, and they name the files they work on in full); else
+// the one most of its processes run in. A tie says nothing.
+func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder) string {
+	named := map[string]int{}
+	ran := map[string]int{}
+	for _, d := range procs {
+		// A process that ended and waits to be collected runs nowhere.
+		if d == nil || d.IsZombie() {
+			continue
+		}
+		if r := repos.Root(t.Cwd(d.PID)); r != "" {
+			ran[r]++
+		}
+		for _, p := range namedPaths(d.Argv, repos.Home) {
+			if r := repos.Root(p); r != "" {
+				named[r]++
+			}
+		}
+	}
+	if len(named) > 0 {
+		r, _ := most(named)
+		return r
+	}
+	r, _ := most(ran)
+	return r
+}
+
+// most is the key with the highest count, and false for none or a tie.
+func most(counts map[string]int) (string, bool) {
+	best, top, tie := "", 0, false
+	for k, n := range counts {
+		switch {
+		case n > top:
+			best, top, tie = k, n, false
+		case n == top:
+			tie = true
+		}
+	}
+	if top == 0 || tie {
+		return "", false
+	}
+	return best, true
+}
+
+// maxNamedPaths bounds the paths read from one command line: a compiler can be
+// given hundreds of files of one project, and the first say as much.
+const maxNamedPaths = 32
+
+// namedPaths are the absolute paths a command line names, "~/" ones too:
+// words of its arguments, and of the shell code an argument may hold, that
+// start with "/". A path under a hidden folder of the home directory
+// (~/.claude, ~/.cache, ~/.config) is a tool's, not a project's, and is left
+// out.
+func namedPaths(argv []string, home string) []string {
+	var out []string
+	hidden := ""
+	if home != "" {
+		hidden = filepath.Clean(home) + string(filepath.Separator) + "."
+	}
+	for _, arg := range argv {
+		for _, word := range strings.FieldsFunc(arg, isPathBreak) {
+			if strings.HasPrefix(word, "~/") && home != "" {
+				word = filepath.Join(home, word[2:])
+			}
+			if !strings.HasPrefix(word, "/") {
+				continue
+			}
+			p := filepath.Clean(word)
+			if hidden != "" && strings.HasPrefix(p, hidden) {
+				continue
+			}
+			out = append(out, p)
+			if len(out) == maxNamedPaths {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+// isPathBreak tells where a path in a command line ends: blanks, quotes and
+// the shell's operators, and "=" and ":" (--dir=/x, PATH=/a:/b).
+func isPathBreak(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\'', '"', '`', ';', '&', '|', '<', '>', '(', ')', '{', '}', '=', ':', ',':
+		return true
+	}
+	return false
 }
 
 // maxRestarts bounds how far innermost goes down: a process tree has no

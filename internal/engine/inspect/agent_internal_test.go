@@ -264,3 +264,79 @@ func TestWhatIsAnAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestACommandWorksWhereItsCommandLinePoints(t *testing.T) {
+	ws := projectsDir(t)
+	// A repository under a hidden folder of the home directory: a tool's.
+	if err := os.MkdirAll(filepath.Join(ws, ".claude/projects/notes/.git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fp := testutil.NewFakeProc(t)
+	tty := testutil.TTY(t, t.TempDir(), "pane", time.Now())
+	fp.Add(testutil.Proc{PID: 700, PPID: 1, Comm: "zellij", Argv: []string{"zellij", "--server", "/tmp/z"}, Started: time.Second})
+	fp.Add(testutil.Proc{PID: 701, PPID: 700, Comm: "claude", Argv: []string{"claude"}, Stdin: tty, Cwd: ws, Started: 2 * time.Second})
+	// command adds a command of the agent's: its shell, and what it runs.
+	command := func(pid int, cwd string, at time.Duration, code string, children ...[]string) {
+		fp.Add(testutil.Proc{PID: pid, PPID: 701, Comm: "bash", Argv: []string{"/bin/bash", "-c", code}, Cwd: cwd, Started: at})
+		for i, argv := range children {
+			fp.Add(testutil.Proc{PID: pid + 1 + i, PPID: pid, Comm: argv[0], Argv: argv, Cwd: cwd, Started: at})
+		}
+	}
+	read := func() []Sighting {
+		t.Helper()
+		table := readTable(t, fp)
+		return only(t, agentsAt(table, panes(table, 700, shellSet(nil)), []string{"claude"}, &repo.Finder{Home: ws}, fp.Root)).Work
+	}
+	webApp := filepath.Join(ws, "web-app")
+	// A helper agent that still stands in billing and works on web-app, by
+	// its paths in full, as Claude Code runs one: web-app, however many of
+	// the command's processes run in billing.
+	command(710, filepath.Join(ws, "billing"), 50*time.Second,
+		"source "+ws+"/.claude/shell-snapshots/s.sh && eval 'grep -rn foo "+webApp+"/src | head -5' < /dev/null && pwd -P >| /tmp/claude-1-cwd",
+		[]string{"grep", "-rn", "foo", webApp + "/src"}, []string{"head", "-5"})
+	if w := read(); len(w) != 1 || w[0].Repo != webApp {
+		t.Errorf("a helper standing in billing: %+v", w)
+	}
+	fp.Remove(710)
+	fp.Remove(711)
+	fp.Remove(712)
+	// From a folder in no repository, a path in the home's own words.
+	command(720, ws, 60*time.Second, "make -C ~/docs-site/site")
+	if w := read(); len(w) != 1 || w[0].Repo != filepath.Join(ws, "docs-site") {
+		t.Errorf("a path under ~: %+v", w)
+	}
+	fp.Remove(720)
+	// Two repositories named once each say nothing; nor does a tool's
+	// repository, and the command counts where it runs.
+	command(730, ws, 70*time.Second, "diff "+webApp+"/a "+ws+"/billing/a")
+	command(740, filepath.Join(ws, "billing"), 80*time.Second, "cat "+ws+"/.claude/projects/notes/MEMORY.md")
+	if w := read(); len(w) != 1 || w[0].Repo != filepath.Join(ws, "billing") || w[0].Mark != markOf(t, fp.Root, 740) {
+		t.Errorf("two named, a tool's: %+v", w)
+	}
+}
+
+func TestNamedPaths(t *testing.T) {
+	home := "/home/me"
+	for _, c := range []struct {
+		argv []string
+		want []string
+	}{
+		{[]string{"git", "-C", "/srv/api", "log"}, []string{"/srv/api"}},
+		// Quotes end a word: a quoted path with a blank in it comes out in
+		// pieces, which name no repository and so count for none.
+		{[]string{"bash", "-c", "cd '/srv/web app'/x && make --dir=/srv/b PATH=/usr/bin:/srv/c"}, []string{"/srv/web", "/x", "/srv/b", "/usr/bin", "/srv/c"}},
+		{[]string{"vim", "~/notes/today.md", "~/.config/x", "/home/me/.cache/y"}, []string{"/home/me/notes/today.md"}},
+		{[]string{"ls", "./src", "relative/path", "/srv/x/../y"}, []string{"/srv/y"}},
+	} {
+		if got := namedPaths(c.argv, home); !slices.Equal(got, c.want) {
+			t.Errorf("%q: %q, want %q", c.argv, got, c.want)
+		}
+	}
+	var many []string
+	for i := range 40 {
+		many = append(many, "/srv/f"+strconv.Itoa(i))
+	}
+	if got := namedPaths(many, home); len(got) != maxNamedPaths {
+		t.Errorf("%d paths read", len(got))
+	}
+}

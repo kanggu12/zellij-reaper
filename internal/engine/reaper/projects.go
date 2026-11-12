@@ -17,11 +17,23 @@ import (
 // in a row, each time a command newer than the one before: an agent that goes
 // through many repositories, one command each, keeps its name, and one that
 // works in a project is named after it within two passes that catch it at it.
+// Leaving a project settled on takes four in a row elsewhere: a look into
+// another repository, or an errand a helper agent runs there for a while,
+// does not rename the session.
 // A command that keeps running, such as a dev server or a loop that keeps
 // starting processes, counts once, when it is new. Until anything is
 // settled, an agent started in a repository works there. The agent counted
 // for speaks for the session while it runs, and the one after it starts
 // afresh. A pass writes this down; plan and the dashboard only read it.
+
+// settleCount is how many commands in a row, counted by passes, settle a
+// repository for an agent that has none; leaveCount, how many move it from the
+// one settled on. The names timer looks every 5 minutes: leaving takes some
+// fifteen minutes of work elsewhere.
+const (
+	settleCount = 2
+	leaveCount  = 4
+)
 
 // projectTTL is how long the book keeps a session no survey has seen: its
 // server is gone, or was not found for a while.
@@ -35,6 +47,8 @@ type projectEntry struct {
 	// a later command counts only if it started after it.
 	Last string `json:"last,omitempty"`
 	Mark int64  `json:"mark,omitempty"`
+	// Count is how many commands in a row the passes counted in Last.
+	Count int `json:"count,omitempty"`
 	// Agent is the agent counted for (inspect.AgentWork.ID): another one in
 	// the session starts afresh.
 	Agent string `json:"agent,omitempty"`
@@ -125,12 +139,22 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 			e.Agent = id
 		}
 		// The newest command, if it started after the last one counted: the
-		// same repository twice in a row settles it.
+		// same repository twice in a row settles it, four times to leave the
+		// project settled on.
 		if w := a.Work; len(w) > 0 && w[0].Mark > e.Mark {
 			if w[0].Repo == e.Last {
-				e.Project = w[0].Repo
+				e.Count++
+			} else {
+				e.Count = 1
 			}
 			e.Last, e.Mark = w[0].Repo, w[0].Mark
+			need := settleCount
+			if e.Project != "" && e.Project != e.Last {
+				need = leaveCount
+			}
+			if e.Count >= need {
+				e.Project = e.Last
+			}
 		}
 		// Nothing settled yet: an agent works where it was started.
 		if e.Project == "" && a.Started != "" {
@@ -140,7 +164,7 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		// A book whose sessions only aged is not written on every pass, but
 		// once an hour, so a session its passes keep seeing does not outlive
 		// projectTTL on disk.
-		if e.Project != before.Project || e.Last != before.Last || e.Mark != before.Mark || e.Agent != before.Agent || e.Seen-before.Seen > int64(time.Hour/time.Second) {
+		if e.Project != before.Project || e.Last != before.Last || e.Mark != before.Mark || e.Count != before.Count || e.Agent != before.Agent || e.Seen-before.Seen > int64(time.Hour/time.Second) {
 			b.changed = true
 		}
 		b.at[key] = e

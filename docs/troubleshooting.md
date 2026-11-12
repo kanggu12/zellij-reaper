@@ -65,7 +65,8 @@ Its row in `plan` says why, and the dashboard's panel shows which check stopped 
 
 ## A session's name keeps a `-2`
 
-Two sessions showed the same title, or the session had that name before, which zellij refuses to give back. The tail
+Two sessions showed the same title, or the session had that name before, which zellij refuses to give back; with a
+client attached, zellij 0.44 and 0.45 tell only the client and keep the old name, and a pass asks for the tail. The tail
 stays, because a name changes only when what the session shows changes, or the project its agent works in; with
 `auto_rename_drop_tail = true` it goes once no other session has the name. With `r` you can give it the name without
 the tail, unless this session had that name before. A name given by hand stays as it is from then on.
@@ -75,9 +76,10 @@ the tail, unless this session had that name before. A name given by hand stays a
 A pass names a session after the focused pane of the tab a client looks at, or of the first tab when nobody is attached,
 since zellij then marks no tab active. When that title says nothing, the other running panes come next. Its row in
 `plan --json` lists `would_rename`, and `r` in the dashboard shows the name its panes, or its agent's project, point to.
-A session where a coding agent runs is named after the git repository of the agent's newest command, once two that
-passes counted in a row ran there; before that, after the repository the agent was started in, or as any other session
-when that is none. A command that starts and ends between two passes is not seen, and an agent that goes through many
+A session where a coding agent runs is named after the git repository its newest commands work in, the one their command
+lines name or else the one they run in, once two that passes counted in a row worked there; moving it takes four in a
+row elsewhere. Before that, it is named after the repository the agent was started in, or as any other session when that
+is none. A command that starts and ends between two passes is not seen, and an agent that goes through many
 repositories, one command each, keeps its name. Give it a name with `r` or `zellij action rename-session`, and passes
 leave that name alone. To keep the name a running session has now, press `r`, then Tab and Enter. `auto_rename = false`
 turns renaming off.

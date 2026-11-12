@@ -107,21 +107,34 @@ func TestAnAgentSessionFollowsTheProjectItWorksIn(t *testing.T) {
 	if got := suggested(t, w); got != "web-app" {
 		t.Errorf("idle: %q", got)
 	}
-	// It moves on to billing: one command is not enough, two are.
-	command(w, 222, p.billing, 300*time.Second)
-	pass(t, w)
-	if got := suggested(t, w); got != "web-app" {
-		t.Errorf("after one in billing: %q", got)
+	// It moves on to billing: leaving web-app takes four commands in a row
+	// there, where two settled the first project.
+	for i := range 4 {
+		command(w, 222+i, p.billing, time.Duration(300+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(222 + i)
+		want := "web-app"
+		if i == 3 {
+			want = "billing"
+		}
+		if got := suggested(t, w); got != want {
+			t.Errorf("after %d in billing: %q", i+1, got)
+		}
 	}
-	w.fp.Remove(222)
-	command(w, 223, p.billing, 400*time.Second)
+	// One command back in web-app, between them, starts the count again.
+	command(w, 226, p.webApp, 700*time.Second)
 	pass(t, w)
-	if got := suggested(t, w); got != "billing" {
-		t.Errorf("after two in billing: %q", got)
+	w.fp.Remove(226)
+	for i := range 3 {
+		command(w, 227+i, p.webApp, time.Duration(800+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(227 + i)
+	}
+	if got := suggested(t, w); got != "web-app" {
+		t.Errorf("after four back in web-app: %q", got)
 	}
 	// The agent ends: the session is named after what else it shows, and the
 	// book forgets it.
-	w.fp.Remove(223)
 	w.fp.Remove(agentPID)
 	pass(t, w)
 	if got := suggested(t, w); got != "htop" {
@@ -129,6 +142,27 @@ func TestAnAgentSessionFollowsTheProjectItWorksIn(t *testing.T) {
 	}
 	if book := readBook(t, w); len(book.Sessions) != 0 {
 		t.Errorf("book kept %v", book.Sessions)
+	}
+}
+
+func TestAHelperStandingInAnotherRepositoryDoesNotMoveTheSession(t *testing.T) {
+	p := newProjects(t)
+	w := agentWorld(t, p.root)
+	for i := range 2 {
+		command(w, 340+i, p.webApp, time.Duration(100+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(340 + i)
+	}
+	// A helper agent the agent started while it stood in billing works on
+	// web-app from there, its paths in full, for half an hour of passes.
+	for i := range 6 {
+		pid := 350 + i
+		w.fp.Add(testutil.Proc{PID: pid, PPID: agentPID, Comm: "bash", Argv: []string{"/bin/bash", "-c", "grep -rn TODO " + p.webApp + "/src"}, Cwd: p.billing, Started: time.Duration(300+100*i) * time.Second})
+		pass(t, w)
+		w.fp.Remove(pid)
+	}
+	if got := suggested(t, w); got != "web-app" {
+		t.Errorf("after the helper: %q", got)
 	}
 }
 
@@ -168,12 +202,11 @@ func TestAProcessThatKeepsRunningCountsOnce(t *testing.T) {
 	}
 	// The dev server, older than what was counted, does not take it back
 	// from billing.
-	command(w, 242, p.billing, 300*time.Second)
-	pass(t, w)
-	w.fp.Remove(242)
-	command(w, 243, p.billing, 400*time.Second)
-	pass(t, w)
-	w.fp.Remove(243)
+	for i := range 4 {
+		command(w, 242+i, p.billing, time.Duration(300+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(242 + i)
+	}
 	pass(t, w)
 	if got := suggested(t, w); got != "billing" {
 		t.Errorf("with the dev server still up: %q", got)

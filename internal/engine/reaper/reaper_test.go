@@ -3,6 +3,7 @@ package reaper_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,9 @@ type fakeZellij struct {
 	// unseen makes a rename come back unconfirmed: zellij took it, and the new
 	// name did not show in time.
 	unseen bool
+	// keep makes a rename to these names come back kept: zellij took it, and
+	// the session is listed under its old name (zellij.ErrKept).
+	keep map[string]bool
 	// onRename runs as zellij is asked for a rename, onDelete after a delete.
 	onRename func(to string)
 	onDelete func(name string)
@@ -130,6 +134,9 @@ func (f *fakeZellij) Rename(ctx context.Context, name, to string) error {
 	}
 	if f.unseen {
 		return zellij.ErrUnconfirmed
+	}
+	if f.keep[to] {
+		return fmt.Errorf("%w (%w)", zellij.ErrKept, zellij.ErrUnconfirmed)
 	}
 	f.renamed = append(f.renamed, name+"->"+to)
 	f.renamedAt = time.Now()
@@ -1375,5 +1382,38 @@ func TestASessionBroughtBackKeepsItsGivenName(t *testing.T) {
 	}
 	if !back.Has("htop") || len(w.zj.renamed) != 0 {
 		t.Errorf("given %v, renamed %v", back.Names(), w.zj.renamed)
+	}
+}
+
+func TestANameZellijKeepsGetsATail(t *testing.T) {
+	// zellij keeps the old name of an attached session asked for a name it had
+	// before: the next variant is asked for, once.
+	w := newWorld(t)
+	w.env.Config.AutoRename = true
+	w.zj.keep = map[string]bool{"htop": true}
+	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 1 || w.zj.renamed[0] != "busy->htop-2" {
+		t.Errorf("renamed %v", w.zj.renamed)
+	}
+	// A server that keeps the next name too is not acting on renames: one
+	// failure, and no third name asked for.
+	w = newWorld(t)
+	w.env.Config.AutoRename = true
+	w.zj.keep = map[string]bool{"htop": true, "htop-2": true}
+	var asked []string
+	w.zj.onRename = func(to string) { asked = append(asked, to) }
+	r, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(w.zj.renamed) != 0 || strings.Join(asked, ",") != "htop,htop-2" {
+		t.Errorf("renamed %v, asked %v", w.zj.renamed, asked)
+	}
+	for _, o := range r.Outcomes {
+		if o.Session.Name() == "busy" && !errors.Is(o.RenameErr, zellij.ErrUnconfirmed) {
+			t.Errorf("busy: %v", o.RenameErr)
+		}
 	}
 }

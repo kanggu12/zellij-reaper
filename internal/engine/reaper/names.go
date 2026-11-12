@@ -175,6 +175,8 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 // name, and any name zellij refused.
 func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, taken map[string]bool) {
 	name := o.Session.Name()
+	// kept is set once zellij kept the old name (zellij.ErrKept).
+	kept := false
 	for attempt := target; ; {
 		err := e.renameTo(ctx, o.Session, attempt)
 		if err == nil {
@@ -186,13 +188,20 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			e.Log.Printf("  -> renamed: %s → %s", name, attempt)
 			return
 		}
+		refused := errors.Is(err, zellij.ErrNameTaken)
+		// zellij kept the old name: what it does, telling only the client
+		// attached, with a name the session had before. That is a refusal,
+		// once: a server that keeps its name again is not acting on renames.
+		if errors.Is(err, zellij.ErrKept) && !kept {
+			kept, refused = true, true
+		}
 		// Dropping a tail zellij refuses, because the session had the plain
 		// name before: it keeps the name it has, and nothing is logged.
-		if errors.Is(err, zellij.ErrNameTaken) && rename.Same(name, desired) {
+		if refused && rename.Same(name, desired) {
 			return
 		}
 		// Anything but a taken name is a real failure: stop and say so.
-		if !errors.Is(err, zellij.ErrNameTaken) {
+		if !refused {
 			// A rename that could not be confirmed may have happened, so the session
 			// may have either name until a pass sees which. Both stay on the list,
 			// and out of reach of the sessions after this one.
