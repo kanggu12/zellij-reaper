@@ -125,6 +125,9 @@ func TestAnAgentSessionFollowsTheProjectItWorksIn(t *testing.T) {
 	command(w, 226, p.webApp, 700*time.Second)
 	pass(t, w)
 	w.fp.Remove(226)
+	if got := suggested(t, w); got != "billing" {
+		t.Errorf("after one back in web-app: %q", got)
+	}
 	for i := range 3 {
 		command(w, 227+i, p.webApp, time.Duration(800+100*i)*time.Second)
 		pass(t, w)

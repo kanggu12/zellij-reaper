@@ -309,6 +309,9 @@ func TestACommandWorksWhereItsCommandLinePoints(t *testing.T) {
 	// Two repositories named once each say nothing; nor does a tool's
 	// repository, and the command counts where it runs.
 	command(730, ws, 70*time.Second, "diff "+webApp+"/a "+ws+"/billing/a")
+	if w := read(); len(w) != 0 {
+		t.Errorf("two named once each: %+v", w)
+	}
 	command(740, filepath.Join(ws, "billing"), 80*time.Second, "cat "+ws+"/.claude/projects/notes/MEMORY.md")
 	if w := read(); len(w) != 1 || w[0].Repo != filepath.Join(ws, "billing") || w[0].Mark != markOf(t, fp.Root, 740) {
 		t.Errorf("two named, a tool's: %+v", w)
