@@ -18,6 +18,17 @@ its wait over:
   <img alt="A timeline over 16 hours with a pass every hour. A session you detach from after 2 hours is deleted by the first pass once 12 hours have gone by with nothing happening in it. A session you come back to starts its wait over. A session running a program is kept for as long as it runs." src="assets/when-light.svg">
 </picture>
 
+## Compared with zellij's own commands
+
+| | zellij-reaper | `zellij delete-all-sessions` | `zellij kill-all-sessions` |
+|:---|:---:|:---:|:---:|
+| Exited sessions | deleted after a wait you set | deleted, all at once | left |
+| Running sessions | deleted when idle, after a wait you set | with `--force`, all of them | stopped, all of them |
+| A session with a client attached | kept | with `--force`, deleted | stopped |
+| A session running a program | kept | with `--force`, deleted | stopped |
+| Runs on its own | yes, from a timer | no | no |
+| Shows what it would do first | `plan`, the dashboard | no | no |
+
 ## A pass, step by step
 
 <picture>

@@ -303,6 +303,15 @@ between keeps the session.
 The model holds the last plan and draws from it; every five seconds it asks its `Backend` for a new one. All I/O sits
 behind `tui.Backend`, so the tests drive the real model with a fake backend.
 
+## How fast a pass is
+
+A pass reads the machine once, decides every session and exits; nothing stays running between passes.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/speed-dark.svg">
+  <img alt="How long one pass takes and how much memory it uses, by the number of sessions: 13 sessions in 25.5 ms and 11.5 MB, 25 in 38.6 ms and 11.5 MB, 50 in 63.4 ms and 12.3 MB, 100 in 112.6 ms and 13.1 MB. The median of 40 runs of plan each, in a container on a Ryzen 9 9950X with zellij 0.45.1." src="assets/speed-light.svg">
+</picture>
+
 ## Tests
 
 A change comes with a test that fails without it. A bug report becomes a test first: a row in the policy table, a fake

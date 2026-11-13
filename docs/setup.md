@@ -2,17 +2,18 @@
 
 1. [Requirements](#requirements)
 2. [Install](#install)
-3. [Coming from the shell scripts](#coming-from-the-shell-scripts)
-4. [Without internet access](#without-internet-access)
-5. [Upgrade and uninstall](#upgrade-and-uninstall)
-6. [Settings](#settings)
-7. [Protecting sessions](#protecting-sessions)
-8. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
-9. [Files](#files)
-10. [zellij versions](#zellij-versions)
-11. [macOS](#macos)
-12. [Windows](#windows)
-13. [WSL 2](#wsl-2)
+3. [Try it in a sandbox](#try-it-in-a-sandbox)
+4. [Coming from the shell scripts](#coming-from-the-shell-scripts)
+5. [Without internet access](#without-internet-access)
+6. [Upgrade and uninstall](#upgrade-and-uninstall)
+7. [Settings](#settings)
+8. [Protecting sessions](#protecting-sessions)
+9. [Naming sessions after what they show](#naming-sessions-after-what-they-show)
+10. [Files](#files)
+11. [zellij versions](#zellij-versions)
+12. [macOS](#macos)
+13. [Windows](#windows)
+14. [WSL 2](#wsl-2)
 
 ## Requirements
 
@@ -27,8 +28,8 @@
 | Demo sandbox | Docker | |
 
 The binary is 7.5 MB and needs no other library. A pass takes about 26 ms and 12 MB with 13 sessions and 113 ms and
-13 MB with 100 ([measured](../README.md#why-zellij-reaper)), and nothing stays running between passes. The dashboard, while it is open, uses about 16 MB and
-reads the sessions every five seconds.
+13 MB with 100 ([measured](internals.md#how-fast-a-pass-is)), and nothing stays running between passes. The
+dashboard, while it is open, uses about 16 MB and reads the sessions every five seconds.
 
 ## Install
 
@@ -144,6 +145,15 @@ The third line runs a pass at five past every hour, and the last one renames eve
 `zellij not installed, nothing to do` and exits 0. `XDG_RUNTIME_DIR` is where zellij keeps its sockets. Copy the value
 `echo "$XDG_RUNTIME_DIR"` prints in your shell, or leave the line out if it prints nothing. With any other value, a pass
 does not see your running sessions.
+
+## Try it in a sandbox
+
+```sh
+docker run --rm -it --init ghcr.io/kanggu12/zellij-reaper-demo
+```
+
+Thirteen demo sessions in a throwaway container, ready in about a minute; your own sessions are not touched. Append
+`--shell` for a shell there, or put `-e ZELLIJ_REAPER_LANG=ko` before the image name for Korean.
 
 ## Coming from the shell scripts
 
