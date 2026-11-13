@@ -351,15 +351,19 @@ The name comes from the first of these that says something:
 1. **The project a coding agent works in.** In a session where a coding agent runs (`claude`, `codex`, `gemini`,
    `aider`, `opencode`), the git repository its commands work in. A pass looks at the commands the agent is running at
    that moment and counts the newest, if it started after the last one counted; once two counted in a row ran in the
-   same repository, that repository is the project, and leaving it takes four in a row elsewhere. A command works in the
-   repository its command line names, as a helper agent naming the files it works on in full does wherever it stands,
-   and else in the one it runs in; one naming two repositories as often works in neither. So an agent that looks through
-   many repositories, one command each, keeps its name, a look into another one, or an errand there, does not move it,
-   and a command that keeps running, such as a dev server or a loop, counts once. A command that starts and ends between
-   two passes is not seen, and between commands the name stays. An agent started inside a repository is named after it
-   until then, and another agent in its place starts afresh. A git worktree counts as the repository it was made from, a
-   bare repository's too. The agent's own title is the topic its conversation began with, which the work moves on from.
-   When the agent ends, the rules below name the session again.
+   same repository, that repository is the project, and leaving it takes four in a row in one other repository. A
+   command works in the repository its command line names, as a helper agent naming the files it works on in full does
+   wherever it stands, and else in the one it runs in; one naming two repositories as often works in the one of them it
+   runs in, or in neither. A path on a command line counts near the work: under your home directory, under the directory
+   one of the command's processes runs in, or beside the repository it runs in. The program a command runs is no work:
+   its own path, a script in a `bin` folder such as `/opt/homebrew/bin/pytest`, and the folders on a `PATH`. So an agent
+   that looks through many repositories, one command each, keeps its name, a look into another one, or an errand there,
+   does not move it, and a command that keeps running, such as a dev server or a loop, counts once. A command that
+   starts and ends between two passes is not seen, and between commands the name stays. An agent started inside a
+   repository is named after it until two commands in a row settle a project, and another agent in its place starts
+   afresh. A git worktree counts as the repository it was made from, a bare repository's too. The agent's own title is
+   the topic its conversation began with, which the work moves on from. When the agent ends, the rules below name the
+   session again.
 2. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
    tab active, so that is the first tab's focused pane.
 3. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:
@@ -391,11 +395,12 @@ A word in another script, or with an accent, is left out whole: `Déploiement pr
 left says nothing, like `Pane #1`. A `.` stays inside a word, so `notes.md` still reads as a file. Names stop at 32
 characters, at the end of a word, and within what the session's socket path leaves of Linux's 107-byte limit.
 
-A name changes only when what the session shows changes, or the project its agent works in, so a script that attaches
-by name keeps working until then. When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij
-refuses a name a session has had before, so a title or a project that comes back gives a tail too. With a client
-attached, zellij 0.44 and 0.45 say so only to the client and keep the old name; a pass then asks for the name with a
-tail.
+A name changes only when what the session shows changes, or the project its agent works in, so a script that attaches by
+name keeps working until then. When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij 0.44 and
+0.45 refuse a session a name it has had before, for as long as the session runs, so a title or a project that comes back
+gives a tail too. A pass writes down the names it sees each session under (`former`) and asks for the tail straight
+away. A name it did not see, one given by hand between two passes say, zellij refuses once, telling only the client
+attached and keeping the old name; the pass learns it and asks for the tail. zellij 0.43 gives such a name back.
 
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
@@ -416,12 +421,12 @@ only after the startup file runs, or a machine it was removed from. `setup` up t
 `uninstall --purge` takes out that line too.
 
 The names timer runs a renaming pass every `rename_interval` (5 minutes). It deletes nothing but the copy zellij may
-leave of a renamed session under its old name, writes down where coding agents work (`projects`), and writes to the
-log only when it renames. The hourly pass renames too.
+leave of a renamed session under its old name, writes down where coding agents work (`projects`) and the names it sees
+sessions under (`former`), and writes to the log only when it renames. The hourly pass renames too.
 `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and Enter do; `forget-name NAME` lets passes rename it again,
 and `keep-name` alone lists the kept names. With `auto_rename_drop_tail = true`, the hourly pass gives a session it
-named `api-2` the name `api` once no other session has it; zellij refuses a name the session had before, and then the
-tail stays.
+named `api-2` the name `api` once no other session has it, unless the session had `api` before, which zellij 0.44 and
+0.45 refuse: the tail then stays.
 
 `auto_rename_stamp` adds when a session was last used, in local time: `"date"` gives `web-app_1104`, which renames a
 session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, which renames it on every pass.
@@ -445,6 +450,7 @@ session you keep using once more a day, and `"time"` gives `web-app_1104-0931`, 
 | `~/.local/state/zellij-reaper/kept`, `kept.lock` | the list of kept names: names kept with the dashboard or `keep-name`, which no pass renames |
 | `~/.local/state/zellij-reaper/quiet` | when a pass first found each session quiet, for sessions whose terminals cannot be read (every session on Windows) |
 | `~/.local/state/zellij-reaper/projects` | the repository each coding agent's session works in, as passes settled it, which its name follows |
+| `~/.local/state/zellij-reaper/former` | the names each running session had, which zellij 0.44 and 0.45 refuse to give it again |
 | `~/.local/state/zellij-reaper/lock` | the pass lock |
 
 `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME` move them. On macOS the same paths apply, and the timers are the launch agents
@@ -466,6 +472,7 @@ differences it handles:
 | A session made with `attach --create-background` | the first `list-clients` names the client that made it, so it is asked twice | counts none |
 | The client count in the metadata file | can keep counting that client until something happens | rewritten about once a minute |
 | Renaming to a name that is taken | refused | accepted, cutting the other session off, so zellij-reaper looks first |
+| Renaming to a name the session had | accepted | refused while the session runs, and with a client attached only that client hears of it: zellij-reaper gives a tail |
 
 zellij 0.44 and 0.45 also stop a session that is starting when another program connects to it and leaves within
 about a tenth of a second ([zellij issue 5632](https://github.com/zellij-org/zellij/issues/5632)), and

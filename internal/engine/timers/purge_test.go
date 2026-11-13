@@ -15,7 +15,8 @@ import (
 
 // stateOf writes everything the reaper keeps for env, as a run of it would
 // have: the settings, both logs, the three lists with their locks, the pass
-// lock and the quiet book. It returns the log's path.
+// lock, and the books of quiet sessions, agents' projects and former names.
+// It returns the log's path.
 func stateOf(t *testing.T, env config.Env) string {
 	t.Helper()
 	cfg := config.Default(env)
@@ -30,7 +31,8 @@ func stateOf(t *testing.T, env config.Env) string {
 	if err := protect.LoadKept(config.KeptFile(env)).Set("brave-peach", true); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{config.ConfigFile(env), cfg.LogPath, cfg.LogPath + ".1", config.LockFile(env), config.QuietFile(env)} {
+	for _, p := range []string{config.ConfigFile(env), cfg.LogPath, cfg.LogPath + ".1", config.LockFile(env), config.QuietFile(env),
+		config.ProjectsFile(env), config.FormerFile(env)} {
 		put(t, p)
 	}
 	return cfg.LogPath
@@ -60,9 +62,11 @@ func TestPurgeTakesWhatACutShortSaveLeft(t *testing.T) {
 	logPath := stateOf(t, env)
 	state, settings := config.StateDir(env), config.ConfigFile(env)
 	left := []string{
-		// The quiet book's, the lists' (one each), an edit of the settings',
-		// and an install's write of the settings.
+		// The books', the lists' (one each), an edit of the settings', and an
+		// install's write of the settings.
 		config.QuietFile(env) + ".new",
+		config.ProjectsFile(env) + ".new",
+		config.FormerFile(env) + ".new",
 		filepath.Join(state, ".protected-123456"),
 		filepath.Join(state, ".named-7"),
 		filepath.Join(state, ".kept-4096000000"),

@@ -223,6 +223,34 @@ func TestAnAgentStartedInAProjectIsNamedAfterItAtOnce(t *testing.T) {
 	if got := suggested(t, w); got != "billing" {
 		t.Errorf("plan: %q", got)
 	}
+	// Where it was started is only where it stood: two commands in a row in
+	// web-app settle its first project, as for any agent, and four are not
+	// needed. After the first it is still billing.
+	for i := range 2 {
+		command(w, 252+i, p.webApp, time.Duration(100+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(252 + i)
+		want := "billing"
+		if i == 1 {
+			want = "web-app"
+		}
+		if got := suggested(t, w); got != want {
+			t.Errorf("after %d in web-app: %q, want %q", i+1, got, want)
+		}
+	}
+	// Settled by commands now: leaving takes four.
+	for i := range 4 {
+		command(w, 254+i, p.billing, time.Duration(300+100*i)*time.Second)
+		pass(t, w)
+		w.fp.Remove(254 + i)
+		want := "web-app"
+		if i == 3 {
+			want = "billing"
+		}
+		if got := suggested(t, w); got != want {
+			t.Errorf("after %d back in billing: %q, want %q", i+1, got, want)
+		}
+	}
 	// A folder that is no repository says nothing: the session keeps the
 	// name it has from its folder and what it runs.
 	w = agentWorld(t, p.notes)

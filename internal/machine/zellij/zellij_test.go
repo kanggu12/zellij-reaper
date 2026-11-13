@@ -184,6 +184,17 @@ func TestASessionFileTooLargeIsNotReadAndTheSessionIsKept(t *testing.T) {
 	}
 }
 
+func TestRefusesFormerNames(t *testing.T) {
+	// Measured: 0.44 and 0.45 refuse a session a name it had, for as long as
+	// it runs; 0.43 and the main branch (0.46.0) give it back. An unknown
+	// version is a current one.
+	for v, want := range map[string]bool{"0.43.1": false, "0.44.2": true, "0.44.3": true, "0.45.1": true, "0.46.0": false, "": true, "x": true} {
+		if got := RefusesFormerNames(v); got != want {
+			t.Errorf("%q: %v", v, got)
+		}
+	}
+}
+
 func TestSessionInfoDir(t *testing.T) {
 	cache := t.TempDir()
 	if got := SessionInfoDir(filepath.Join(cache, "zellij"), "0.45.1"); got != filepath.Join(cache, "zellij", "contract_version_1", "session_info") {

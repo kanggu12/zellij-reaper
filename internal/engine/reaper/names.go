@@ -150,6 +150,9 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 		when = e.Now()
 	}
 	desired = rename.Desired(base, rename.Stamp(e.Config.AutoRenameStamp), when)
+	// The names another session has, and those zellij refuses this one
+	// because it had them before.
+	taken = unusable(s, taken)
 	// Named this way already, perhaps with a tail from a collision: nothing
 	// to do. The tail stays even once the other session is gone, because a
 	// name changes only when what the session shows changes, or the project
@@ -169,14 +172,26 @@ func (e *Env) nameFor(s inspect.Session, taken map[string]bool, dropTail bool) (
 	return desired, free
 }
 
+// maxKept bounds how many names one rename asks for that zellij keeps the
+// old name instead of: each costs a wait, and a server that keeps its name
+// again and again may not be acting on renames at all. The book of former
+// names keeps what each refusal taught, so the next pass goes on from there.
+const maxKept = 3
+
 // rename renames a session to target, stepping through desired-2, -3, ...
 // when zellij refuses a name it still remembers but does not list. The end of the
 // pass clears from the list of given names what did not stick: the session's old
-// name, and any name zellij refused.
-func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, taken map[string]bool) {
+// name, and any name zellij refused. book learns the names zellij refused the
+// session because it had them before.
+func (e *Env) rename(ctx context.Context, book *formerBook, o *Outcome, desired, target string, taken map[string]bool) {
 	name := o.Session.Name()
-	// kept is set once zellij kept the old name (zellij.ErrKept).
-	kept := false
+	// The names this session had: zellij refuses them, so no variant asks.
+	former := formerSet(o.Session)
+	if former == nil {
+		former = map[string]bool{}
+	}
+	// kept counts the names zellij kept the old name instead of (zellij.ErrKept).
+	kept := 0
 	for attempt := target; ; {
 		err := e.renameTo(ctx, o.Session, attempt)
 		if err == nil {
@@ -189,11 +204,18 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			return
 		}
 		refused := errors.Is(err, zellij.ErrNameTaken)
-		// zellij kept the old name: what it does, telling only the client
-		// attached, with a name the session had before. That is a refusal,
-		// once: a server that keeps its name again is not acting on renames.
-		if errors.Is(err, zellij.ErrKept) && !kept {
-			kept, refused = true, true
+		// zellij kept the old name: what 0.44 and 0.45 do, telling only the
+		// client attached, with a name the session had before and the book
+		// did not know of (a name given by hand between two passes, or before
+		// the book). The book learns it, so no pass asks for it again. A slow
+		// server may yet act on it, so the name stays out of reach of the
+		// sessions after this one, as an unconfirmed rename's does.
+		if errors.Is(err, zellij.ErrKept) {
+			book.learn(o.Session, attempt, e.Now())
+			former[attempt] = true
+			taken[attempt] = true
+			kept++
+			refused = kept <= maxKept
 		}
 		// Dropping a tail zellij refuses, because the session had the plain
 		// name before: it keeps the name it has, and nothing is logged.
@@ -213,8 +235,9 @@ func (e *Env) rename(ctx context.Context, o *Outcome, desired, target string, ta
 			return
 		}
 		next, ok := rename.Next(desired, attempt)
-		// Skip variants another listed session already has.
-		for ok && taken[next] {
+		// Skip variants another listed session already has, and those this
+		// session had before.
+		for ok && (taken[next] || former[next]) {
 			next, ok = rename.Next(desired, next)
 		}
 		if !ok {

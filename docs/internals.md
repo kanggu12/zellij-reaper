@@ -43,7 +43,7 @@ commands. `recover` alone goes around zellij, because it is for sessions zellij 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/touches-dark.svg">
-  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log and its lock, the list of names it gave, and its books of quiet sessions, agents' projects and the names sessions had. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="assets/touches-light.svg">
 </picture>
 
 `reaper.Plan` and `reaper.Run` share one survey: list the sessions, take one snapshot of `/proc` and one of the
@@ -212,9 +212,14 @@ only the sessions nobody is attached to.
 
 In a session where a coding agent runs, `inspect` finds the agent under each pane, and takes each child of an agent's
 process for a command, with what runs under it, the newest first. A command works in the repository its processes name
-most in their command lines (absolute paths, and `~/` ones, not under the home's hidden folders), and else in the one
-most of them run in; a tie counts for none (`commandRepo`). It lists the repositories the commands work in, each with
-the start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on
+most in their command lines, and else in the one most of them run in; a tie among the named goes to the one of them the
+processes run in, else counts for none (`commandRepo`). A named path is an absolute or `~/` one within the command's
+reach: under the home, under a directory one of its processes runs in, or beside the repository one runs in, and not in
+the home's hidden folders. The program a process runs is no work: its first word, a script in a `bin` folder (`python3
+/opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a git checkout), and the folders on a `PATH`.
+`namedPaths` reads shell code as the shell splits it, quotes and all, so a quoted path with blanks is one path, and the
+command Claude Code hands eval is read again as code. It lists the repositories the commands work in, each with the
+start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on
 Linux). A loop that starts a process every few seconds is one command that way, and so is a language server. An agent
 that starts itself again as its only child, as Gemini CLI does for more memory, works through that child. An agent is a
 program by its own name, or a script an interpreter runs, by the script's file name or the npm package it is in, whose
@@ -222,13 +227,15 @@ name has the agent's as a word (`node .../claude-code/cli.js`); a folder of some
 path, or another program's argument, names nothing. `repo.Finder` walks up from a process's directory to a `.git`,
 without running git, counting a worktree as the repository it was made from, a bare repository's too (git gives a
 worktree's git folder a `commondir` file, and a submodule's none), and the home directory, also through a link, as no
-project. A pass keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file), keyed by the
-server's pid and start and the name or id it started under, which a rename does not change: the repository of the newest
-command, when it started after the last one counted and ran in the same repository as that one, becomes the project,
-which `rename.Suggest` takes before any title; once one is settled, moving it takes four in a row elsewhere
-(`leaveCount`). The agent the book counted for speaks for the session while it runs, whatever starts in its other panes.
-The book keeps the project between commands, starts afresh for the next agent once that one ends, forgets it when no
-agent runs, and drops a session no pass has seen for a day.
+project; every folder a walk passes keeps its answer for the rest of the survey, so the files of one folder cost one
+walk. A pass keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file), keyed by the server's
+pid and start and the name or id it started under, which a rename does not change: the repository of the newest command,
+when it started after the last one counted and ran in the same repository as that one, becomes the project, which
+`rename.Suggest` takes before any title; once commands settled one, moving it takes four in a row in one other
+repository (`leaveCount`), while the repository the agent was started in, which names the session until then, moves in
+two. The agent the book counted for speaks for the session while it runs, whatever starts in its other panes. The book
+keeps the project between commands, starts afresh for the next agent once that one ends, forgets it when no agent runs,
+and drops a session no pass has seen for a day.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
@@ -242,11 +249,15 @@ gives no name at all. A name holds only English letters, digits, `-`, `_` and `.
 with an accent, is left out whole. Names stop at 32 characters, at the end of a word.
 
 Two sessions showing one title get a `-2` tail, which then stays: the shell version compared names without it and
-swapped such sessions between `-2` and `-3` on every pass. zellij also refuses a name a session has had before, which is
-another way to end up with a tail. With a client attached, zellij 0.44 and 0.45 send that refusal to the client, exit 0
-and keep the old name; `zellij.CLI.Rename` sees the session still running under it (`ErrKept`), and a pass takes that
-for a refusal once and asks for the tail. A server that keeps its name a second time is not acting on renames, and the
-pass stops there.
+swapped such sessions between `-2` and `-3` on every pass. zellij 0.44 and 0.45 also refuse a session a name it has had
+before, for as long as its server runs: the server keeps the names in memory, nothing on disk does, and another session
+may take such a name (0.43 and the main branch give it back). With a client attached the refusal goes to that client,
+which only writes it to zellij's log, and the command that asked exits 0 with the old name kept; `zellij.CLI.Rename`
+sees the session still running under it (`ErrKept`). So a pass keeps a book of the names it saw each running session
+under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a session coming back to one of
+them gets the tail straight away. A name the book did not know, one given by hand between two passes say, zellij keeps
+the old name for: the pass learns it and asks for the next, up to three in one rename (`maxKept`), and the next pass
+goes on from what it learned.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file
 over the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at

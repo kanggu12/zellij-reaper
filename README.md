@@ -126,10 +126,10 @@ they show, so the session list reads like a list of what you were doing:
   <img alt="Examples of session names. A session zellij named brave-peach that shows Fix the login bug becomes fix-the-login-bug. tail -f /var/log/app.log running in ~/web-app becomes web-app-tail-app.log. A shell titled me@laptop: ~/projects/api becomes api. Claude Code running its commands in a billing repository becomes billing. A shell on another machine, me@prod-db:~, becomes prod-db. Pane #1 in ~/notes becomes notes." src="docs/assets/names-light.svg">
 </picture>
 
-A session where a coding agent runs takes the name of the git repository the agent's commands run in, and follows it to
-the next one. A name you chose stays: only names zellij made up, and ones a pass gave, change. Names change within five
-minutes, and the session list shows the next one (`→ fix-the-login-bug`). `r` in the dashboard renames by hand;
-`keep-name NAME` keeps a name as it is. Not on Windows, where zellij cannot reach a renamed session.
+A session where a coding agent runs takes the name of the git repository the agent's commands work in, and follows the
+agent once it settles in another one. A name you chose stays: only names zellij made up, and ones a pass gave, change.
+Names change within five minutes, and the session list shows the next one (`→ fix-the-login-bug`). `r` in the dashboard
+renames by hand; `keep-name NAME` keeps a name as it is. Not on Windows, where zellij cannot reach a renamed session.
 [Setup](docs/setup.md#naming-sessions-after-what-they-show) has the rules and the zsh and fish hooks.
 
 ## The dashboard
@@ -228,7 +228,7 @@ found under any name they run as (`node .../claude-code/cli.js` counts as `claud
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/touches-dark.svg">
-  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log, its lock and the lists of names. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
+  <img alt="A pass reads the system's processes and terminals, Linux's socket table, zellij's list and session files, your settings and its lists of names. It changes sessions only through zellij's own commands, and otherwise writes only its own files: its log and its lock, the list of names it gave, and its books of quiet sessions, agents' projects and the names sessions had. The protect and keep-name commands change the name lists too, install writes the settings and the timers, and setup can add a prompt hook to your shell's startup file. Only recover goes around zellij: it clears a broken session's files and can stop orphan servers." src="docs/assets/touches-light.svg">
 </picture>
 
 **I used the earlier shell scripts.** `zellij-reaper install` moves them over: their settings, their log and their

@@ -100,6 +100,21 @@ func TestRootRemembersWhatItFoundForOneSurvey(t *testing.T) {
 	if got := (&Finder{}).Root(dir); got != "" {
 		t.Errorf("a new finder: %q", got)
 	}
+	// What a walk up passed is known too: another file of the same folder,
+	// or the folder above, needs no look of its own.
+	mkdirs(t, root, "billing/.git", "billing/src/pkg")
+	f = &Finder{}
+	if got := f.Root(filepath.Join(root, "billing/src/pkg/a.go")); got != filepath.Join(root, "billing") {
+		t.Fatalf("Root = %q", got)
+	}
+	if err := os.RemoveAll(filepath.Join(root, "billing/.git")); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"billing/src/pkg/b.go", "billing/src", "billing"} {
+		if got := f.Root(filepath.Join(root, p)); got != filepath.Join(root, "billing") {
+			t.Errorf("%s after the walk: %q", p, got)
+		}
+	}
 }
 
 func TestADotGitFileThatSaysSomethingElseStillMarksACheckout(t *testing.T) {
@@ -161,5 +176,9 @@ func TestAHomeReachedThroughALinkIsNoProjectEither(t *testing.T) {
 	f := &Finder{Home: filepath.Join(root, "home")}
 	if got := f.Root(filepath.Join(root, "data/me/notes")); got != "" {
 		t.Errorf("Root under the home's real folder = %q", got)
+	}
+	// Both are the home, for whoever asks.
+	if got := f.Homes(); len(got) != 2 || got[0] != filepath.Join(root, "data/me") || got[1] != filepath.Join(root, "home") {
+		t.Errorf("Homes = %q", got)
 	}
 }

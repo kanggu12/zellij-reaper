@@ -32,6 +32,18 @@ func DataDirName(version string) string {
 	return "contract_version_1"
 }
 
+// RefusesFormerNames says whether this zellij refuses a session a name it had
+// before: 0.44 and 0.45 do, for as long as the session's server runs. 0.43 and
+// the main branch give the name back. An unknown version is taken to be a
+// current one.
+func RefusesFormerNames(version string) bool {
+	var major, minor int
+	if _, err := fmt.Sscanf(version, "%d.%d", &major, &minor); err != nil {
+		return true
+	}
+	return major == 0 && (minor == 44 || minor == 45)
+}
+
 // SessionInfoDir finds the directory with one subdirectory per session, under
 // zellij's cache directory (config.ZellijCacheDir). Before 0.44 it is
 // <cache>/<version>/session_info; since then <cache>/contract_version_N/

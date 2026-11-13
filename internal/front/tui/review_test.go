@@ -79,10 +79,15 @@ func TestReapingAnExitedProtectedSessionDoesNotMentionPanes(t *testing.T) {
 func TestRenameFailuresAreWordedInTheScreensLanguage(t *testing.T) {
 	i18n.Set(i18n.Korean)
 	defer i18n.Set(i18n.English)
-	for _, err := range []error{lock.ErrBusy, zellij.ErrNameTaken, fmt.Errorf("zellij rename-session a to b: %w", zellij.ErrUnconfirmed)} {
+	kept := fmt.Errorf("zellij rename-session a to b: %w (%w)", zellij.ErrKept, zellij.ErrUnconfirmed)
+	for _, err := range []error{lock.ErrBusy, zellij.ErrNameTaken, fmt.Errorf("zellij rename-session a to b: %w", zellij.ErrUnconfirmed), kept} {
 		if got := RenameFailed(err); strings.Contains(got, err.Error()) || strings.Contains(got, "zellij rename-session") {
 			t.Errorf("%v came out in English: %q", err, got)
 		}
+	}
+	// A name the session had is said as such, not as a rename not yet seen.
+	if got := RenameFailed(kept); got != i18n.T("toast.rename.failed", i18n.T("rename.had")) {
+		t.Errorf("a name the session had: %q", got)
 	}
 	if got := RenameFailed(errors.New("other")); !strings.Contains(got, "other") {
 		t.Errorf("another error lost its words: %q", got)

@@ -7,6 +7,7 @@ package repo
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -37,6 +38,16 @@ func (f *Finder) homes() map[string]bool {
 	return f.home
 }
 
+// Homes is the home directory as given and as its links resolve, in order.
+func (f *Finder) Homes() []string {
+	var out []string
+	for h := range f.homes() {
+		out = append(out, h)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Root is the top of the repository dir is in, "" when it is in none. A git
 // worktree counts as the repository it was made from: `git worktree add` puts
 // a checkout of the same project somewhere else. The home directory and the
@@ -47,33 +58,43 @@ func (f *Finder) Root(dir string) string {
 	if dir == "" || !filepath.IsAbs(dir) {
 		return ""
 	}
-	dir = filepath.Clean(dir)
-	// Asked before in this survey: the same answer.
-	if root, ok := f.roots[dir]; ok {
-		return root
-	}
-	root := f.find(dir)
+	return f.find(filepath.Clean(dir))
+}
+
+// find walks up from dir to the first directory holding a .git entry. Every
+// directory it passes on the way has the same answer, and keeps it for the
+// rest of the survey: a command line names many files of one folder, and on a
+// slow file system (a Windows drive under WSL, a network mount) each look
+// costs.
+func (f *Finder) find(dir string) string {
 	if f.roots == nil {
 		f.roots = map[string]string{}
 	}
-	f.roots[dir] = root
-	return root
-}
-
-// find walks up from dir to the first directory holding a .git entry.
-func (f *Finder) find(dir string) string {
 	homes := f.homes()
-	for d := dir; ; {
+	var passed []string
+	root := ""
+	for d := dir; ; d = filepath.Dir(d) {
+		// Asked before in this survey, on its own or on the way up from
+		// another: the same answer.
+		if r, ok := f.roots[d]; ok {
+			root = r
+			break
+		}
+		passed = append(passed, d)
 		// The home directory and the root say nothing about a project, and
 		// a repository above them would hold every project.
 		if homes[d] || d == filepath.Dir(d) {
-			return ""
+			break
 		}
 		if top, ok := topOf(d); ok {
-			return top
+			root = top
+			break
 		}
-		d = filepath.Dir(d)
 	}
+	for _, d := range passed {
+		f.roots[d] = root
+	}
+	return root
 }
 
 // topOf reports whether d is the top of a checkout, and of which repository:

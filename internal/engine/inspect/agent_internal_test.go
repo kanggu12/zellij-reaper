@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -316,30 +317,110 @@ func TestACommandWorksWhereItsCommandLinePoints(t *testing.T) {
 	if w := read(); len(w) != 1 || w[0].Repo != filepath.Join(ws, "billing") || w[0].Mark != markOf(t, fp.Root, 740) {
 		t.Errorf("two named, a tool's: %+v", w)
 	}
+	fp.Remove(730)
+	fp.Remove(740)
+	// Two named once each, from where one of them is: that one.
+	command(750, webApp, 90*time.Second, "diff "+webApp+"/a "+ws+"/billing/a")
+	if w := read(); len(w) != 1 || w[0].Repo != webApp {
+		t.Errorf("two named, run in one: %+v", w)
+	}
+	fp.Remove(750)
+	// A tool's checkout out of the command's reach, as Homebrew's prefix is
+	// on Apple silicon: its interpreter, its script and its prefix say
+	// nothing, and the command works where it runs.
+	brew := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(brew, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	command(760, webApp, 100*time.Second, "pytest -q tests/ && cmake -DCMAKE_PREFIX_PATH="+brew+" -S "+brew+"/share/x",
+		[]string{brew + "/opt/python@3.12/bin/python3.12", brew + "/bin/pytest", "-q", "tests/"})
+	if w := read(); len(w) != 1 || w[0].Repo != webApp {
+		t.Errorf("a tool's checkout: %+v", w)
+	}
+	fp.Remove(760)
+	fp.Remove(761)
+	// A path with a blank in it is one path, and names the repository it is
+	// in, not a neighbour whose name begins the same.
+	spaced := filepath.Join(ws, "web app")
+	if err := os.MkdirAll(filepath.Join(spaced, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	command(770, ws, 110*time.Second, "cat '"+ws+"/web-app x/a' '"+spaced+"/README'",
+		[]string{"cat", ws + "/web-app x/a", spaced + "/README"})
+	if w := read(); len(w) != 1 || w[0].Repo != spaced {
+		t.Errorf("a path with a blank: %+v", w)
+	}
 }
 
 func TestNamedPaths(t *testing.T) {
 	home := "/home/me"
+	homes := []string{"/home/me", "/data/me"}
+	// claude is Claude Code's way to run a command: a bash -c string with the
+	// command in an eval, each single quote in it written '"'"'.
+	claude := func(cmd string) []string {
+		return []string{"/bin/bash", "-c", "source /home/me/.claude/shell-snapshots/s.sh && eval '" +
+			strings.ReplaceAll(cmd, "'", `'"'"'`) + "' < /dev/null && pwd -P >| /tmp/claude-1-cwd"}
+	}
 	for _, c := range []struct {
 		argv []string
 		want []string
 	}{
 		{[]string{"git", "-C", "/srv/api", "log"}, []string{"/srv/api"}},
-		// Quotes end a word: a quoted path with a blank in it comes out in
-		// pieces, which name no repository and so count for none.
-		{[]string{"bash", "-c", "cd '/srv/web app'/x && make --dir=/srv/b PATH=/usr/bin:/srv/c"}, []string{"/srv/web", "/x", "/srv/b", "/usr/bin", "/srv/c"}},
+		// In shell code a quoted path with a blank in it is one path; "=" and
+		// ":" end one, and a bin folder holds programs.
+		{[]string{"bash", "-c", "cd '/srv/web app'/x && make --dir=/srv/b PATH=/usr/bin:/srv/c"}, []string{"/srv/web app/x", "/srv/b", "/srv/c"}},
+		// A plain argument is a word as it stands.
+		{[]string{"cat", "/srv/web app/README", "--out=/srv/b c"}, []string{"/srv/web app/README", "/srv/b c"}},
+		{claude(`cat '/srv/web app/a' "/srv/it's" /srv/d`), []string{"/srv/web app/a", "/srv/it's", "/srv/d", "/dev/null", "/tmp/claude-1-cwd"}},
 		{[]string{"vim", "~/notes/today.md", "~/.config/x", "/home/me/.cache/y"}, []string{"/home/me/notes/today.md"}},
+		// The home as its link resolves has hidden folders too.
+		{[]string{"cat", "/data/me/.claude/MEMORY.md", "/data/me/src/x"}, []string{"/data/me/src/x"}},
 		{[]string{"ls", "./src", "relative/path", "/srv/x/../y"}, []string{"/srv/y"}},
+		// The program is no work: its first word, the script an interpreter
+		// runs from a bin folder, and the bin folders on a PATH.
+		{[]string{"/opt/homebrew/opt/python@3.12/bin/python3.12", "/opt/homebrew/bin/pytest", "-q", "tests/"}, nil},
+		{[]string{"node", "/srv/app/node_modules/.bin/vitest", "/srv/app/src"}, []string{"/srv/app/src"}},
+		{[]string{"/srv/tool/run", "PATH=/opt/homebrew/bin:/usr/local/sbin:/srv/x"}, []string{"/srv/x"}},
+		// Code with no quotes or operators in it.
+		{[]string{"sh", "-c", "ls /srv/a /srv/b"}, []string{"/srv/a", "/srv/b"}},
+		// A quote in a path is part of it; a command that begins with a
+		// program's path is code all the same.
+		{[]string{"cat", "/srv/it's", "/srv/web app/a"}, []string{"/srv/it's", "/srv/web app/a"}},
+		{claude("/srv/tool/run.sh && make -C /srv/y"), []string{"/srv/tool/run.sh", "/srv/y", "/dev/null", "/tmp/claude-1-cwd"}},
 	} {
-		if got := namedPaths(c.argv, home); !slices.Equal(got, c.want) {
+		if got := namedPaths(c.argv, home, homes); !slices.Equal(got, c.want) {
 			t.Errorf("%q: %q, want %q", c.argv, got, c.want)
 		}
 	}
-	var many []string
+	// A compiler given many files: the first say as much.
+	many := []string{"cc"}
 	for i := range 40 {
 		many = append(many, "/srv/f"+strconv.Itoa(i))
 	}
-	if got := namedPaths(many, home); len(got) != maxNamedPaths {
+	if got := namedPaths(many, home, homes); len(got) != maxNamedPaths {
 		t.Errorf("%d paths read", len(got))
+	}
+	// A script handed to a shell whole: its start.
+	long := "cd /srv/start && " + strings.Repeat("x", maxArgBytes) + " /srv/end"
+	if got := namedPaths([]string{"bash", "-c", long}, home, homes); !slices.Equal(got, []string{"/srv/start"}) {
+		t.Errorf("a long script: %q", got)
+	}
+}
+
+func TestShellWords(t *testing.T) {
+	for _, c := range []struct {
+		code string
+		want []string
+	}{
+		{`a 'b c' "d e" f\ g`, []string{"a", "b c", "d e", "f g"}},
+		{`x;y&&z|w>v<(u)`, []string{"x", "y", "z", "w", "v", "u"}},
+		{`'it'"'"'s' "say \"hi\" \$x \q"`, []string{"it's", `say "hi" $x \q`}},
+		{"a \\\nb ''", []string{"a", "b", ""}},
+		{"cat $(ls /srv/x) `pwd`", []string{"cat", "$", "ls", "/srv/x", "pwd"}},
+		{"'open", []string{"open"}},
+	} {
+		if got := shellWords(c.code); !slices.Equal(got, c.want) {
+			t.Errorf("%q: %q, want %q", c.code, got, c.want)
+		}
 	}
 }

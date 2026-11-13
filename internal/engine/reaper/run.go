@@ -117,6 +117,11 @@ func Run(ctx context.Context, e *Env, opts Options) (Report, error) {
 	if err := r.projects.save(); err != nil {
 		e.Log.Printf("could not write %s: %v", e.ProjectsPath, err)
 	}
+	// And the book of former names: a name a dry run saw a session under is
+	// one zellij refuses it all the same.
+	if err := r.former.save(); err != nil {
+		e.Log.Printf("could not write %s: %v", e.FormerPath, err)
+	}
 	reaped, kept, renamed := r.Counts()
 	e.Log.Printf("=== reaper end (%d reaped, %d kept, %d renamed) ===", reaped, kept, renamed)
 	return r, nil
@@ -240,7 +245,7 @@ func (e *Env) name(ctx context.Context, r *Report, o *Outcome, dry, full bool, t
 			return
 		}
 	}
-	e.rename(ctx, o, desired, target, taken)
+	e.rename(ctx, r.former, o, desired, target, taken)
 }
 
 // stillDue checks, right before a delete, that nothing changed since the
@@ -377,6 +382,10 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 	// write is said with its renames, as every failure of this pass is.
 	if err := r.projects.save(); err != nil {
 		e.Log.Printf("could not write %s: %v", e.ProjectsPath, err)
+	}
+	// So are the names it saw, and those zellij refused.
+	if err := r.former.save(); err != nil {
+		e.Log.Printf("could not write %s: %v", e.FormerPath, err)
 	}
 	// So is a given name someone took for a new session, before zellij can
 	// bring that session back.

@@ -17,19 +17,21 @@ import (
 // in a row, each time a command newer than the one before: an agent that goes
 // through many repositories, one command each, keeps its name, and one that
 // works in a project is named after it within two passes that catch it at it.
-// Leaving a project settled on takes four in a row elsewhere: a look into
-// another repository, or an errand a helper agent runs there for a while,
-// does not rename the session.
+// Leaving a project settled on takes four in a row in one other repository: a
+// look into another repository, or an errand a helper agent runs there for a
+// while, does not rename the session.
 // A command that keeps running, such as a dev server or a loop that keeps
 // starting processes, counts once, when it is new. Until anything is
-// settled, an agent started in a repository works there. The agent counted
+// settled, an agent started in a repository works there, and two commands
+// in a row elsewhere settle the first project as they would for any agent:
+// that repository is only where it stood. The agent counted
 // for speaks for the session while it runs, and the one after it starts
 // afresh. A pass writes this down; plan and the dashboard only read it.
 
 // settleCount is how many commands in a row, counted by passes, settle a
-// repository for an agent that has none; leaveCount, how many move it from the
-// one settled on. The names timer looks every 5 minutes: leaving takes some
-// fifteen minutes of work elsewhere.
+// repository for an agent that has none, or only the one it was started in;
+// leaveCount, how many move it from the one settled on. The names timer looks
+// every 5 minutes: leaving takes some fifteen minutes of work elsewhere.
 const (
 	settleCount = 2
 	leaveCount  = 4
@@ -49,6 +51,11 @@ type projectEntry struct {
 	Mark int64  `json:"mark,omitempty"`
 	// Count is how many commands in a row the passes counted in Last.
 	Count int `json:"count,omitempty"`
+	// Settled is true once commands settled Project. The repository the
+	// agent was started in, which Project holds until then, is not: leaving
+	// it takes settleCount, not leaveCount. A book from before this field
+	// has it false, and its projects move as they did then, in two.
+	Settled bool `json:"settled,omitempty"`
 	// Agent is the agent counted for (inspect.AgentWork.ID): another one in
 	// the session starts afresh.
 	Agent string `json:"agent,omitempty"`
@@ -149,11 +156,12 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 			}
 			e.Last, e.Mark = w[0].Repo, w[0].Mark
 			need := settleCount
-			if e.Project != "" && e.Project != e.Last {
+			// Only a project commands settled takes four to leave.
+			if e.Settled && e.Project != e.Last {
 				need = leaveCount
 			}
 			if e.Count >= need {
-				e.Project = e.Last
+				e.Project, e.Settled = e.Last, true
 			}
 		}
 		// Nothing settled yet: an agent works where it was started.
@@ -164,7 +172,7 @@ func (b *projectBook) apply(sessions []inspect.Session, now time.Time) {
 		// A book whose sessions only aged is not written on every pass, but
 		// once an hour, so a session its passes keep seeing does not outlive
 		// projectTTL on disk.
-		if e.Project != before.Project || e.Last != before.Last || e.Mark != before.Mark || e.Count != before.Count || e.Agent != before.Agent || e.Seen-before.Seen > int64(time.Hour/time.Second) {
+		if e.Project != before.Project || e.Settled != before.Settled || e.Last != before.Last || e.Mark != before.Mark || e.Count != before.Count || e.Agent != before.Agent || e.Seen-before.Seen > int64(time.Hour/time.Second) {
 			b.changed = true
 		}
 		b.at[key] = e

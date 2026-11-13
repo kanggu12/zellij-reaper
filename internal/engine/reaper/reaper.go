@@ -53,7 +53,12 @@ type Env struct {
 	// ProjectsPath is the book of the repositories coding agents' sessions
 	// work in, which they are named after (see projects.go).
 	ProjectsPath string
-	Now          func() time.Time
+	// FormerPath is the book of the names each running session had, and
+	// RefusesFormerNames says the zellij in use refuses a session such a name
+	// (see former.go): a pass then writes down every name it sees.
+	FormerPath         string
+	RefusesFormerNames bool
+	Now                func() time.Time
 	// Home and Host are this user's home and this machine's name, which a
 	// session's name has no use for repeating.
 	Home, Host string
@@ -121,6 +126,8 @@ type Report struct {
 	// projects is the book of agents' projects this survey read and updated;
 	// a pass saves it.
 	projects *projectBook
+	// former is the book of the names each session had; a pass saves it.
+	former *formerBook
 	// DryRun and Force are the effective mode.
 	DryRun, Force bool
 	// Thresholds are the waits that applied.
@@ -318,6 +325,8 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	r.quiet.apply(sessions, now)
 	r.projects = loadProjects(e.ProjectsPath)
 	r.projects.apply(sessions, now)
+	r.former = loadFormer(e.FormerPath)
+	r.former.apply(sessions, now, e.RefusesFormerNames)
 	for _, s := range sessions {
 		r.Outcomes = append(r.Outcomes, Outcome{Session: s, Verdict: policy.Decide(s.Facts, r.Thresholds, now)})
 	}

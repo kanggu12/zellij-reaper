@@ -761,12 +761,43 @@ check "three commands in billing do not leave web-app" listed web-app
 work /srv/projects/billing
 check "a pass with a fourth one succeeds" names
 check "the session follows it to billing" listed billing
-# Back to web-app: zellij 0.44 and 0.45 keep a name the session had before,
-# telling only the client attached, and the session gets a tail.
-for _ in 1 2 3 4; do work /srv/projects/web-app; names; done
-check "the session follows it back to web-app" listed_any web-app web-app-2
+# Back to web-app. zellij 0.44 and 0.45 refuse a session a name it had
+# before, telling only the client attached, which writes it to zellij's log:
+# the book of former names knows the session had web-app, so the pass asks
+# for web-app-2 straight away. 0.43 and the main branch give the name back.
+case "$ver" in
+  0.44.* | 0.45.*) back=web-app-2 again=billing-2 ;;
+  *) back=web-app again=billing ;;
+esac
+# clean_names runs a names pass, and fails if it fails or a rename in it
+# does: a names pass logs nothing unless a name changed, so its output says.
+clean_names() {
+  local out
+  out=$(env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --names-only 2>&1) || {
+    echo "$out"
+    return 1
+  }
+  ! grep 'could not rename' <<<"$out"
+}
+for i in 1 2 3 4; do
+  work /srv/projects/web-app
+  check "names pass $i back in web-app renames nothing in vain" clean_names
+done
+check "the session follows it back to web-app, as $back" listed "$back"
+# A book from before 0.14.2 has no former names, and neither has one that was
+# lost: the pass asks zellij for billing, which 0.44 and 0.45 keep the old
+# name instead of, learns that, and asks for the tail.
+rm -f ~/.local/state/zellij-reaper/former
+for i in 1 2 3 4; do
+  work /srv/projects/billing
+  check "names pass $i back in billing, with no book, renames nothing in vain" clean_names
+done
+check "the session follows it back to billing, as $again" listed "$again"
+case "$ver" in
+  0.44.* | 0.45.*) check "the book learned that the session had billing" grep -q '"billing"' ~/.local/state/zellij-reaper/former ;;
+esac
 work stop
-for s in billing web-app web-app-2; do
+for s in billing billing-2 web-app web-app-2; do
   $Z kill-session "$s" >/dev/null 2>&1
   $Z delete-session "$s" --force >/dev/null 2>&1
 done

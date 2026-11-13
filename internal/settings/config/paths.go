@@ -114,6 +114,10 @@ func QuietFile(env Env) string { return filepath.Join(StateDir(env), "quiet") }
 // passes settled it, which auto_rename names the session after.
 func ProjectsFile(env Env) string { return filepath.Join(StateDir(env), "projects") }
 
+// FormerFile is the names each running session had, which zellij 0.44 and 0.45
+// refuse to give it again.
+func FormerFile(env Env) string { return filepath.Join(StateDir(env), "former") }
+
 // LockFile serializes passes: the timer's, a manual `run` and the TUI's actions.
 func LockFile(env Env) string { return filepath.Join(StateDir(env), "lock") }
 

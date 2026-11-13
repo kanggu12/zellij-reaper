@@ -1387,7 +1387,7 @@ func TestASessionBroughtBackKeepsItsGivenName(t *testing.T) {
 
 func TestANameZellijKeepsGetsATail(t *testing.T) {
 	// zellij keeps the old name of an attached session asked for a name it had
-	// before: the next variant is asked for, once.
+	// before: the next variant is asked for.
 	w := newWorld(t)
 	w.env.Config.AutoRename = true
 	w.zj.keep = map[string]bool{"htop": true}
@@ -1397,8 +1397,8 @@ func TestANameZellijKeepsGetsATail(t *testing.T) {
 	if len(w.zj.renamed) != 1 || w.zj.renamed[0] != "busy->htop-2" {
 		t.Errorf("renamed %v", w.zj.renamed)
 	}
-	// A server that keeps the next name too is not acting on renames: one
-	// failure, and no third name asked for.
+	// A session that went back and forth had the tail before too: the one
+	// after it.
 	w = newWorld(t)
 	w.env.Config.AutoRename = true
 	w.zj.keep = map[string]bool{"htop": true, "htop-2": true}
@@ -1408,11 +1408,11 @@ func TestANameZellijKeepsGetsATail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(w.zj.renamed) != 0 || strings.Join(asked, ",") != "htop,htop-2" {
+	if strings.Join(w.zj.renamed, ",") != "busy->htop-3" || strings.Join(asked, ",") != "htop,htop-2,htop-3" {
 		t.Errorf("renamed %v, asked %v", w.zj.renamed, asked)
 	}
 	for _, o := range r.Outcomes {
-		if o.Session.Name() == "busy" && !errors.Is(o.RenameErr, zellij.ErrUnconfirmed) {
+		if o.Session.Name() == "busy" && o.RenameErr != nil {
 			t.Errorf("busy: %v", o.RenameErr)
 		}
 	}

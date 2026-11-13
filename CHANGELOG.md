@@ -9,16 +9,30 @@ that only fixes raises the patch number. Each release's section here is its rele
 ### Fixed
 
 - A session that came back to a name it had before kept the name it had for good, with a pass logging `rename FAILED`
-  every few minutes: with a client attached, zellij 0.44 and 0.45 take a rename back to a former name, tell only the
-  client, and keep the old name. A pass now reads that as the refusal it is and asks for the name with a tail (`-2`),
-  once: a server that keeps its name again is not acting on renames, and that stays a failure.
+  every few minutes. zellij 0.44 and 0.45 refuse a session a name it has had, for as long as it runs, and with a client
+  attached they keep the old name, telling only that client, which writes it to zellij's log. A pass now writes down the
+  names it sees each session under (the `former` state file) and gives a session coming back to one a tail (`-2`)
+  without asking. A name it did not see, one given by hand between two passes say, zellij refuses once; the pass learns
+  it and asks for the next.
 - A coding agent's session could be named after a repository the agent did not work on: Claude Code runs a helper
   agent's commands in the directory the agent stood in when it started the helper, and the helper names the files it
-  works on in full. A command now works in the repository its command line names (paths in full or under `~/`, not under
-  the home's hidden folders), and only else in the one it runs in; one naming two repositories as often counts for
-  neither.
-- Leaving a project settled on takes four counted commands in a row elsewhere, where two settle the first: a look into
-  another repository, or an errand there, no longer renames the session.
+  works on in full. A command now works in the repository its command line names, and only else in the one it runs in. A
+  path counts under the home directory, under where one of the command's processes runs, or beside the repository it
+  runs in, and not in the home's hidden folders. The program a process runs is no work, its own path or a script in a
+  `bin` folder, so Homebrew's checkout on Apple silicon (`/opt/homebrew`) names nothing. A quoted path with blanks in it
+  is one path, and two repositories named as often go to the one the command runs in, if it is one of them.
+- Leaving a project settled on takes four counted commands in a row in one other repository, where two settle the first:
+  a look into another repository, or an errand there, no longer renames the session. The repository an agent was started
+  in is not settled that way, and two commands elsewhere move it.
+- A rename by hand to a name the session had before said that zellij did not list the new name yet; the dashboard and
+  `rename` now say that zellij keeps the old name because the session had that name before.
+
+### Changed
+
+- The documentation's figures are drawn in the dashboard's look: a rounded frame, opaque cards lifted by a soft shadow,
+  sessions as zellij panes with the title in the frame, the states as pills in their dashboard colours, and the logo's
+  cursor scythe where a session is deleted. The layers figure lists every package, and each figure's words are those of
+  the page that shows it.
 
 ## [0.14.1] - 2026-11-11
 

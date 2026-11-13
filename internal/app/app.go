@@ -76,9 +76,13 @@ func Load(configPath string) (*App, error) {
 		LockPath:     config.LockFile(env),
 		QuietPath:    config.QuietFile(env),
 		ProjectsPath: config.ProjectsFile(env),
-		Now:          time.Now,
-		Home:         homeDir(),
-		Host:         hostName(),
+		FormerPath:   config.FormerFile(env),
+		// The version the zellij on the PATH reported: its servers are the
+		// ones a pass asks.
+		RefusesFormerNames: zellij.RefusesFormerNames(ver),
+		Now:                time.Now,
+		Home:               homeDir(),
+		Host:               hostName(),
 	}
 	a.System = timers.For(env, userName())
 	return a, nil

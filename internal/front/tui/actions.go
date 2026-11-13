@@ -81,6 +81,11 @@ func RenameFailed(err error) string {
 		return i18n.T("toast.busy")
 	case errors.Is(err, zellij.ErrNameTaken):
 		return i18n.T("toast.rename.failed", i18n.T("rename.taken"))
+	// Before ErrUnconfirmed, which it comes with: zellij 0.44 and 0.45 keep
+	// the old name of a session asked for one it had, and tell only the
+	// client attached, which writes it to zellij's log.
+	case errors.Is(err, zellij.ErrKept):
+		return i18n.T("toast.rename.failed", i18n.T("rename.had"))
 	case errors.Is(err, zellij.ErrUnconfirmed):
 		return i18n.T("toast.rename.failed", i18n.T("rename.unconfirmed"))
 	}

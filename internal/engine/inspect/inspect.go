@@ -168,6 +168,10 @@ type Session struct {
 	// from what it saw over several surveys (reaper's project book), which
 	// auto_rename names the session after; "" when it has none.
 	Project string
+	// Former are the names the session had, as passes saw it (reaper's book
+	// of former names): zellij 0.44 and 0.45 refuse a session a name it had
+	// before, so auto_rename gives it a tail instead of asking.
+	Former []string
 	// QuietFromNow is set when the quiet book saw this session quiet for the
 	// first time in this survey. A plan does not write the book, so a pass
 	// later on is the first to record it, and its wait starts then.
