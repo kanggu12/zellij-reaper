@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-11-13
+
 ### Fixed
 
 - The line that opens a names pass in the log had the time the pass wrote its lines, after the renames under it: since
@@ -747,7 +749,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.14.3...HEAD
+[0.14.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.3
 [0.14.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.2
 [0.14.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.1
 [0.14.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.0
