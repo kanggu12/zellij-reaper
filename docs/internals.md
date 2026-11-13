@@ -218,30 +218,32 @@ reach: under the home, under a directory one of its processes runs in, or beside
 folder is right under the root (`/opt` holds Homebrew's prefix), and not in the home's hidden folders. A command line is
 read as commands, the shell's way (`commandPaths`): each one's first word is its program, no work, and so are what
 `sudo`, `env`, `timeout` or `xargs` run and a script `source` or `.` reads (Claude Code sources a snapshot of its
-settings before each command); an option's value (`sudo -u postgres`) is neither. The code `eval` and a shell's `-c` run
-is read the same way, quotes and all, so a quoted path with blanks is one path; a part in brackets, braces or backquotes
-is commands of its own, after which the command around it goes on; a heredoc's lines are what its command reads, code
-when that is a shell. A path in the agent's own settings folder is a tool's too, wherever it is kept
-(`CLAUDE_CONFIG_DIR`, `CODEX_HOME` in the agent's environment): its status line and hooks run from there. A path in a
-`bin` or `sbin` folder is a program's too (`python3 /opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a
-git checkout), and so are the `bin` folders on a `PATH`; npm's `.bin` is in the project that installed it, and counts.
-It lists the repositories the commands work in, each with the start of its newest command there (`procfs.StartMarkOf`,
-the start the macOS and Windows readers give, or `stat` on Linux). A loop that starts a process every few seconds is one
-command that way, and so is a language server. An agent that starts itself again as its only child, as Gemini CLI does
-for more memory, works through that child. An agent is a program by its own name, or a script an interpreter runs, by
-the script's file name or the npm package it is in, whose name has the agent's as a word (`node
-.../claude-code/cli.js`); a folder of someone's own with an agent's name in its path, or another program's argument,
-names nothing. `repo.Finder` walks up from a process's directory to a `.git`, without running git, counting a worktree
-as the repository it was made from, a bare repository's too (git gives a worktree's git folder a `commondir` file, and a
-submodule's none), and the home directory, also through a link, as no project; every folder a walk passes keeps its
-answer for the rest of the survey, so the files of one folder cost one walk. A pass keeps a book of what it settled on
-(`reaper/projects.go`, the `projects` state file), keyed by the server's pid and start and the name or id it started
-under, which a rename does not change: the repository of the newest command, when it started after the last one counted
-and ran in the same repository as that one, becomes the project, which `rename.Suggest` takes before any title; once
-commands settled one, moving it takes four in a row in one other repository (`leaveCount`), while the repository the
-agent was started in, which names the session until then, moves in two. The agent the book counted for speaks for the
-session while it runs, whatever starts in its other panes. The book keeps the project between commands, starts afresh
-for the next agent once that one ends, forgets it when no agent runs, and drops a session no pass has seen for a day.
+settings before each command); an option's value (`sudo -u postgres`, `bash -o pipefail -c`) is neither. The code `eval`
+and a shell's `-c` run is read the same way, quotes and all, so a quoted path with blanks is one path; a part in
+brackets, braces or backquotes is commands of its own, after which the command around it goes on; a heredoc's lines are
+what its command reads, code when that is a shell; arithmetic (`$((1<<20))`) is no code. A path in the agent's own
+settings folder is a tool's too, wherever it is kept (`CLAUDE_CONFIG_DIR`, `CODEX_HOME` in the agent's environment): its
+status line and hooks run from there; one that holds the home or the folder the agent was started in holds projects, and
+is not left out. A path in a `bin` or `sbin` folder is a program's too (`python3 /opt/homebrew/bin/pytest`; Homebrew's
+prefix on Apple silicon is a git checkout), and so are the `bin` folders on a `PATH`; npm's `.bin` is in the project
+that installed it, and counts. It lists the repositories the commands work in, each with the start of its newest command
+there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on Linux). A loop that starts a
+process every few seconds is one command that way, and so is a language server. An agent that starts itself again as its
+only child, as Gemini CLI does for more memory, works through that child. An agent is a program by its own name, or a
+script an interpreter runs, by the script's file name or the npm package it is in, whose name has the agent's as a word
+(`node .../claude-code/cli.js`); a folder of someone's own with an agent's name in its path, or another program's
+argument, names nothing. `repo.Finder` walks up from a process's directory to a `.git`, without running git, counting a
+worktree as the repository it was made from, a bare repository's too (git gives a worktree's git folder a `commondir`
+file, and a submodule's none), and the home directory, also through a link, as no project; every folder a walk passes
+keeps its answer for the rest of the survey, so the files of one folder cost one walk. A pass keeps a book of what it
+settled on (`reaper/projects.go`, the `projects` state file), keyed by the server's pid and start and the name or id it
+started under, which a rename does not change: the repository of the newest command, when it started after the last one
+counted and ran in the same repository as that one, becomes the project, which `rename.Suggest` takes before any title;
+once commands settled one, moving it takes four in a row in one other repository (`leaveCount`), while the repository
+the agent was started in, which names the session until then, moves in two. The agent the book counted for speaks for
+the session while it runs, whatever starts in its other panes. The book keeps the project between commands, starts
+afresh for the next agent once that one ends, forgets it when no agent runs, and drops a session no pass has seen for a
+day.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say

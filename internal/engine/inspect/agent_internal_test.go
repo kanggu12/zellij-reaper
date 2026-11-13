@@ -395,6 +395,12 @@ func TestNamedPaths(t *testing.T) {
 		{[]string{"/srv/tool/run", "PATH=/opt/homebrew/bin:/usr/local/sbin:/srv/x"}, []string{"/srv/x"}},
 		// Code with no quotes or operators in it.
 		{[]string{"sh", "-c", "ls /srv/a /srv/b"}, []string{"/srv/a", "/srv/b"}},
+		// A shell option's value is no script: make's .SHELLFLAGS and just
+		// run recipes as bash -eu -o pipefail -c CODE.
+		{[]string{"bash", "-eu", "-o", "pipefail", "-c", "/c/tool/gen --out /b/src"}, []string{"/b/src"}},
+		{[]string{"bash", "-euo", "pipefail", "-c", "/c/tool/gen /b/x"}, []string{"/b/x"}},
+		{[]string{"bash", "-O", "extglob", "-c", "/c/tool/gen /b/x"}, []string{"/b/x"}},
+		{[]string{"bash", "--rcfile", "/c/rc", "-c", "/c/tool/gen /b/x"}, []string{"/b/x"}},
 		// A quote in a path is part of it; a command that begins with a
 		// program's path is code all the same.
 		{[]string{"cat", "/srv/it's", "/srv/web app/a"}, []string{"/srv/it's", "/srv/web app/a"}},
@@ -506,6 +512,16 @@ func TestACommandLineNamesItsWork(t *testing.T) {
 		// A comment says nothing, and does not end the line's reading early.
 		{"# don't run this\ncd /b && make", []string{"/b"}},
 		{"git commit -m \"$(cat <<'EOF'\nFix the thing in /b/x\nEOF\n)\"", []string{"/b/x"}},
+		// Arithmetic: its << is a shift, not a heredoc.
+		{"n=$((1<<20))\n/c/tool/gen --size $n /b/x", []string{"/b/x"}},
+		// A case pattern's ) in a substitution closes nothing.
+		{"y=$(case $m in fast) /c/tool/run /b/x;; esac)", []string{"/b/x"}},
+		// .5 is a number; long options take their values too.
+		{"timeout .5 /c/tool/migrate /b/x", []string{"/b/x"}},
+		{"sudo --user postgres /c/scripts/migrate /b/schema.sql", []string{"/b/schema.sql"}},
+		{"timeout --signal KILL 30 /c/tool /b/x", []string{"/b/x"}},
+		// # after an operator begins a comment.
+		{"true;# /c/x\ncd /b", []string{"/b"}},
 	} {
 		got := namedPaths(wrap(strings.ReplaceAll(c.cmd, `\n`, "\n")), home, []string{home}, nil)
 		// The wrapper's own files are not the command's.
@@ -570,6 +586,50 @@ func TestShellWords(t *testing.T) {
 	} {
 		if got := shellWords(c.code); !slices.Equal(got, c.want) {
 			t.Errorf("%q: %q, want %q", c.code, got, c.want)
+		}
+	}
+}
+
+func TestTheAgentsSettingsFolderIsNoProject(t *testing.T) {
+	// CLAUDE_CONFIG_DIR and CODEX_HOME in the agent's environment are its
+	// settings, a tool's, unless they hold the home or where it was started,
+	// which hold projects.
+	ws := projectsDir(t)
+	for _, c := range []struct {
+		env  []string
+		want []string
+	}{
+		{[]string{"CLAUDE_CONFIG_DIR=" + ws + "/dotfiles/claude"}, []string{ws + "/dotfiles/claude"}},
+		{[]string{"CODEX_HOME=" + ws + "/dotfiles/codex", "CLAUDE_CONFIG_DIR=relative/path"}, []string{ws + "/dotfiles/codex"}},
+		// The home itself, a folder above it, the folder the agent was
+		// started in, and / say nothing.
+		{[]string{"CLAUDE_CONFIG_DIR=" + ws}, nil},
+		{[]string{"CLAUDE_CONFIG_DIR=" + filepath.Dir(ws)}, nil},
+		{[]string{"CLAUDE_CONFIG_DIR=" + ws + "/web-app"}, nil},
+		{[]string{"CLAUDE_CONFIG_DIR=/"}, nil},
+	} {
+		fp := testutil.NewFakeProc(t)
+		fp.Add(testutil.Proc{PID: 701, PPID: 1, Comm: "claude", Argv: []string{"claude"}, Cwd: ws + "/web-app", Env: c.env, Started: time.Second})
+		table := readTable(t, fp)
+		f := &repo.Finder{Home: ws}
+		if got := settingsOf(fp.Root, table.ByPID[701], f.Homes(), table.Cwd(701)); !slices.Equal(got, c.want) {
+			t.Errorf("%q: %q, want %q", c.env, got, c.want)
+		}
+	}
+}
+
+func TestPathologicalShellCodeReadsInLinearTime(t *testing.T) {
+	// Heredocs in heredocs' lines and arrays in arrays read again at every
+	// level once: 64 KiB took seconds.
+	for name, code := range map[string]string{
+		"nested heredocs": strings.Repeat("a<<A\n", 13000),
+		"nested arrays":   strings.Repeat("a=(", 16000) + strings.Repeat(")", 16000),
+		"runner heredocs": strings.Repeat("sudo ", 6000) + strings.Repeat("<<A ", 6000),
+	} {
+		start := time.Now()
+		namedPaths([]string{"/bin/bash", "-c", code}, "/home/me", []string{"/home/me"}, nil)
+		if d := time.Since(start); d > time.Second {
+			t.Errorf("%s: %v", name, d)
 		}
 	}
 }

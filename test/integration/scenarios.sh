@@ -136,6 +136,18 @@ listed_any() {
   return 1
 }
 gone() { ! listed "$1"; }
+# still_listed says a session that must stay is listed, asking zellij up to
+# three times: right after a server is stopped, zellij 0.43.1's list-sessions
+# once left out a session that ran on, and listed it again a moment later. A
+# session that went is not listed any of the three times.
+still_listed() {
+  local _
+  for _ in 1 2 3; do
+    listed "$1" && return 0
+    sleep 0.5
+  done
+  return 1
+}
 
 # Delete a session and wait for it to leave the list, as a pass does. A server caught
 # saving its layout writes that data back as it stops, and the session lists as exited.
@@ -646,7 +658,7 @@ check "the server with a busy pane is kept" running orph-busy
 check "the renamed server with a busy pane is kept" running orph-first
 check "the idle orphan is stopped" stopped orph-idle
 check "the log names the server it stopped" grep -Eq '\] pid [0-9]+ \((first name|name): orph-idle\) :: recover: stopped orphan server' "$LOG"
-check "a healthy session is untouched" listed keepme
+check "a healthy session is untouched" still_listed keepme
 
 echo "-- the other commands"
 check "doctor reports zellij" sh -c "$R doctor | grep -q 'zellij $($Z --version | awk '{print $2}')'"
