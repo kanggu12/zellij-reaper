@@ -210,6 +210,17 @@ func TestAServersHelpersAreNotPanes(t *testing.T) {
 	if len(got[0].Panes) != 1 || got[0].Facts.BusyWith != "" {
 		t.Errorf("helpers taken for panes: %+v, busy with %q", got[0].Panes, got[0].Facts.BusyWith)
 	}
+	// zellij's ps caught as it exits, its input no longer readable: still a
+	// helper. A ps in a pane has the pane's terminal, and is the pane's.
+	m.proc.Add(testutil.Proc{PID: 105, PPID: 100, Comm: "ps", Argv: []string{"ps", "-ao", "ppid,args"}})
+	if got := m.gather(t, false, running("s")); len(got[0].Panes) != 1 || got[0].Facts.BusyWith != "" {
+		t.Errorf("an exiting ps taken for a pane: %+v, busy with %q", got[0].Panes, got[0].Facts.BusyWith)
+	}
+	m.proc.Add(testutil.Proc{PID: 106, PPID: 100, Comm: "ps", Argv: []string{"ps", "aux"}, Stdin: "/dev/pts/3", CTTY: 34819})
+	if got := m.gather(t, false, running("s")); got[0].Facts.BusyWith != "ps aux" {
+		t.Errorf("a pane running ps: busy with %q", got[0].Facts.BusyWith)
+	}
+	m.proc.Remove(106)
 	// A child whose input cannot be read still counts: it might be a pane.
 	m.proc.Add(testutil.Proc{PID: 104, PPID: 100, Comm: "htop", Argv: []string{"htop"}})
 	if got := m.gather(t, false, running("s")); got[0].Facts.BusyWith != "htop" {

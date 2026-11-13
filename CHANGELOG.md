@@ -29,6 +29,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 - A rename by hand to a name the session had before said that another session had that name, or that zellij did not list
   the new name yet; the dashboard and `rename` now say that zellij keeps the old name because the session had that name
   before.
+- With zellij 0.43, a pass that caught zellij's own `ps` as it exited took it for a pane running `ps`, and could name
+  an idle session after it (`handbook-ps`): its input could no longer be read. A `ps` without a terminal is zellij's.
 
 ### Changed
 

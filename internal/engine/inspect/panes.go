@@ -78,6 +78,14 @@ func isHelper(p *procfs.Proc) bool {
 	if p.CTTY != 0 {
 		return false
 	}
+	// zellij's own ps (0.43 runs `ps -ao ppid,args` to save its layouts,
+	// every second with serialization_interval 1), caught as it exits: its
+	// input can no longer be read, and it was taken for a pane running ps,
+	// which named a session after it (handbook-ps). A ps someone runs in a
+	// pane has the pane's terminal.
+	if p.Comm == "ps" {
+		return true
+	}
 	return p.Stdin == "/dev/null" || strings.HasPrefix(p.Stdin, "pipe:") || strings.HasPrefix(p.Stdin, "socket:")
 }
 
