@@ -54,8 +54,9 @@ type Env struct {
 	// work in, which they are named after (see projects.go).
 	ProjectsPath string
 	// FormerPath is the book of the names each running session had, and
-	// RefusesFormerNames says the zellij in use refuses a session such a name
-	// (see former.go): a pass then writes down every name it sees.
+	// RefusesFormerNames says the zellij on the PATH refuses a session such a
+	// name (see former.go): what a session whose server tells nothing of its
+	// version is taken to do.
 	FormerPath         string
 	RefusesFormerNames bool
 	Now                func() time.Time
@@ -326,7 +327,7 @@ func (e *Env) survey(ctx context.Context, opts Options) (Report, error) {
 	r.projects = loadProjects(e.ProjectsPath)
 	r.projects.apply(sessions, now)
 	r.former = loadFormer(e.FormerPath)
-	r.former.apply(sessions, now, e.RefusesFormerNames)
+	r.former.apply(sessions, now, e.refusesFormer)
 	for _, s := range sessions {
 		r.Outcomes = append(r.Outcomes, Outcome{Session: s, Verdict: policy.Decide(s.Facts, r.Thresholds, now)})
 	}

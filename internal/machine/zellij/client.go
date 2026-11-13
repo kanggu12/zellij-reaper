@@ -43,7 +43,9 @@ var ErrKept = errors.New("zellij kept the session's old name")
 // did not list it a moment before: a name zellij remembers without listing it.
 // zellij 0.44 and 0.45 remember every name a session had, and refuse it that
 // name for as long as it runs; with no client attached this is what they say.
-// It wraps ErrNameTaken, which it is too.
+// It wraps ErrNameTaken, which it is too. From a server that gives names back
+// (RefusedBySession), it is a name taken, and ErrKept a rename not seen to
+// happen: GivenBack says so.
 var ErrHad = fmt.Errorf("zellij refuses the session a name it had before: %w", ErrNameTaken)
 
 // cutShort is a command stopped before it finished, by the time limit or by the
@@ -84,11 +86,6 @@ type CLI struct {
 	// session's socket: it waits out a server that is still starting, which
 	// such a connection can kill (procfs.Settle).
 	Settle func(ctx context.Context)
-	// RefusesFormerNames is set for a zellij that refuses a session a name it
-	// had before (the package's RefusesFormerNames): only from such a zellij
-	// does a rename come back ErrKept or ErrHad. From another, a kept name is
-	// a server that did not act, and a name said to exist is taken.
-	RefusesFormerNames bool
 }
 
 // New returns a CLI for bin (empty means "zellij" from PATH).
@@ -317,10 +314,7 @@ func (c *CLI) Rename(ctx context.Context, name, to string) error {
 		// Not listed a moment ago, so not another session's: a name zellij
 		// remembers, which 0.44 and 0.45 do for a name this session had.
 		if strings.Contains(errOut+out, "already exists") {
-			if c.RefusesFormerNames {
-				return ErrHad
-			}
-			return ErrNameTaken
+			return ErrHad
 		}
 		// Stopped before it finished: the server may have taken it all the same.
 		if errors.As(err, new(cutShort)) {
@@ -349,9 +343,10 @@ func (c *CLI) waitListed(ctx context.Context, name, to string) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			// Still running under the old name: zellij kept it, as a zellij
-			// that refuses former names does with a client attached.
-			if kept, err := c.running(ctx, name); err == nil && kept && c.RefusesFormerNames {
+			// Still running under the old name: zellij kept it, as 0.44 and
+			// 0.45 do with a client attached. What that means is the caller's
+			// to tell, by the session's server (RefusedBySession).
+			if kept, err := c.running(ctx, name); err == nil && kept {
 				return fmt.Errorf("zellij rename-session %s to %s: %w (%w)", name, to, ErrKept, ErrUnconfirmed)
 			}
 			return fmt.Errorf("zellij rename-session %s to %s: %w", name, to, ErrUnconfirmed)

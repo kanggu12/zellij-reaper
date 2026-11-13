@@ -172,14 +172,32 @@ func TestARefusedNameIsLearned(t *testing.T) {
 	if strings.Join(*asked, ",") != "htop-2" {
 		t.Errorf("next pass asked %v", *asked)
 	}
-	// So does a zellij that gives names back: what zellij refused is
-	// refused.
+	// A server that gives names back (0.43, the main branch) did not act on
+	// the rename: a failure, and no name learned.
 	w, asked = formerWorld(t, newWorld(t), false)
 	w.zj.keep = map[string]bool{"htop": true}
-	names(t, w)
+	r, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range r.Outcomes {
+		if o.Session.Name() == "busy" && (o.RenameErr == nil || errors.Is(o.RenameErr, zellij.ErrKept)) {
+			t.Errorf("a server that gives names back: %v", o.RenameErr)
+		}
+	}
+	if got, ok := readFormer(t, w); ok && len(got) > 0 {
+		t.Errorf("a server that gives names back taught the book %v", got)
+	}
 	again(w)
-	if strings.Join(*asked, ",") != "htop-2" {
-		t.Errorf("a zellij that gives names back, next pass asked %v", *asked)
+	if strings.Join(*asked, ",") != "htop" {
+		t.Errorf("a server that gives names back, next pass asked %v", *asked)
+	}
+	// A session zellij names by id runs 0.46 or later, whatever the zellij on
+	// the PATH: nothing is written down for it.
+	w, _ = formerWorld(t, newWorldOf(t, "busy", "quiet-mouse", true, true), true)
+	look(t, w)
+	if got, ok := readFormer(t, w); ok && len(got) > 0 {
+		t.Errorf("a session named by id: book %v", got)
 	}
 }
 

@@ -72,6 +72,7 @@ func workOf(t *procfs.Table, a *procfs.Proc, agents []string, repos *repo.Finder
 		w.ID = strconv.Itoa(a.PID) + ":" + strconv.FormatInt(mark, 10)
 	}
 	w.Started = repos.Root(t.Cwd(a.PID))
+	own := settingsOf(root, a)
 	a = innermost(t, a, w.Program)
 	// newest holds, per repository, the start of the newest command there.
 	newest := map[string]int64{}
@@ -87,7 +88,7 @@ func workOf(t *procfs.Table, a *procfs.Proc, agents []string, repos *repo.Finder
 		// The command and what runs under it, within what is left to read.
 		procs := append([]*procfs.Proc{c.proc}, t.Descendants(c.proc.PID, budget-1)...)
 		budget -= len(procs)
-		r := commandRepo(t, procs, repos)
+		r := commandRepo(t, procs, repos, own)
 		if r == "" {
 			continue
 		}
@@ -156,7 +157,7 @@ func newestFirst(children []*procfs.Proc, root string) []command {
 // silicon (/opt/homebrew) is one. Nor is a path on another disk looked up,
 // which may be a network mount that hangs. A tie among the paths named goes to
 // the one of them the processes run in; else a tie says nothing.
-func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder) string {
+func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder, own []string) string {
 	homes := repos.Homes()
 	// reach holds the directories under which a named path counts.
 	reach := map[string]bool{}
@@ -189,7 +190,7 @@ func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder) stri
 	delete(reach, string(filepath.Separator))
 	named := map[string]int{}
 	for _, d := range live {
-		for _, p := range namedPaths(d.Argv, repos.Home, homes) {
+		for _, p := range namedPaths(d.Argv, repos.Home, homes, own) {
 			if !within(p, reach) {
 				continue
 			}
@@ -297,8 +298,10 @@ const maxCodeDepth = 4
 // (package path): Windows tells no process's directory, and renames nothing. A
 // path in a hidden folder of the home directory (~/.claude, ~/.cache,
 // ~/.config) is a tool's, not a project's, and is left out; homes holds the
-// home as given and as its links resolve.
-func namedPaths(argv []string, home string, homes []string) []string {
+// home as given and as its links resolve. So is a path in the agent's own
+// settings folder (own), wherever it is kept: its hooks and its status line
+// run from there, a CLAUDE_CONFIG_DIR in a dotfiles repository say.
+func namedPaths(argv []string, home string, homes, own []string) []string {
 	var out []string
 	emit := func(word string) bool {
 		// "~/" as the shell turns it into the home.
@@ -310,7 +313,7 @@ func namedPaths(argv []string, home string, homes []string) []string {
 			return true
 		}
 		p := path.Clean(word)
-		if inBin(p) || hiddenInHome(p, homes) {
+		if inBin(p) || hiddenInHome(p, homes) || underAny(p, own) {
 			return true
 		}
 		out = append(out, p)
@@ -321,7 +324,8 @@ func namedPaths(argv []string, home string, homes []string) []string {
 	return out
 }
 
-// shells run the code given with -c, as bash -c CODE and bash -lc CODE do.
+// shells run the code given with -c, as bash -c CODE and bash -lc CODE do, and
+// the code a heredoc hands them.
 var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "ash": true, "fish": true}
 
 // runners are words that run the program after them, or come before a command
@@ -330,28 +334,70 @@ var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true
 var runners = map[string]bool{
 	"sudo": true, "doas": true, "env": true, "exec": true, "nohup": true, "nice": true, "time": true,
 	"timeout": true, "xargs": true, "command": true, "builtin": true, "setsid": true, "stdbuf": true,
+	"strace": true, "ltrace": true, "valgrind": true,
 	"source": true, ".": true,
 	"if": true, "then": true, "else": true, "elif": true, "do": true, "while": true, "until": true, "!": true,
 }
 
+// runnerValues are the options of a runner that take the next word as their
+// value: sudo -u postgres, timeout -s KILL. That word is no program.
+var runnerValues = map[string]map[string]bool{
+	"sudo":     {"-u": true, "-g": true, "-C": true, "-D": true, "-h": true, "-p": true, "-r": true, "-t": true, "-U": true, "-T": true},
+	"doas":     {"-u": true, "-C": true},
+	"env":      {"-u": true, "-C": true, "-S": true},
+	"timeout":  {"-s": true, "-k": true},
+	"nice":     {"-n": true},
+	"xargs":    {"-I": true, "-L": true, "-n": true, "-P": true, "-d": true, "-E": true, "-s": true, "-a": true},
+	"stdbuf":   {"-i": true, "-o": true, "-e": true},
+	"strace":   {"-e": true, "-o": true, "-p": true, "-s": true, "-u": true},
+	"ltrace":   {"-e": true, "-o": true, "-p": true, "-s": true, "-u": true},
+	"valgrind": {},
+}
+
+// execFlags are the options of find after which it runs a program.
+var execFlags = map[string]bool{"-exec": true, "-execdir": true, "-ok": true, "-okdir": true}
+
 // numberRe is a number in a program's place: timeout's duration (10, 1.5m).
-var numberRe = regexp.MustCompile(`^[0-9.]+[smhd]?$`)
+// It starts with a digit, so "." stays the shell's source.
+var numberRe = regexp.MustCompile(`^[0-9][0-9.]*[smhd]?$`)
 
 // commandPaths hands emit the paths in the words of one command, and reports
 // false once emit wants no more.
 func commandPaths(words []string, depth int, emit func(string) bool) bool {
-	// program: the next word that can be a program is one. shell: the
-	// program runs code given with -c. code: the next word that is no option
-	// is shell code.
-	program, shell, code := true, false, false
+	// program: the next word that can be a program is one. runner: the
+	// runner that made it so, whose options may take a value (value: the
+	// next word is one). shell: the program is a shell, which runs code given
+	// with -c until its script is named. code: the next word that is no
+	// option is shell code.
+	program, value, shell, code := true, false, false, false
+	runner := ""
 	for _, w := range words {
 		if len(w) > maxArgBytes {
 			w = w[:maxArgBytes]
 		}
+		// A file a redirection names, never a program.
+		if strings.HasPrefix(w, redirected) {
+			if !argPaths(strings.TrimPrefix(w, redirected), depth, emit) {
+				return false
+			}
+			continue
+		}
 		switch {
+		case value:
+			// An option's value (sudo -u postgres): no program, no path to
+			// count either way.
+			value = false
+			continue
+		case program && runnerValues[runner][w]:
+			value = true
+			continue
 		case program && mayRun(w):
 			name := path.Base(w)
 			program, shell, code = runners[name], shells[name], name == "eval"
+			runner = ""
+			if program {
+				runner = name
+			}
 			continue
 		case code && !strings.HasPrefix(w, "-"):
 			code = false
@@ -362,6 +408,15 @@ func commandPaths(words []string, depth int, emit func(string) bool) bool {
 		case shell && isCodeFlag(w):
 			code = true
 			continue
+		case execFlags[w]:
+			// find -exec PROGRAM {} ;
+			program = true
+			continue
+		}
+		// A shell's first word that is no option is its script: an option
+		// after it is the script's (bash ./deploy.sh -c prod.yml).
+		if shell && !strings.HasPrefix(w, "-") {
+			shell = false
 		}
 		if !argPaths(w, depth, emit) {
 			return false
@@ -373,7 +428,8 @@ func commandPaths(words []string, depth int, emit func(string) bool) bool {
 // mayRun reports whether a word can stand in a program's place: not an
 // option, an assignment before the command (X=1) or a number.
 func mayRun(w string) bool {
-	return w != "" && !strings.HasPrefix(w, "-") && !strings.Contains(w, "=") && !numberRe.MatchString(w)
+	return w != "" && !strings.HasPrefix(w, "-") && !strings.HasPrefix(w, redirected) && !strings.Contains(w, "=") &&
+		!numberRe.MatchString(w)
 }
 
 // isCodeFlag reports whether a shell's option word holds -c, alone or with
@@ -382,15 +438,46 @@ func isCodeFlag(w string) bool {
 	return len(w) > 1 && w[0] == '-' && w[1] != '-' && strings.ContainsRune(w[1:], 'c')
 }
 
+// programOf is the program a command runs, past the words that run one
+// (sudo, env): "" when none can be told.
+func programOf(words []string) string {
+	for _, w := range words {
+		if !mayRun(w) {
+			continue
+		}
+		name := path.Base(w)
+		if !runners[name] {
+			return name
+		}
+	}
+	return ""
+}
+
 // codePaths hands emit the paths in shell code, each of its commands read as
-// commandPaths reads one, down to maxCodeDepth.
+// commandPaths reads one, down to maxCodeDepth. A heredoc's lines are what the
+// command reads: code for a shell (bash <<EOF), else words to look through, a
+// script's or a file's (python3 - <<'EOF', cat >file <<EOF).
 func codePaths(code string, depth int, emit func(string) bool) bool {
 	if depth > maxCodeDepth {
 		return true
 	}
 	for _, cmd := range shellCommands(code) {
-		if !commandPaths(cmd, depth, emit) {
-			return false
+		if cmd.body == "" {
+			if !commandPaths(cmd.words, depth, emit) {
+				return false
+			}
+			continue
+		}
+		if cmd.code {
+			if !codePaths(cmd.body, depth+1, emit) {
+				return false
+			}
+			continue
+		}
+		for _, w := range shellWords(cmd.body) {
+			if !argPaths(w, depth+1, emit) {
+				return false
+			}
 		}
 	}
 	return true
@@ -459,42 +546,154 @@ func isListBreak(r rune) bool {
 	return r == '=' || r == ':' || r == ','
 }
 
-// shellWords is the words of shell code, its commands run together.
+// redirected marks a word that is no program: the file a redirection names
+// (> FILE, < FILE), or a value of an array (x=(a b)). No word of shell code
+// holds this byte.
+const redirected = "\x00"
+
+// shellCommand is one command of shell code: its words, or the lines of a
+// heredoc, which are code when the command that reads them is a shell.
+type shellCommand struct {
+	words []string
+	body  string
+	code  bool
+}
+
+// shellWords is the words of shell code, its commands run together, a
+// heredoc's lines among them.
 func shellWords(s string) []string {
 	var words []string
 	for _, cmd := range shellCommands(s) {
-		words = append(words, cmd...)
+		for _, w := range cmd.words {
+			words = append(words, strings.TrimPrefix(w, redirected))
+		}
+		if cmd.body != "" {
+			words = append(words, shellWords(cmd.body)...)
+		}
 	}
 	return words
 }
 
+// heredoc is a heredoc whose lines come after the line its command is on.
+type heredoc struct {
+	delim string
+	tabs  bool
+	code  bool
+}
+
 // shellCommands splits shell code into commands, and each into words, as the
-// shell does, with the quotes taken away: blanks end a word, and so do the
-// shell's operators, of which ;, &, |, the brackets, the backquote and a line
-// break end a command too, where < and > do not. Quotes keep what is in them
-// together, and a backslash outside single quotes takes the next character as
-// it is. What a command substitution holds comes out as a command of its own.
-// Claude Code hands eval its command in single quotes, each quote in it
-// written '"'"': the command comes out as one word, to be read again.
-func shellCommands(s string) [][]string {
-	var cmds [][]string
-	var words []string
+// shell does, with the quotes taken away: blanks end a word; ;, &, |, a line
+// break and an unmatched ) end a command too; < and > end a word, and the word
+// after one is a file (redirected). A part in brackets, braces or backquotes
+// is commands of its own, after which the command around it goes on: its
+// program, when the part stands in its place ($(which go) /b/x), is that part.
+// A heredoc's lines, up to its word, are a command of their own (body), and
+// an array (x=(a b)) stays in its word. Quotes keep what is in them together,
+// a backslash outside single quotes takes the next character as it is, and a
+// # that begins a word begins a comment. Claude Code hands eval its command in
+// single quotes, each quote in it written '"'"': the command comes out as one
+// word, to be read again.
+func shellCommands(s string) []shellCommand {
+	var done []shellCommand
+	// frame is the part of the code being read: the command in it, and what
+	// opened it ('(' '{' '`', or '[' for an array; 0 at the top).
+	type frame struct {
+		cmd    shellCommand
+		opener byte
+	}
+	stack := []frame{{}}
 	var cur strings.Builder
 	// started is true once a word began: '' is a word, if an empty one.
-	started := false
+	started, redir := false, false
+	var pending []heredoc
+	wantDelim, tabs := false, false
+	top := func() *frame { return &stack[len(stack)-1] }
 	end := func() {
-		if started {
-			words = append(words, cur.String())
-			cur.Reset()
-			started = false
+		if !started {
+			return
 		}
+		w := cur.String()
+		cur.Reset()
+		started = false
+		if wantDelim {
+			// The heredoc's word, quotes taken away; the command that reads
+			// it is known now.
+			pending = append(pending, heredoc{delim: w, tabs: tabs, code: shells[programOf(top().cmd.words)]})
+			wantDelim = false
+			return
+		}
+		if redir {
+			w, redir = redirected+w, false
+		}
+		top().cmd.words = append(top().cmd.words, w)
 	}
-	next := func() {
+	finish := func() {
 		end()
-		if len(words) > 0 {
-			cmds = append(cmds, words)
-			words = nil
+		if c := top().cmd; len(c.words) > 0 {
+			done = append(done, c)
 		}
+		top().cmd = shellCommand{}
+	}
+	open := func(by byte, inPlace bool) {
+		end()
+		// >(cmd) and <(cmd) are commands, not files.
+		redir = false
+		if inPlace {
+			// $(...) or `...` where a word goes: the command gets a word there,
+			// so what follows is not taken for its program.
+			top().cmd.words = append(top().cmd.words, "$(…)")
+		}
+		stack = append(stack, frame{opener: by})
+	}
+	closeAs := func(by byte) bool {
+		if len(stack) == 1 || top().opener != by {
+			return false
+		}
+		end()
+		inner := *top()
+		stack = stack[:len(stack)-1]
+		if by == '[' {
+			// An array's values are words of the command, none its program.
+			for _, w := range inner.cmd.words {
+				top().cmd.words = append(top().cmd.words, redirected+strings.TrimPrefix(w, redirected))
+			}
+			return true
+		}
+		if len(inner.cmd.words) > 0 {
+			done = append(done, inner.cmd)
+		}
+		return true
+	}
+	// bodies reads the lines of the heredocs waiting for this line break, from
+	// i, the line break, and returns where the last of them ends.
+	bodies := func(i int) int {
+		for _, h := range pending {
+			var lines []string
+			for {
+				start := i + 1
+				if start >= len(s) {
+					i = len(s)
+					break
+				}
+				stop := strings.IndexByte(s[start:], '\n')
+				if stop < 0 {
+					stop = len(s) - start
+				}
+				line := s[start : start+stop]
+				i = start + stop
+				check := line
+				if h.tabs {
+					check = strings.TrimLeft(line, "\t")
+				}
+				if check == h.delim {
+					break
+				}
+				lines = append(lines, line)
+			}
+			done = append(done, shellCommand{body: strings.Join(lines, "\n"), code: h.code})
+		}
+		pending = nil
+		return i
 	}
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -534,18 +733,84 @@ func shellCommands(s string) [][]string {
 					cur.WriteByte(s[i])
 				}
 			}
-		case c == '<' || c == '>':
-			// A redirection: >| and >& (2>&1) write to a file, not into a
-			// pipe or to the background.
+		case c == '#' && !started && (i == 0 || strings.IndexByte(" \t\n", s[i-1]) >= 0):
+			// A comment, to the end of the line.
+			if j := strings.IndexByte(s[i:], '\n'); j >= 0 {
+				i += j - 1
+			} else {
+				i = len(s)
+			}
+		case c == '<' && strings.HasPrefix(s[i:], "<<") && !strings.HasPrefix(s[i:], "<<<"):
+			// A heredoc: its word comes next, its lines after this line.
 			end()
-			if i+1 < len(s) && (s[i+1] == '|' || s[i+1] == '&') {
+			i++
+			tabs = i+1 < len(s) && s[i+1] == '-'
+			if tabs {
 				i++
 			}
-		case c == '&' && i+1 < len(s) && s[i+1] == '>':
-			// &> writes both outputs to a file.
+			wantDelim = true
+		case c == '<' || c == '>':
+			// A redirection: >>, >|, >& (2>&1) and <<< are one, and the word
+			// after it is a file.
 			end()
-		case c == '\n' || strings.IndexByte(";&|(){}`", c) >= 0:
-			next()
+			for i+1 < len(s) && strings.IndexByte("<>|&", s[i+1]) >= 0 {
+				i++
+			}
+			redir = true
+		case c == '&' && i+1 < len(s) && s[i+1] == '>':
+			// &> and &>> write both outputs to a file, the word after.
+			end()
+			for i+1 < len(s) && s[i+1] == '>' {
+				i++
+			}
+			redir = true
+		case c == '(':
+			if w := cur.String(); started && strings.HasSuffix(w, "=") {
+				// x=( ... ): an array, which stays in its word.
+				end()
+				stack = append(stack, frame{opener: '['})
+				continue
+			}
+			// $( ... ): stands where a word goes; ( ... ) alone is a subshell.
+			inPlace := started && strings.HasSuffix(cur.String(), "$")
+			if inPlace {
+				w := strings.TrimSuffix(cur.String(), "$")
+				cur.Reset()
+				cur.WriteString(w)
+				started = w != ""
+			}
+			open('(', inPlace)
+		case c == ')':
+			if !closeAs('(') && !closeAs('[') {
+				// A ) nothing opened, as after a case pattern: a command ends.
+				finish()
+			}
+		case c == '{' && started && strings.HasSuffix(cur.String(), "$"):
+			// ${ ... } stands where a word goes.
+			w := strings.TrimSuffix(cur.String(), "$")
+			cur.Reset()
+			cur.WriteString(w)
+			started = w != ""
+			open('$', true)
+		case c == '}' && closeAs('$'):
+			// ${ ... } ends, right after its word: the command goes on.
+		case c == '{' && !started && i+1 < len(s) && strings.IndexByte(" \t\n", s[i+1]) >= 0:
+			// { ...; } is a group: { and a blank.
+			open('{', false)
+		case c == '}' && !started && closeAs('{'):
+			// The group ends, its } a word of its own; the command around it
+			// goes on. A } within a word ({}, {a,b}) is the word's.
+		case c == '`':
+			if !closeAs('`') {
+				open('`', true)
+			}
+		case c == '\n':
+			finish()
+			if len(pending) > 0 {
+				i = bodies(i)
+			}
+		case strings.IndexByte(";&|", c) >= 0:
+			finish()
 		case c == ' ' || c == '\t':
 			end()
 		default:
@@ -553,8 +818,23 @@ func shellCommands(s string) [][]string {
 			cur.WriteByte(c)
 		}
 	}
-	next()
-	return cmds
+	// Whatever is still open ends with the code.
+	for len(stack) > 1 {
+		finish()
+		inner := *top()
+		stack = stack[:len(stack)-1]
+		if inner.opener == '[' {
+			continue
+		}
+		if len(inner.cmd.words) > 0 {
+			done = append(done, inner.cmd)
+		}
+	}
+	finish()
+	if len(pending) > 0 {
+		bodies(len(s) - 1)
+	}
+	return done
 }
 
 // inBin reports whether p is a folder programs are installed in, bin or sbin,
@@ -564,6 +844,32 @@ func inBin(p string) bool {
 	for _, d := range []string{path.Base(p), path.Base(path.Dir(p))} {
 		switch d {
 		case "bin", "sbin":
+			return true
+		}
+	}
+	return false
+}
+
+// settingsVars name an agent's own settings folder when it is not the default
+// one in the home (~/.claude, ~/.codex), which the home's hidden folders cover.
+var settingsVars = []string{"CLAUDE_CONFIG_DIR", "CODEX_HOME"}
+
+// settingsOf is the agent's own settings folders, from the environment it
+// started with; none when that cannot be read (Windows, another user's).
+func settingsOf(root string, a *procfs.Proc) []string {
+	var out []string
+	for _, v := range settingsVars {
+		if dir, ok := procfs.EnvVar(root, a.PID, v); ok && path.IsAbs(filepath.ToSlash(dir)) {
+			out = append(out, path.Clean(filepath.ToSlash(dir)))
+		}
+	}
+	return out
+}
+
+// underAny reports whether p is one of dirs, or under one.
+func underAny(p string, dirs []string) bool {
+	for _, d := range dirs {
+		if p == d || strings.HasPrefix(p, d+"/") {
 			return true
 		}
 	}

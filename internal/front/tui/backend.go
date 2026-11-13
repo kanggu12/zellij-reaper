@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -180,6 +181,11 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 	err := r.handAction(func() error {
 		var err error
 		note, err = r.renameByHand(ctx, name, to)
+		// zellij's refusal of a former name, said as such only where the
+		// session's server refuses those (RefusedBySession).
+		if err != nil && !r.refusesFormer(name) {
+			err = zellij.GivenBack(err)
+		}
 		// A name given by hand is someone's choice: from now on auto_rename leaves
 		// it alone, even when it was once on the list of names it gave. That goes for
 		// a rename that could not be confirmed too, in case it happened. A name zellij
@@ -193,6 +199,18 @@ func (r real) Rename(ctx context.Context, name, to string) (string, error) {
 		return err
 	}, "%s :: renamed from %s to %s", name, r.from, to)
 	return note, err
+}
+
+// refusesFormer says whether the server of the session called name refuses it
+// the names it had: by its socket and the index, else by the zellij on the
+// PATH.
+func (r real) refusesFormer(name string) bool {
+	idx, _ := zellij.ReadIndex(r.a.InfoDir)
+	sock := ""
+	if dir := r.socketDir(); dir != "" && !idx.ByID(name) {
+		sock = filepath.Join(dir, name)
+	}
+	return zellij.RefusedBySession(sock, idx.ByID(name), zellij.RefusesFormerNames(r.a.ZellijVersion))
 }
 
 func (r real) DropLeftover(ctx context.Context, name, to string) {

@@ -189,6 +189,22 @@ func TestDeleteByHandAsksZellijFirst(t *testing.T) {
 	}
 }
 
+func TestARefusedFormerNameIsSaidAsTheServerMeansIt(t *testing.T) {
+	// zellij says a name exists that it does not list: from 0.44 and 0.45 a
+	// name this session had, from 0.43 a name taken. The sessions here tell
+	// nothing of their server, so the zellij on the PATH answers.
+	i18n.Set(i18n.English)
+	for version, want := range map[string]string{"0.45.1": "rename.had", "0.43.1": "rename.taken"} {
+		z := &fakeZellij{sessions: "notes [Created 2h ago] \n", renameErr: errors.New("A session by this name already exists.")}
+		b, a := backendFor(t, z, "")
+		a.ZellijVersion = version
+		_, err := b.Rename(context.Background(), "notes", "journal")
+		if got := RenameFailed(err); got != i18n.T("toast.rename.failed", i18n.T(want)) {
+			t.Errorf("%s: %q", version, got)
+		}
+	}
+}
+
 func TestRenameByHandKeepsTheProtection(t *testing.T) {
 	i18n.Set(i18n.English)
 	ctx := context.Background()

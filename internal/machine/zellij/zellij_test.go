@@ -184,6 +184,30 @@ func TestASessionFileTooLargeIsNotReadAndTheSessionIsKept(t *testing.T) {
 	}
 }
 
+func TestRefusedBySession(t *testing.T) {
+	// A session tells its server's version: named by id, 0.46 and later; a
+	// socket in a folder named after a version, that version; one in a
+	// contract folder, 0.44 or 0.45. The zellij on the PATH answers for the
+	// rest.
+	for _, c := range []struct {
+		socket   string
+		byID     bool
+		fallback bool
+		want     bool
+	}{
+		{"/tmp/zellij-0/contract_version_1/0a1b2c3d4e5f", true, true, false},
+		{"/tmp/zellij-0/0.43.1/web-app", false, true, false},
+		{"/tmp/zellij-0/contract_version_1/web-app", false, false, true},
+		{"/tmp/elsewhere/web-app", false, true, true},
+		{"/tmp/elsewhere/web-app", false, false, false},
+		{"", false, true, true},
+	} {
+		if got := RefusedBySession(c.socket, c.byID, c.fallback); got != c.want {
+			t.Errorf("%+v: %v", c, got)
+		}
+	}
+}
+
 func TestRefusesFormerNames(t *testing.T) {
 	// Measured: 0.44 and 0.45 refuse a session a name it had, for as long as
 	// it runs; 0.43 and the main branch (0.46.0) give it back. An unknown
@@ -550,14 +574,12 @@ func TestRename(t *testing.T) {
 	// session a name it had: the session had it, and the name counts as
 	// taken all the same.
 	s = &script{listed: "a [Created 1h ago]\n", renameOut: "A session by this name already exists.\n", renameErr: errors.New("exit status 2")}
-	refusing := s.cli()
-	refusing.RefusesFormerNames = true
-	if err := refusing.Rename(ctx, "a", "b"); !errors.Is(err, ErrHad) || !errors.Is(err, ErrNameTaken) {
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrHad) || !errors.Is(err, ErrNameTaken) {
 		t.Errorf("name refused by zellij: %v", err)
 	}
-	// From a zellij that gives former names back, the name is taken.
-	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrNameTaken) || errors.Is(err, ErrHad) {
-		t.Errorf("name refused by a zellij that gives names back: %v", err)
+	// From a server that gives former names back, the name is taken.
+	if err := GivenBack(s.cli().Rename(ctx, "a", "b")); err != ErrNameTaken {
+		t.Errorf("name refused by a server that gives names back: %v", err)
 	}
 	// A rename zellij accepts and does not do is not reported as done.
 	old := renameSettles
@@ -569,15 +591,13 @@ func TestRename(t *testing.T) {
 	}
 	// Still listed, running, under the old name: zellij kept it, as 0.44 and
 	// 0.45 do with a name the session had before when a client is attached.
-	refusing = s.cli()
-	refusing.RefusesFormerNames = true
-	if err := refusing.Rename(ctx, "a", "b"); !errors.Is(err, ErrKept) || !errors.Is(err, ErrUnconfirmed) {
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrKept) || !errors.Is(err, ErrUnconfirmed) {
 		t.Errorf("kept: %v", err)
 	}
-	// A zellij that gives former names back did not act on it: no more is
+	// A server that gives former names back did not act on it: no more is
 	// known.
-	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrUnconfirmed) || errors.Is(err, ErrKept) {
-		t.Errorf("kept by a zellij that gives names back: %v", err)
+	if err := GivenBack(s.cli().Rename(ctx, "a", "b")); err != ErrUnconfirmed {
+		t.Errorf("kept by a server that gives names back: %v", err)
 	}
 	// Listed only as exited, it may have the new name by now: no more is known.
 	s = &script{listed: "a [Created 1h ago] (EXITED - attach to resurrect)\n", ignoreRename: true}

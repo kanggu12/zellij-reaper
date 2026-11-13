@@ -13,7 +13,8 @@ that only fixes raises the patch number. Each release's section here is its rele
   attached they keep the old name, telling only that client, which writes it to zellij's log. With those versions a pass
   now writes down the names it sees each session under (the `former` state file) and gives a session coming back to one
   a tail (`-2`) without asking. A name it did not see, one a session had before this version, say, zellij refuses once;
-  the pass learns it and asks for the next.
+  the pass learns it and asks for the next. Each session's own server says whether it refuses such names, so an upgrade
+  that leaves 0.44 and 0.45 servers running under a newer zellij changes nothing.
 - A coding agent's session could be named after a repository the agent did not work on: Claude Code runs a helper
   agent's commands in the directory the agent stood in when it started the helper, and the helper names the files it
   works on in full. A command now works in the repository its command line names, and only else in the one it runs in. A
@@ -21,8 +22,9 @@ that only fixes raises the patch number. Each release's section here is its rele
   runs in, unless that is right under `/`, and not in the home's hidden folders. The programs a command runs are no
   work: the first word of each command, in the code a helper runs too, what `sudo`, `env` or `timeout` run, a script
   `source` reads, and a script in a `bin` folder. So Homebrew's checkout on Apple silicon (`/opt/homebrew`) names
-  nothing, nor does a Claude Code settings folder kept in git. A quoted path with blanks in it is one path, and two
-  repositories named as often go to the one the command runs in, if it is one of them.
+  nothing, nor does an agent's settings folder kept in git (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`), with its shell snapshot,
+  status line and hooks. A heredoc's lines count, and so do the words after a `$(...)`. A quoted path with blanks in it
+  is one path, and two repositories named as often go to the one the command runs in, if it is one of them.
 - Leaving a project settled on takes four counted commands in a row in one other repository, where two settle the first:
   a look into another repository, or an errand there, no longer renames the session. The repository an agent was started
   in is not settled that way, and two in a row in one other repository move it.

@@ -400,7 +400,7 @@ func TestNamedPaths(t *testing.T) {
 		{[]string{"cat", "/srv/it's", "/srv/web app/a"}, []string{"/srv/it's", "/srv/web app/a"}},
 		{claude("/srv/tool/run.sh && make -C /srv/y"), []string{"/srv/y", "/dev/null", "/tmp/claude-1-cwd"}},
 	} {
-		if got := namedPaths(c.argv, home, homes); !slices.Equal(got, c.want) {
+		if got := namedPaths(c.argv, home, homes, nil); !slices.Equal(got, c.want) {
 			t.Errorf("%q: %q, want %q", c.argv, got, c.want)
 		}
 	}
@@ -409,35 +409,128 @@ func TestNamedPaths(t *testing.T) {
 	for i := range 40 {
 		many = append(many, "/srv/f"+strconv.Itoa(i))
 	}
-	if got := namedPaths(many, home, homes); len(got) != maxNamedPaths {
+	if got := namedPaths(many, home, homes, nil); len(got) != maxNamedPaths {
 		t.Errorf("%d paths read", len(got))
 	}
 	// A script handed to a shell whole: its start.
 	long := "cd /srv/start && " + strings.Repeat("x", maxArgBytes) + " /srv/end"
-	if got := namedPaths([]string{"bash", "-c", long}, home, homes); !slices.Equal(got, []string{"/srv/start"}) {
+	if got := namedPaths([]string{"bash", "-c", long}, home, homes, nil); !slices.Equal(got, []string{"/srv/start"}) {
 		t.Errorf("a long script: %q", got)
 	}
 }
 
 func TestShellCommands(t *testing.T) {
+	r := redirected
 	for _, c := range []struct {
 		code string
 		want [][]string
 	}{
 		{"a b; c && d || e | f & g", [][]string{{"a", "b"}, {"c"}, {"d"}, {"e"}, {"f"}, {"g"}}},
-		{"x 2>&1 >| /f &> /g\ny $(z /p) `w`", [][]string{{"x", "2", "1", "/f", "/g"}, {"y", "$"}, {"z", "/p"}, {"w"}}},
+		// A redirection's word is a file, >| and 2>&1 included.
+		{"x 2>&1 >| /f &> /g", [][]string{{"x", "2", r + "1", r + "/f", r + "/g"}}},
+		// A substitution where a word goes keeps the command around it going.
+		{"y $(z /p) /q `w` /s", [][]string{{"z", "/p"}, {"w"}, {"y", "$(…)", "/q", "$(…)", "/s"}}},
 		{"{ a; } && (b)", [][]string{{"a"}, {"b"}}},
+		{"cp ${SRC} /b/dest", [][]string{{"SRC"}, {"cp", "$(…)", "/b/dest"}}},
+		{"arr=(/b/a /b/b); echo", [][]string{{"arr=", r + "/b/a", r + "/b/b"}, {"echo"}}},
+		// {} and {a,b} are words; a group's { has a blank after it.
+		{"ls | xargs -I {} mv {} /d/", [][]string{{"ls"}, {"xargs", "-I", "{}", "mv", "{}", "/d/"}}},
+		{"cp {x,y}.go /d", [][]string{{"cp", "{x,y}.go", "/d"}}},
+		{"case $x in a) cat /b/x;; esac", [][]string{{"case", "$x", "in", "a"}, {"cat", "/b/x"}, {"esac"}}},
+		// A comment, but not $# or ${#x}.
+		{"# don't\ncd /b # here\necho $# ${#x}", [][]string{{"cd", "/b"}, {"#x"}, {"echo", "$#", "$(…)"}}},
 	} {
-		got := shellCommands(c.code)
-		if len(got) != len(c.want) {
-			t.Errorf("%q: %q, want %q", c.code, got, c.want)
+		got := shellCommands(strings.ReplaceAll(c.code, `\n`, "\n"))
+		var words [][]string
+		for _, cmd := range got {
+			words = append(words, cmd.words)
+		}
+		if len(words) != len(c.want) {
+			t.Errorf("%q: %q, want %q", c.code, words, c.want)
 			continue
 		}
-		for i := range got {
-			if !slices.Equal(got[i], c.want[i]) {
-				t.Errorf("%q: %q, want %q", c.code, got, c.want)
+		for i := range words {
+			if !slices.Equal(words[i], c.want[i]) {
+				t.Errorf("%q: %q, want %q", c.code, words, c.want)
 				break
 			}
+		}
+	}
+	// A heredoc's lines are a command of their own, code when a shell reads
+	// them.
+	got := shellCommands("python3 - <<'EOF'\nopen('/b/x')\nEOF\nbash <<-X\n\t/a/run /b/y\n\tX\necho done")
+	if len(got) != 5 || got[1].body != "open('/b/x')" || got[1].code || got[3].body != "\t/a/run /b/y" || !got[3].code ||
+		!slices.Equal(got[4].words, []string{"echo", "done"}) {
+		t.Errorf("heredocs: %+v", got)
+	}
+}
+
+// TestACommandLineNamesItsWork reads command lines agents run, through Claude
+// Code's wrapper: each names the paths its work is in, not its programs'.
+func TestACommandLineNamesItsWork(t *testing.T) {
+	home := "/home/me"
+	wrap := func(cmd string) []string {
+		return []string{"/bin/bash", "-c", "source /home/me/.claude/shell-snapshots/s.sh 2>/dev/null || true && eval '" +
+			strings.ReplaceAll(cmd, "'", `'"'"'`) + "' < /dev/null && pwd -P >| /tmp/claude-1-cwd"}
+	}
+	for _, c := range []struct {
+		cmd  string
+		want []string
+	}{
+		// A heredoc's lines, a script's or a file's.
+		{"python3 - <<'EOF'\nimport json\nprint(json.load(open('/b/x.json')))\nEOF", []string{"/b/x.json"}},
+		{"python3 - <<'EOF'\nfrom pathlib import Path\nfor p in Path(\"/b/src\").rglob(\"*.go\"):\n    print(p)\nEOF", []string{"/b/src"}},
+		{"cat > /b/notes.md <<'EOF'\n/b/docs is where it lives\nEOF", []string{"/b/notes.md", "/b/docs"}},
+		// A shell reads its heredoc as code: its program is no work.
+		{"bash <<'EOF'\n/a/target/tool /b/x\nEOF", []string{"/b/x"}},
+		// After a substitution or a group, the command goes on.
+		{"echo $(date) >> /b/log", []string{"/b/log"}},
+		{"cp ${SRC} /b/dest", []string{"/b/dest"}},
+		{"ls | xargs -I {} mv {} /b/dest/", []string{"/b/dest"}},
+		{"find . -name '*.orig' -exec mv {} /b/trash/ \\;", []string{"/b/trash"}},
+		{"find /b -name '*.go' -exec /a/target/tool {} \\;", []string{"/b"}},
+		{"$(which python3) /b/x.py", []string{"/b/x.py"}},
+		{"(cd /b && go build ./...)", []string{"/b"}},
+		{"diff <(sort /c/a) /b/a", []string{"/c/a", "/b/a"}},
+		{"arr=(/b/a /b/b); echo ${arr[@]}", []string{"/b/a", "/b/b"}},
+		// What a runner runs is no work, and an option's value no program.
+		{"sudo -u postgres /a/scripts/migrate /b/schema.sql", []string{"/b/schema.sql"}},
+		{"timeout -s KILL 30 /a/target/tool /b/x", []string{"/b/x"}},
+		{"timeout -k 5 30 /a/target/tool /b/x", []string{"/b/x"}},
+		{"env -u HOME /a/target/tool /b/x", []string{"/b/x"}},
+		{"strace -f /a/target/tool /b/x", []string{"/b/x"}},
+		{"nohup /a/target/server --root /b > /tmp/log 2>&1 &", []string{"/b", "/tmp/log"}},
+		// A shell's script: an option after it is the script's.
+		{"bash ./deploy.sh -c /b/prod.yml", []string{"/b/prod.yml"}},
+		{"bash /a/run.sh -c /b/prod.yml /b/x", []string{"/a/run.sh", "/b/prod.yml", "/b/x"}},
+		// A comment says nothing, and does not end the line's reading early.
+		{"# don't run this\ncd /b && make", []string{"/b"}},
+		{"git commit -m \"$(cat <<'EOF'\nFix the thing in /b/x\nEOF\n)\"", []string{"/b/x"}},
+	} {
+		got := namedPaths(wrap(strings.ReplaceAll(c.cmd, `\n`, "\n")), home, []string{home}, nil)
+		// The wrapper's own files are not the command's.
+		var paths []string
+		for _, p := range got {
+			if p != "/dev/null" && p != "/tmp/claude-1-cwd" {
+				paths = append(paths, p)
+			}
+		}
+		if !slices.Equal(paths, c.want) {
+			t.Errorf("%q: %q, want %q", c.cmd, paths, c.want)
+		}
+	}
+	// The agent's own settings folder, wherever it is kept, is a tool's: its
+	// status line and hooks name it.
+	own := []string{"/home/me/dotfiles/claude"}
+	for _, argv := range [][]string{
+		{"/bin/sh", "-c", "bash /home/me/dotfiles/claude/statusline.sh"},
+		{"/bin/sh", "-c", "node /home/me/dotfiles/claude/hooks/guard.js /b/x"},
+		{"/bin/bash", "-c", "source /home/me/dotfiles/claude/shell-snapshots/s.sh && eval 'make -C /b'"},
+	} {
+		if got := namedPaths(argv, home, []string{home}, own); slices.ContainsFunc(got, func(p string) bool {
+			return strings.HasPrefix(p, "/home/me/dotfiles")
+		}) {
+			t.Errorf("%q names the agent's settings: %q", argv, got)
 		}
 	}
 }
@@ -453,7 +546,7 @@ func TestBesideARepositoryIsNotRightUnderTheRoot(t *testing.T) {
 	f := &repo.Finder{Home: "/nonexistent-home"}
 	procs := []*procfs.Proc{table.ByPID[900]}
 	// ws is deep: billing beside web-app counts, named once, and wins.
-	if got := commandRepo(table, procs, f); got != filepath.Join(ws, "billing") {
+	if got := commandRepo(table, procs, f, nil); got != filepath.Join(ws, "billing") {
 		t.Errorf("beside a deep repository: %q", got)
 	}
 	for repo, want := range map[string]bool{"/opt/app": false, "/app": false, "/srv/projects/app": true, "/mnt/c/src/app": true} {
@@ -469,10 +562,10 @@ func TestShellWords(t *testing.T) {
 		want []string
 	}{
 		{`a 'b c' "d e" f\ g`, []string{"a", "b c", "d e", "f g"}},
-		{`x;y&&z|w>v<(u)`, []string{"x", "y", "z", "w", "v", "u"}},
+		{`x;y&&z|w>v<(u)`, []string{"x", "y", "z", "u", "w", "v"}},
 		{`'it'"'"'s' "say \"hi\" \$x \q"`, []string{"it's", `say "hi" $x \q`}},
 		{"a \\\nb ''", []string{"a", "b", ""}},
-		{"cat $(ls /srv/x) `pwd`", []string{"cat", "$", "ls", "/srv/x", "pwd"}},
+		{"cat $(ls /srv/x) `pwd`", []string{"ls", "/srv/x", "pwd", "cat", "$(…)", "$(…)"}},
 		{"'open", []string{"open"}},
 	} {
 		if got := shellWords(c.code); !slices.Equal(got, c.want) {

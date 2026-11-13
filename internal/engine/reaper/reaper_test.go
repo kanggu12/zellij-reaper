@@ -1393,9 +1393,11 @@ func TestASessionBroughtBackKeepsItsGivenName(t *testing.T) {
 
 func TestANameZellijKeepsGetsATail(t *testing.T) {
 	// zellij keeps the old name of an attached session asked for a name it had
-	// before: the next variant is asked for.
+	// before: the next variant is asked for. The sessions here tell nothing of
+	// their server's version, and the zellij on the PATH refuses former names.
 	w := newWorld(t)
 	w.env.Config.AutoRename = true
+	w.env.RefusesFormerNames = true
 	w.zj.keep = map[string]bool{"htop": true}
 	if _, err := reaper.Run(context.Background(), w.env, reaper.Options{NamesOnly: true}); err != nil {
 		t.Fatal(err)
@@ -1407,6 +1409,7 @@ func TestANameZellijKeepsGetsATail(t *testing.T) {
 	// after it.
 	w = newWorld(t)
 	w.env.Config.AutoRename = true
+	w.env.RefusesFormerNames = true
 	w.zj.keep = map[string]bool{"htop": true, "htop-2": true}
 	var asked []string
 	w.zj.onRename = func(to string) { asked = append(asked, to) }

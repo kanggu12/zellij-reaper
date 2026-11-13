@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kanggu12/zellij-reaper/internal/engine/inspect"
+	"github.com/kanggu12/zellij-reaper/internal/machine/zellij"
 )
 
 // zellij 0.44 and 0.45 refuse a session any name it had before, for as long as
@@ -77,11 +78,11 @@ func loadFormer(path string) *formerBook {
 	return b
 }
 
-// apply writes down the name each running session has now, when record is on
-// (a zellij that refuses former names), and sets on each session the names it
-// had (inspect.Session.Former). A session no survey has seen for formerTTL
-// leaves the book.
-func (b *formerBook) apply(sessions []inspect.Session, now time.Time, record bool) {
+// apply writes down the name each running session has now, when its server
+// refuses former names (record), and sets on each session the names it had
+// (inspect.Session.Former). A session no survey has seen for formerTTL leaves
+// the book.
+func (b *formerBook) apply(sessions []inspect.Session, now time.Time, record func(inspect.Session) bool) {
 	for i := range sessions {
 		s := &sessions[i]
 		key := projectKey(*s)
@@ -89,7 +90,7 @@ func (b *formerBook) apply(sessions []inspect.Session, now time.Time, record boo
 			continue
 		}
 		e, ok := b.at[key]
-		if record && !slices.Contains(e.Names, s.Name()) {
+		if record(*s) && !slices.Contains(e.Names, s.Name()) {
 			e.Names = appendFormer(e.Names, s.Name())
 			b.changed = true
 		}
@@ -112,6 +113,12 @@ func (b *formerBook) apply(sessions []inspect.Session, now time.Time, record boo
 			b.changed = true
 		}
 	}
+}
+
+// refusesFormer says whether a session's server refuses it the names it had,
+// by what the session tells of its version, else by the zellij on the PATH.
+func (e *Env) refusesFormer(s inspect.Session) bool {
+	return zellij.RefusedBySession(s.Socket, s.ByID, e.RefusesFormerNames)
 }
 
 // learn writes down a name zellij refused a session because it had it before.

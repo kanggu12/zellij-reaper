@@ -190,6 +190,10 @@ func (e *Env) rename(ctx context.Context, book *formerBook, o *Outcome, desired,
 	if former == nil {
 		former = map[string]bool{}
 	}
+	// Whether this session's server refuses former names: from one that
+	// gives them back, a kept name is a server that did not act, and a name
+	// said to exist is taken.
+	refuses := e.refusesFormer(o.Session)
 	// kept counts the names zellij kept the old name instead of (zellij.ErrKept).
 	kept := 0
 	for attempt := target; ; {
@@ -210,6 +214,9 @@ func (e *Env) rename(ctx context.Context, book *formerBook, o *Outcome, desired,
 		// book held). The book learns it, so no pass asks for it again. A slow
 		// server may yet act on it, so the name stays out of reach of the
 		// sessions after this one, as an unconfirmed rename's does.
+		if !refuses {
+			err = zellij.GivenBack(err)
+		}
 		if errors.Is(err, zellij.ErrKept) {
 			book.learn(o.Session, attempt, e.Now())
 			former[attempt] = true

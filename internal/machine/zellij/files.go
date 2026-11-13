@@ -44,6 +44,43 @@ func RefusesFormerNames(version string) bool {
 	return major == 0 && (minor == 44 || minor == 45)
 }
 
+// RefusedBySession says whether a session's server refuses it the names it
+// had, by what the session tells of its version, where the zellij on the PATH
+// may be another (an upgrade leaves the old servers running): one zellij names
+// by id is 0.46 or later, which gives names back; a socket in a folder named
+// after a version is that version's (0.43); one in a contract folder and named
+// by its name is 0.44 or 0.45. fallback answers for a session that tells
+// nothing.
+func RefusedBySession(socket string, byID, fallback bool) bool {
+	if byID {
+		return false
+	}
+	if socket == "" {
+		return fallback
+	}
+	dir := filepath.Base(filepath.Dir(socket))
+	if versionDirRe.MatchString(dir) {
+		return RefusesFormerNames(dir)
+	}
+	if contractRe.MatchString(dir) {
+		return true
+	}
+	return fallback
+}
+
+// GivenBack is a rename's error as a server that gives former names back means
+// it: a kept name is a rename not seen to happen, and a name said to exist is
+// taken.
+func GivenBack(err error) error {
+	switch {
+	case errors.Is(err, ErrHad):
+		return ErrNameTaken
+	case errors.Is(err, ErrKept):
+		return ErrUnconfirmed
+	}
+	return err
+}
+
 // SessionInfoDir finds the directory with one subdirectory per session, under
 // zellij's cache directory (config.ZellijCacheDir). Before 0.44 it is
 // <cache>/<version>/session_info; since then <cache>/contract_version_N/
