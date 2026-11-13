@@ -85,9 +85,15 @@ func TestRenameFailuresAreWordedInTheScreensLanguage(t *testing.T) {
 			t.Errorf("%v came out in English: %q", err, got)
 		}
 	}
-	// A name the session had is said as such, not as a rename not yet seen.
-	if got := RenameFailed(kept); got != i18n.T("toast.rename.failed", i18n.T("rename.had")) {
-		t.Errorf("a name the session had: %q", got)
+	// A name the session had is said as such, not as a rename not yet seen
+	// nor as a name another session has.
+	for _, err := range []error{kept, zellij.ErrHad} {
+		if got := RenameFailed(err); got != i18n.T("toast.rename.failed", i18n.T("rename.had")) {
+			t.Errorf("a name the session had (%v): %q", err, got)
+		}
+	}
+	if got := RenameFailed(zellij.ErrNameTaken); got != i18n.T("toast.rename.failed", i18n.T("rename.taken")) {
+		t.Errorf("a name another session has: %q", got)
 	}
 	if got := RenameFailed(errors.New("other")); !strings.Contains(got, "other") {
 		t.Errorf("another error lost its words: %q", got)

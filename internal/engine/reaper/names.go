@@ -217,6 +217,12 @@ func (e *Env) rename(ctx context.Context, book *formerBook, o *Outcome, desired,
 			kept++
 			refused = kept <= maxKept
 		}
+		// The same refusal with no client attached: zellij says the name
+		// exists, which it did not list. Learned too, and costs no wait.
+		if errors.Is(err, zellij.ErrHad) {
+			book.learn(o.Session, attempt, e.Now())
+			former[attempt] = true
+		}
 		// Dropping a tail zellij refuses, because the session had the plain
 		// name before: it keeps the name it has, and nothing is logged.
 		if refused && rename.Same(name, desired) {

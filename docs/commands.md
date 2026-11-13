@@ -94,8 +94,9 @@ and shows among the dashboard's recent decisions.
 
 **`rename NAME NEW-NAME`** renames a running session, as <kbd>r</kbd> does in the dashboard. A name given by hand is
 someone's choice, so passes leave it alone, and a protection follows the session to its new name. A name too long for
-the socket path or taken by another session is refused, and so is an exited session; renaming a session to the name it
-has keeps that name, as `keep-name` does. Once it has said so, it looks for the copy zellij may leave under the old
+the socket path or taken by another session is refused, and so is an exited session; zellij 0.44 and 0.45 also keep the
+old name of a session given a name it had before, and `rename` says so. Renaming a session to the name it has keeps
+that name, as `keep-name` does. Once it has said so, it looks for the copy zellij may leave under the old
 name, as a pass does ([how it decides](how-it-decides.md#a-pass-step-by-step)): it waits 1.5 seconds, then up to five
 for the lock, and deletes the copy it finds. zellij on Windows cannot reach a session after a rename, so `rename`
 refuses there.

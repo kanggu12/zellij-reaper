@@ -183,6 +183,27 @@ func TestARefusedNameIsLearned(t *testing.T) {
 	}
 }
 
+func TestANameRefusedWithNoClientIsLearnedToo(t *testing.T) {
+	// With no client attached, zellij says a name the session had exists:
+	// the pass asks for the tail at once, and the book learns the name.
+	w, asked := formerWorld(t, newWorld(t), true)
+	w.zj.had = map[string]bool{"htop": true}
+	names(t, w)
+	if strings.Join(*asked, ",") != "htop,htop-2" || strings.Join(w.zj.renamed, ",") != "busy->htop-2" {
+		t.Errorf("asked %v, renamed %v", *asked, w.zj.renamed)
+	}
+	if got, _ := readFormer(t, w); strings.Join(got, ",") != "busy,htop" {
+		t.Errorf("book %v", got)
+	}
+	// Any number of them: no wait, so no bound but the tails.
+	w, asked = formerWorld(t, newWorld(t), true)
+	w.zj.had = map[string]bool{"htop": true, "htop-2": true, "htop-3": true, "htop-4": true}
+	names(t, w)
+	if strings.Join(w.zj.renamed, ",") != "busy->htop-5" {
+		t.Errorf("asked %v, renamed %v", *asked, w.zj.renamed)
+	}
+}
+
 func TestAServerThatKeepsEveryNameStopsAfterThree(t *testing.T) {
 	// A session that came back to htop four times has four names zellij keeps
 	// the old one instead of, the book knowing none: the first three are

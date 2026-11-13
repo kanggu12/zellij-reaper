@@ -399,8 +399,9 @@ A name changes only when what the session shows changes, or the project its agen
 name keeps working until then. When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij 0.44 and
 0.45 refuse a session a name it has had before, for as long as the session runs, so a title or a project that comes back
 gives a tail too. A pass writes down the names it sees each session under (`former`) and asks for the tail straight
-away. A name it did not see, one given by hand between two passes say, zellij refuses once, telling only the client
-attached and keeping the old name; the pass learns it and asks for the tail. zellij 0.43 gives such a name back.
+away. A name it did not see, one given by hand between two passes say, zellij refuses once: with no client attached it
+says the name exists, and with one it tells only that client and keeps the old name. The pass learns the name and asks
+for the tail. zellij 0.43 gives such a name back.
 
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a

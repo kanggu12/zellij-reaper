@@ -546,9 +546,11 @@ func TestRename(t *testing.T) {
 	if s.count("rename-session") != 0 {
 		t.Errorf("asked zellij to rename onto a taken name: %v", s.calls)
 	}
-	// A name zellij remembers without listing it, as 0.43 says it.
+	// A name zellij remembers without listing it, as 0.44 and 0.45 refuse a
+	// session a name it had: the session had it, and the name counts as
+	// taken all the same.
 	s = &script{listed: "a [Created 1h ago]\n", renameOut: "A session by this name already exists.\n", renameErr: errors.New("exit status 2")}
-	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrNameTaken) {
+	if err := s.cli().Rename(ctx, "a", "b"); !errors.Is(err, ErrHad) || !errors.Is(err, ErrNameTaken) {
 		t.Errorf("name refused by zellij: %v", err)
 	}
 	// A rename zellij accepts and does not do is not reported as done.

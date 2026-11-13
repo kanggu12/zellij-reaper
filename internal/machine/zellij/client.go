@@ -34,9 +34,17 @@ var ErrUnconfirmed = errors.New("zellij took the rename but does not list the ne
 // ErrKept is returned by Rename, wrapped with ErrUnconfirmed, when zellij took
 // the request and the session is still listed, running, under its old name.
 // zellij 0.44 and 0.45 do that with a name the session had before when a client
-// is attached: the refusal goes to the client, and the command exits 0. A
-// server too busy to act on a rename looks the same.
+// is attached: the refusal goes to the client, which only writes it to zellij's
+// log, and the command exits 0. A server too busy to act on a rename looks the
+// same.
 var ErrKept = errors.New("zellij kept the session's old name")
+
+// ErrHad is returned by Rename when zellij says the new name exists, though it
+// did not list it a moment before: a name zellij remembers without listing it.
+// zellij 0.44 and 0.45 remember every name a session had, and refuse it that
+// name for as long as it runs; with no client attached this is what they say.
+// It wraps ErrNameTaken, which it is too.
+var ErrHad = fmt.Errorf("zellij refuses the session a name it had before: %w", ErrNameTaken)
 
 // cutShort is a command stopped before it finished, by the time limit or by the
 // caller. It may have done what it was asked all the same.
@@ -286,8 +294,8 @@ func (c *CLI) waitDeleted(ctx context.Context, name string) error {
 // A name that is taken is refused here, because zellij may not refuse it:
 // since 0.44 `rename-session` exits 0 and moves the session's socket file over
 // the other session's, which leaves that other server running with no way to
-// reach it. 0.43 still says "already exists", which comes back as ErrNameTaken
-// too, and so does a name zellij remembers without listing it.
+// reach it. 0.43 still says "already exists". A name zellij says exists after
+// it did not list it comes back as ErrHad, which is ErrNameTaken too.
 func (c *CLI) Rename(ctx context.Context, name, to string) error {
 	if !RenameReachable() {
 		return ErrRenameUnreachable
@@ -301,8 +309,10 @@ func (c *CLI) Rename(ctx context.Context, name, to string) error {
 	}
 	out, errOut, err := c.call(ctx, "--session", name, "action", "rename-session", to)
 	if err != nil {
+		// Not listed a moment ago, so not another session's: a name zellij
+		// remembers, which 0.44 and 0.45 do for a name this session had.
 		if strings.Contains(errOut+out, "already exists") {
-			return ErrNameTaken
+			return ErrHad
 		}
 		// Stopped before it finished: the server may have taken it all the same.
 		if errors.As(err, new(cutShort)) {

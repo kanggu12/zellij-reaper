@@ -739,6 +739,7 @@ start curious-crab /tmp/agent.kdl && wait_reachable curious-crab
 for _ in $(seq 100); do grep -q 'title "codex"' "$INFO/$(file_of curious-crab)/session-metadata.kdl" 2>/dev/null && break; sleep 0.1; done
 # A client attached, as a terminal left open on it.
 script -qfec "$Z attach curious-crab" /dev/null >/dev/null 2>&1 &
+client=$!
 for _ in $(seq 100); do
   $Z --session curious-crab action list-clients 2>/dev/null | grep -q '^[0-9]' && break
   sleep 0.1
@@ -766,8 +767,8 @@ check "the session follows it to billing" listed billing
 # the book of former names knows the session had web-app, so the pass asks
 # for web-app-2 straight away. 0.43 and the main branch give the name back.
 case "$ver" in
-  0.44.* | 0.45.*) back=web-app-2 again=billing-2 ;;
-  *) back=web-app again=billing ;;
+  0.44.* | 0.45.*) back=web-app-2 again=billing-2 third=web-app-3 ;;
+  *) back=web-app again=billing third=web-app ;;
 esac
 # clean_names runs a names pass, and fails if it fails or a rename in it
 # does: a names pass logs nothing unless a name changed, so its output says.
@@ -785,19 +786,43 @@ for i in 1 2 3 4; do
 done
 check "the session follows it back to web-app, as $back" listed "$back"
 # A book from before 0.14.2 has no former names, and neither has one that was
-# lost: the pass asks zellij for billing, which 0.44 and 0.45 keep the old
-# name instead of, learns that, and asks for the tail.
+# lost: the pass asks zellij for the name. With no client attached, 0.44 and
+# 0.45 say it exists, though it is not listed; the pass learns that the
+# session had it and asks for the tail.
 rm -f ~/.local/state/zellij-reaper/former
+kill "$client" 2>/dev/null
+for _ in $(seq 100); do
+  $Z --session "$back" action list-clients 2>/dev/null | grep -q '^[0-9]' || break
+  sleep 0.1
+done
 for i in 1 2 3 4; do
   work /srv/projects/billing
-  check "names pass $i back in billing, with no book, renames nothing in vain" clean_names
+  check "names pass $i back in billing, with no book and no client, renames nothing in vain" clean_names
 done
 check "the session follows it back to billing, as $again" listed "$again"
 case "$ver" in
   0.44.* | 0.45.*) check "the book learned that the session had billing" grep -q '"billing"' ~/.local/state/zellij-reaper/former ;;
 esac
+# With a client attached again, zellij keeps the old name instead, telling
+# only that client; the pass learns that too. The book knows web-app-2 from
+# the passes since, so the tail is -3.
+script -qfec "$Z attach $again" /dev/null >/dev/null 2>&1 &
+client=$!
+for _ in $(seq 100); do
+  $Z --session "$again" action list-clients 2>/dev/null | grep -q '^[0-9]' && break
+  sleep 0.1
+done
+for i in 1 2 3 4; do
+  work /srv/projects/web-app
+  check "names pass $i back in web-app, with a client, renames nothing in vain" clean_names
+done
+check "the session follows it back to web-app, as $third" listed "$third"
+case "$ver" in
+  0.44.* | 0.45.*) check "the book learned that the session had web-app" grep -q '"web-app"' ~/.local/state/zellij-reaper/former ;;
+esac
 work stop
-for s in billing billing-2 web-app web-app-2; do
+kill "$client" 2>/dev/null
+for s in billing billing-2 web-app web-app-2 web-app-3; do
   $Z kill-session "$s" >/dev/null 2>&1
   $Z delete-session "$s" --force >/dev/null 2>&1
 done

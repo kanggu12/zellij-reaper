@@ -253,11 +253,12 @@ swapped such sessions between `-2` and `-3` on every pass. zellij 0.44 and 0.45 
 before, for as long as its server runs: the server keeps the names in memory, nothing on disk does, and another session
 may take such a name (0.43 and the main branch give it back). With a client attached the refusal goes to that client,
 which only writes it to zellij's log, and the command that asked exits 0 with the old name kept; `zellij.CLI.Rename`
-sees the session still running under it (`ErrKept`). So a pass keeps a book of the names it saw each running session
-under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a session coming back to one of
-them gets the tail straight away. A name the book did not know, one given by hand between two passes say, zellij keeps
-the old name for: the pass learns it and asks for the next, up to three in one rename (`maxKept`), and the next pass
-goes on from what it learned.
+sees the session still running under it (`ErrKept`). With no client attached, zellij says the name exists, though it did
+not list it a moment before, and `Rename` returns `ErrHad`. So a pass keeps a book of the names it saw each running
+session under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a session coming back to
+one of them gets the tail straight away. A name the book did not know, one given by hand between two passes say, the
+pass learns from either refusal and asks for the next; a kept name costs a wait, so one rename asks for up to three of
+those (`maxKept`), and the next pass goes on from what it learned.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file
 over the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at

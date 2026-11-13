@@ -47,6 +47,9 @@ type fakeZellij struct {
 	// keep makes a rename to these names come back kept: zellij took it, and
 	// the session is listed under its old name (zellij.ErrKept).
 	keep map[string]bool
+	// had makes zellij refuse these names as names the session had, with no
+	// client attached (zellij.ErrHad).
+	had map[string]bool
 	// onRename runs as zellij is asked for a rename, onDelete after a delete.
 	onRename func(to string)
 	onDelete func(name string)
@@ -137,6 +140,9 @@ func (f *fakeZellij) Rename(ctx context.Context, name, to string) error {
 	}
 	if f.keep[to] {
 		return fmt.Errorf("%w (%w)", zellij.ErrKept, zellij.ErrUnconfirmed)
+	}
+	if f.had[to] {
+		return zellij.ErrHad
 	}
 	f.renamed = append(f.renamed, name+"->"+to)
 	f.renamedAt = time.Now()

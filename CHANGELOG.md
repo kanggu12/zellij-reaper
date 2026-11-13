@@ -24,8 +24,9 @@ that only fixes raises the patch number. Each release's section here is its rele
 - Leaving a project settled on takes four counted commands in a row in one other repository, where two settle the first:
   a look into another repository, or an errand there, no longer renames the session. The repository an agent was started
   in is not settled that way, and two commands elsewhere move it.
-- A rename by hand to a name the session had before said that zellij did not list the new name yet; the dashboard and
-  `rename` now say that zellij keeps the old name because the session had that name before.
+- A rename by hand to a name the session had before said that another session had that name, or that zellij did not list
+  the new name yet; the dashboard and `rename` now say that zellij keeps the old name because the session had that name
+  before.
 
 ### Changed
 
