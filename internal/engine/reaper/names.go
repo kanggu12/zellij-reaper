@@ -206,8 +206,8 @@ func (e *Env) rename(ctx context.Context, book *formerBook, o *Outcome, desired,
 		refused := errors.Is(err, zellij.ErrNameTaken)
 		// zellij kept the old name: what 0.44 and 0.45 do, telling only the
 		// client attached, with a name the session had before and the book
-		// did not know of (a name given by hand between two passes, or before
-		// the book). The book learns it, so no pass asks for it again. A slow
+		// did not know of (one the session had before the book, or one a lost
+		// book held). The book learns it, so no pass asks for it again. A slow
 		// server may yet act on it, so the name stays out of reach of the
 		// sessions after this one, as an unconfirmed rename's does.
 		if errors.Is(err, zellij.ErrKept) {

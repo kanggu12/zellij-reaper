@@ -233,10 +233,10 @@ and run again it says there was nothing left. It does not need the settings file
 parses does not keep the timers on.
 
 `--purge` also removes the settings, the log, the protected list, the lists of given and kept names and the notes passes
-keep (`quiet`, `projects`), and takes the prompt hook out of `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish`:
-the line `setup` added, where it still reads as `setup` wrote it. The startup file is changed in place, so one that is
-a link into your dotfiles stays a link. What a purge leaves, it names: a hook line written another way, a file of yours
-in one of its folders, a file it could not remove.
+keep (`quiet`, `projects`, `former`), and takes the prompt hook out of `~/.bashrc`, `~/.zshrc` and
+`~/.config/fish/config.fish`: the line `setup` added, where it still reads as `setup` wrote it. The startup file is
+changed in place, so one that is a link into your dotfiles stays a link. What a purge leaves, it names: a hook line
+written another way, a file of yours in one of its folders, a file it could not remove.
 
 Neither removes the program, and the last line of a purge says where it is:
 
@@ -356,10 +356,10 @@ The name comes from the first of these that says something:
    wherever it stands, and else in the one it runs in; one naming two repositories as often works in the one of them it
    runs in, or in neither. A path on a command line counts near the work: under your home directory, under the directory
    one of the command's processes runs in, or beside the repository it runs in. The program a command runs is no work:
-   its own path, a script in a `bin` folder such as `/opt/homebrew/bin/pytest`, and the folders on a `PATH`. So an agent
-   that looks through many repositories, one command each, keeps its name, a look into another one, or an errand there,
-   does not move it, and a command that keeps running, such as a dev server or a loop, counts once. A command that
-   starts and ends between two passes is not seen, and between commands the name stays. An agent started inside a
+   its own path, a script in a `bin` folder such as `/opt/homebrew/bin/pytest`, and the `bin` folders on a `PATH`. So an
+   agent that looks through many repositories, one command each, keeps its name, a look into another one, or an errand
+   there, does not move it, and a command that keeps running, such as a dev server or a loop, counts once. A command
+   that starts and ends between two passes is not seen, and between commands the name stays. An agent started inside a
    repository is named after it until two commands in a row settle a project, and another agent in its place starts
    afresh. A git worktree counts as the repository it was made from, a bare repository's too. The agent's own title is
    the topic its conversation began with, which the work moves on from. When the agent ends, the rules below name the
@@ -398,10 +398,10 @@ characters, at the end of a word, and within what the session's socket path leav
 A name changes only when what the session shows changes, or the project its agent works in, so a script that attaches by
 name keeps working until then. When a name is taken, the session gets a `-2`, `-3`, and keeps that tail. zellij 0.44 and
 0.45 refuse a session a name it has had before, for as long as the session runs, so a title or a project that comes back
-gives a tail too. A pass writes down the names it sees each session under (`former`) and asks for the tail straight
-away. A name it did not see, one given by hand between two passes say, zellij refuses once: with no client attached it
-says the name exists, and with one it tells only that client and keeps the old name. The pass learns the name and asks
-for the tail. zellij 0.43 gives such a name back.
+gives a tail too. With those versions, a pass writes down the names it sees each session under (`former`) and asks for
+the tail straight away. A name it did not see, one a session had before this version, say, zellij refuses once: with no
+client attached it says the name exists, and with one it tells only that client and keeps the old name. The pass learns
+the name and asks for the tail. zellij 0.43 gives such a name back.
 
 Each pane keeps the session name it was opened under, in `ZELLIJ_SESSION_NAME`. After a rename, a `zellij` command run
 in an older pane without `--session`, such as `zellij run` or a prompt that runs `zellij action rename-tab`, waits for a
@@ -422,8 +422,9 @@ only after the startup file runs, or a machine it was removed from. `setup` up t
 `uninstall --purge` takes out that line too.
 
 The names timer runs a renaming pass every `rename_interval` (5 minutes). It deletes nothing but the copy zellij may
-leave of a renamed session under its old name, writes down where coding agents work (`projects`) and the names it sees
-sessions under (`former`), and writes to the log only when it renames. The hourly pass renames too.
+leave of a renamed session under its old name, writes down where coding agents work (`projects`) and, with zellij 0.44
+or 0.45, the names it sees sessions under (`former`), and writes to the log only when it renames. The hourly pass
+renames too.
 `zellij-reaper keep-name NAME` keeps a name as `r`, Tab and Enter do; `forget-name NAME` lets passes rename it again,
 and `keep-name` alone lists the kept names. With `auto_rename_drop_tail = true`, the hourly pass gives a session it
 named `api-2` the name `api` once no other session has it, unless the session had `api` before, which zellij 0.44 and

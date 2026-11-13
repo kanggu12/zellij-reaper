@@ -216,7 +216,7 @@ most in their command lines, and else in the one most of them run in; a tie amon
 processes run in, else counts for none (`commandRepo`). A named path is an absolute or `~/` one within the command's
 reach: under the home, under a directory one of its processes runs in, or beside the repository one runs in, and not in
 the home's hidden folders. The program a process runs is no work: its first word, a script in a `bin` folder (`python3
-/opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a git checkout), and the folders on a `PATH`.
+/opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a git checkout), and the `bin` folders on a `PATH`.
 `namedPaths` reads shell code as the shell splits it, quotes and all, so a quoted path with blanks is one path, and the
 command Claude Code hands eval is read again as code. It lists the repositories the commands work in, each with the
 start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on
@@ -254,11 +254,11 @@ before, for as long as its server runs: the server keeps the names in memory, no
 may take such a name (0.43 and the main branch give it back). With a client attached the refusal goes to that client,
 which only writes it to zellij's log, and the command that asked exits 0 with the old name kept; `zellij.CLI.Rename`
 sees the session still running under it (`ErrKept`). With no client attached, zellij says the name exists, though it did
-not list it a moment before, and `Rename` returns `ErrHad`. So a pass keeps a book of the names it saw each running
-session under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a session coming back to
-one of them gets the tail straight away. A name the book did not know, one given by hand between two passes say, the
-pass learns from either refusal and asks for the next; a kept name costs a wait, so one rename asks for up to three of
-those (`maxKept`), and the next pass goes on from what it learned.
+not list it a moment before, and `Rename` returns `ErrHad`. So with those versions a pass keeps a book of the names it
+saw each running session under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a
+session coming back to one of them gets the tail straight away. A name the book did not know, one a session had before
+this version, say, the pass learns from either refusal and asks for the next; a kept name costs a wait, so one rename
+asks for up to three of those (`maxKept`), and the next pass goes on from what it learned.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file
 over the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at
