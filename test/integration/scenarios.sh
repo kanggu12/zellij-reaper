@@ -110,6 +110,43 @@ start() {
   return 1
 }
 
+# Whether a process whose command line holds $2 runs under the server of
+# session $1. Two sessions can run the same program, so a match must have that
+# server among its parents.
+runs_in() {
+  local server pid p
+  server=$(server_pid "$1")
+  [ -n "$server" ] || return 1
+  for pid in $(pgrep -f -- "$2"); do
+    p=$pid
+    # Up the parents until the server, or the container's first process.
+    while [ -n "$p" ] && [ "$p" -gt 1 ]; do
+      [ "$p" = "$server" ] && return 0
+      p=$(ps -o ppid= -p "$p" | tr -d ' ')
+    done
+  done
+  return 1
+}
+
+# Run a program in a new pane of session $1 (zellij run's arguments after the
+# first two), and wait until a process whose command line holds $2 runs under
+# its server. zellij 0.43.1 once lost a run sent to a session it listed, with
+# exit status 0: the session had no job, and the checks judged a session that
+# was never set up. A run that starts nothing in ten seconds is sent once more.
+run_pane() {
+  local s=$1 needle=$2 try
+  shift 2
+  for try in 1 2; do
+    $Z --session "$s" run "$@" >/dev/null 2>&1
+    for _ in $(seq 100); do
+      runs_in "$s" "$needle" && return 0
+      sleep 0.1
+    done
+    echo "  (nothing runs $needle in $s after run $try)"
+  done
+  return 1
+}
+
 # How many clients the plan counts on one session.
 clients_are() { [ "$($R plan --json | jq -r --arg n "$1" '.sessions[] | select(.name==$n) | .clients')" = "$2" ]; }
 # How many clients zellij itself lists on one.
@@ -257,17 +294,17 @@ for _ in 1 2 3 4 5; do
   $Z delete-session "$own" --force >/dev/null 2>&1
 done
 check "zellij picks a name" test -n "$own"
-wait_pane "$own" && wait_reachable "$own" && $Z --session "$own" run -- sleep 99996 >/dev/null
+wait_pane "$own" && wait_reachable "$own" && run_pane "$own" 'sleep 99996' -- sleep 99996
 # Started first: the auto_rename scenario needs its metadata settled.
 start named /tmp/named.kdl
 start idle-old && age_ptys idle-old '-3 hours'
 start idle-new
-start shell-busy && $Z --session shell-busy run -- bash -c 'sleep 100000; true' >/dev/null 2>&1
-start cmd-pane && $Z --session cmd-pane run -- sleep 99999 >/dev/null 2>&1
-start agent && $Z --session agent run -- claude >/dev/null 2>&1
+start shell-busy && run_pane shell-busy 'sleep 100000' -- bash -c 'sleep 100000; true'
+start cmd-pane && run_pane cmd-pane 'sleep 99999' -- sleep 99999
+start agent && run_pane agent claude -- claude
 # Jobs whose input is not the terminal: still panes, and busy.
-start nohup-job && $Z --session nohup-job run -- nohup sleep 99998 >/dev/null 2>&1
-start redirected && $Z --session redirected run -- sh -c 'exec sleep 99997 </dev/null' >/dev/null 2>&1
+start nohup-job && run_pane nohup-job 'sleep 99998' -- nohup sleep 99998
+start redirected && run_pane redirected 'sleep 99997' -- sh -c 'exec sleep 99997 </dev/null'
 start attached && { script -qfec "$Z attach attached" /dev/null >/dev/null 2>&1 & }
 start keepme && age_ptys keepme '-3 hours'
 start first && rename_to first second
@@ -278,7 +315,7 @@ start first && rename_to first second
 age_ptys first '-3 hours'
 for s in exited-old exited-new; do
   # A second pane makes zellij save the layout, which resurrection needs.
-  start "$s" && $Z --session "$s" run -- sleep 5000 >/dev/null 2>&1
+  start "$s" && run_pane "$s" 'sleep 5000' -- sleep 5000
 done
 # zellij lists an exited session only once it has saved a layout, which takes
 # longer on a slow machine than any fixed wait here would allow for.
@@ -416,16 +453,19 @@ for _ in $(seq 100); do
   [ "$(clients_on brave-yak)" = 1 ] && break
   sleep 0.1
 done
-$Z --session brave-yak run --name 'build watcher' -- sleep 99994 >/dev/null 2>&1
+# The server's command line still has the name the session started under
+# (none if it did not start: server_pid then looks the new name up).
+SOCK[brave-yak]=${SOCK[hand-later]:-}
+run_pane brave-yak 'sleep 99994' --name 'build watcher' -- sleep 99994
 hand_later=$(server_pid hand-later)
+# The first pane's shell is the server's oldest child. It is told by its pid:
+# a run that came late as well as again leaves two panes running the job.
+first_pane=$(pgrep -P "$hand_later" | head -1)
+kill -9 "$first_pane"
+# Gone once zellij has waited for it.
+pid_gone() { [ -n "$1" ] && ! kill -0 "$1" 2>/dev/null; }
 for _ in $(seq 50); do
-  [ "$(pgrep -P "$hand_later" | wc -l)" -ge 2 ] && break
-  sleep 0.1
-done
-# The first pane's shell is the server's oldest child.
-kill -9 "$(pgrep -P "$hand_later" | head -1)"
-for _ in $(seq 50); do
-  [ "$(pgrep -P "$hand_later" | wc -l)" = 1 ] && break
+  pid_gone "$first_pane" && break
   sleep 0.1
 done
 # Then the visitor's terminal closes, so that only the name can keep the session
@@ -435,7 +475,8 @@ for _ in $(seq 100); do
   [ "$(clients_on brave-yak)" = 0 ] && break
   sleep 0.1
 done
-check "its first pane is gone" test "$(pgrep -P "$hand_later" | wc -l)" = 1
+check "its first pane is gone" pid_gone "$first_pane"
+check "and the pane run opened runs on" runs_in brave-yak 'sleep 99994'
 check "and nobody is attached to it" test "$(clients_on brave-yak)" = 0
 check "the titles reach the metadata" titled quiet-mouse 'build watcher' adept-magpie 'same title' kind-viola 'same title' \
   rusty-pepper 'notes v1.2.md' brave-peach 'notes from the long planning meeting about the next release' \
@@ -539,11 +580,11 @@ check "the names pass says so in the log" sh -c "grep -q -- '-> renamed: wise-pa
 # command returns, where the pane's own ZELLIJ_SESSION_NAME would wait.
 start adept-peach
 # shellcheck disable=SC2016 # expanded in the pane, not here
-$Z --session adept-peach run -- bash -c 'while [ ! -e /tmp/go-here ]; do sleep 0.1; done
+run_pane adept-peach go-here -- bash -c 'while [ ! -e /tmp/go-here ]; do sleep 0.1; done
   zellij-reaper here >/tmp/here.out 2>&1; echo "rc=$?" >>/tmp/here.out
   ZELLIJ_SESSION_NAME=$(zellij-reaper here) timeout 6 zellij action list-clients >/dev/null 2>&1; echo "cmd=$?" >>/tmp/here.out
   eval "$(zellij-reaper shell-hook bash)"; ZELLIJ_SESSION_NAME=adept-peach; false; __zellij_reaper_here
-  echo "hook=$? $ZELLIJ_SESSION_NAME" >>/tmp/here.out' >/dev/null 2>&1
+  echo "hook=$? $ZELLIJ_SESSION_NAME" >>/tmp/here.out'
 sleep 1
 rename_to adept-peach peach-renamed
 touch /tmp/go-here
@@ -635,10 +676,11 @@ sock_of() {
 running() { [ -n "$(server_pid "$1")" ]; }
 stopped() { sleep 1; [ -z "$(server_pid "$1")" ]; }
 start orph-client && { script -qfec "$Z attach orph-client" /dev/null >/dev/null 2>&1 & }
-start orph-busy && $Z --session orph-busy run -- sleep 99999 >/dev/null
+start orph-busy && run_pane orph-busy 'sleep 99999' -- sleep 99999
 start orph-idle
 # One renamed since it started, and busy.
-start orph-first && rename_to orph-first orph-now && $Z --session orph-now run -- sleep 99993 >/dev/null
+start orph-first && rename_to orph-first orph-now && SOCK[orph-now]=${SOCK[orph-first]:-} &&
+  run_pane orph-now 'sleep 99993' -- sleep 99993
 sleep 3
 for s in orph-client orph-busy orph-idle; do rm -f "$(sock_of "$s")"; done
 rm -f "$(sock_of orph-first orph-now)"
