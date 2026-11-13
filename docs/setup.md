@@ -355,15 +355,16 @@ The name comes from the first of these that says something:
    command works in the repository its command line names, as a helper agent naming the files it works on in full does
    wherever it stands, and else in the one it runs in; one naming two repositories as often works in the one of them it
    runs in, or in neither. A path on a command line counts near the work: under your home directory, under the directory
-   one of the command's processes runs in, or beside the repository it runs in. The program a command runs is no work:
-   its own path, a script in a `bin` folder such as `/opt/homebrew/bin/pytest`, and the `bin` folders on a `PATH`. So an
-   agent that looks through many repositories, one command each, keeps its name, a look into another one, or an errand
-   there, does not move it, and a command that keeps running, such as a dev server or a loop, counts once. A command
-   that starts and ends between two passes is not seen, and between commands the name stays. An agent started inside a
-   repository is named after it until two commands in a row settle a project, and another agent in its place starts
-   afresh. A git worktree counts as the repository it was made from, a bare repository's too. The agent's own title is
-   the topic its conversation began with, which the work moves on from. When the agent ends, the rules below name the
-   session again.
+   one of the command's processes runs in, or beside the repository it runs in, unless that folder is right under `/`,
+   as `/opt` is. The programs a command runs are no work: the first word of each command, in the code a helper runs too,
+   what `sudo`, `env` or `timeout` run, a script `source` reads, a script in a `bin` folder such as
+   `/opt/homebrew/bin/pytest`, and the `bin` folders on a `PATH`. So an agent that looks through many repositories, one
+   command each, keeps its name, a look into another one, or an errand there, does not move it, and a command that keeps
+   running, such as a dev server or a loop, counts once. A command that starts and ends between two passes is not seen,
+   and between commands the name stays. An agent started inside a repository is named after it until two commands in a
+   row settle a project, and another agent in its place starts afresh. A git worktree counts as the repository it was
+   made from, a bare repository's too. The agent's own title is the topic its conversation began with, which the work
+   moves on from. When the agent ends, the rules below name the session again.
 2. **A pane's title**, the focused pane first, then the other panes still running. With nobody attached zellij marks no
    tab active, so that is the first tab's focused pane.
 3. **The directory and the program**, when the titles only name a program (`Claude Code`, `nvim`) or say nothing:

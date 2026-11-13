@@ -214,28 +214,31 @@ In a session where a coding agent runs, `inspect` finds the agent under each pan
 process for a command, with what runs under it, the newest first. A command works in the repository its processes name
 most in their command lines, and else in the one most of them run in; a tie among the named goes to the one of them the
 processes run in, else counts for none (`commandRepo`). A named path is an absolute or `~/` one within the command's
-reach: under the home, under a directory one of its processes runs in, or beside the repository one runs in, and not in
-the home's hidden folders. The program a process runs is no work: its first word, a script in a `bin` folder (`python3
-/opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a git checkout), and the `bin` folders on a `PATH`.
-`namedPaths` reads shell code as the shell splits it, quotes and all, so a quoted path with blanks is one path, and the
-command Claude Code hands eval is read again as code. It lists the repositories the commands work in, each with the
-start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give, or `stat` on
-Linux). A loop that starts a process every few seconds is one command that way, and so is a language server. An agent
-that starts itself again as its only child, as Gemini CLI does for more memory, works through that child. An agent is a
-program by its own name, or a script an interpreter runs, by the script's file name or the npm package it is in, whose
-name has the agent's as a word (`node .../claude-code/cli.js`); a folder of someone's own with an agent's name in its
-path, or another program's argument, names nothing. `repo.Finder` walks up from a process's directory to a `.git`,
-without running git, counting a worktree as the repository it was made from, a bare repository's too (git gives a
-worktree's git folder a `commondir` file, and a submodule's none), and the home directory, also through a link, as no
-project; every folder a walk passes keeps its answer for the rest of the survey, so the files of one folder cost one
-walk. A pass keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file), keyed by the server's
-pid and start and the name or id it started under, which a rename does not change: the repository of the newest command,
-when it started after the last one counted and ran in the same repository as that one, becomes the project, which
-`rename.Suggest` takes before any title; once commands settled one, moving it takes four in a row in one other
-repository (`leaveCount`), while the repository the agent was started in, which names the session until then, moves in
-two. The agent the book counted for speaks for the session while it runs, whatever starts in its other panes. The book
-keeps the project between commands, starts afresh for the next agent once that one ends, forgets it when no agent runs,
-and drops a session no pass has seen for a day.
+reach: under the home, under a directory one of its processes runs in, or beside the repository one runs in, unless that
+folder is right under the root (`/opt` holds Homebrew's prefix), and not in the home's hidden folders. A command line is
+read as commands, the shell's way (`commandPaths`): each one's first word is its program, no work, and so are what
+`sudo`, `env`, `timeout` or `xargs` run and a script `source` or `.` reads (Claude Code sources a snapshot of its
+settings before each command, and those may be kept in git); the code `eval` and a shell's `-c` run is read the same
+way, quotes and all, so a quoted path with blanks is one path. A path in a `bin` or `sbin` folder is a program's too
+(`python3 /opt/homebrew/bin/pytest`; Homebrew's prefix on Apple silicon is a git checkout), and so are the `bin` folders
+on a `PATH`; npm's `.bin` is in the project that installed it, and counts. It lists the repositories the commands work
+in, each with the start of its newest command there (`procfs.StartMarkOf`, the start the macOS and Windows readers give,
+or `stat` on Linux). A loop that starts a process every few seconds is one command that way, and so is a language
+server. An agent that starts itself again as its only child, as Gemini CLI does for more memory, works through that
+child. An agent is a program by its own name, or a script an interpreter runs, by the script's file name or the npm
+package it is in, whose name has the agent's as a word (`node .../claude-code/cli.js`); a folder of someone's own with
+an agent's name in its path, or another program's argument, names nothing. `repo.Finder` walks up from a process's
+directory to a `.git`, without running git, counting a worktree as the repository it was made from, a bare repository's
+too (git gives a worktree's git folder a `commondir` file, and a submodule's none), and the home directory, also through
+a link, as no project; every folder a walk passes keeps its answer for the rest of the survey, so the files of one
+folder cost one walk. A pass keeps a book of what it settled on (`reaper/projects.go`, the `projects` state file), keyed
+by the server's pid and start and the name or id it started under, which a rename does not change: the repository of the
+newest command, when it started after the last one counted and ran in the same repository as that one, becomes the
+project, which `rename.Suggest` takes before any title; once commands settled one, moving it takes four in a row in one
+other repository (`leaveCount`), while the repository the agent was started in, which names the session until then,
+moves in two. The agent the book counted for speaks for the session while it runs, whatever starts in its other panes.
+The book keeps the project between commands, starts afresh for the next agent once that one ends, forgets it when no
+agent runs, and drops a session no pass has seen for a day.
 
 `rename.Suggest` looks at the focused pane first, then at the other panes that are still running. Once nobody is
 attached zellij marks no tab active, so a pass starts from the first tab's focused pane. A title with something to say
@@ -254,11 +257,13 @@ before, for as long as its server runs: the server keeps the names in memory, no
 may take such a name (0.43 and the main branch give it back). With a client attached the refusal goes to that client,
 which only writes it to zellij's log, and the command that asked exits 0 with the old name kept; `zellij.CLI.Rename`
 sees the session still running under it (`ErrKept`). With no client attached, zellij says the name exists, though it did
-not list it a moment before, and `Rename` returns `ErrHad`. So with those versions a pass keeps a book of the names it
-saw each running session under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a
-session coming back to one of them gets the tail straight away. A name the book did not know, one a session had before
-this version, say, the pass learns from either refusal and asks for the next; a kept name costs a wait, so one rename
-asks for up to three of those (`maxKept`), and the next pass goes on from what it learned.
+not list it a moment before, and `Rename` returns `ErrHad`. It returns these two only for a zellij whose version refuses
+former names (`CLI.RefusesFormerNames`): from 0.43 or the main branch, a kept name is a server that did not act on the
+rename, and a name said to exist is taken. So with those versions a pass keeps a book of the names it saw each running
+session under (`reaper/former.go`, the `former` state file, keyed as the project book is), and a session coming back to
+one of them gets the tail straight away. A name the book did not know, one a session had before this version, say, the
+pass learns from either refusal and asks for the next; a kept name costs a wait, so one rename asks for up to three of
+those (`maxKept`), and the next pass goes on from what it learned.
 
 zellij does not protect a name that is taken. Since 0.44, `rename-session` exits 0 and moves the session's socket file
 over the other session's, which leaves that other server running with no way to reach it. `zellij.CLI.Rename` looks at

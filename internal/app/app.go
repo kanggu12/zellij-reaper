@@ -55,6 +55,8 @@ func Load(configPath string) (*App, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ver, _ := zj.Version(ctx)
+	// Only such a zellij's refusals say a session had a name before.
+	zj.RefusesFormerNames = zellij.RefusesFormerNames(ver)
 	// The folder zellij's servers keep their sessions' files in now: their
 	// sockets name it, where another zellij may have left one beside it.
 	var sockets []string
@@ -79,7 +81,7 @@ func Load(configPath string) (*App, error) {
 		FormerPath:   config.FormerFile(env),
 		// The version the zellij on the PATH reported: its servers are the
 		// ones a pass asks.
-		RefusesFormerNames: zellij.RefusesFormerNames(ver),
+		RefusesFormerNames: zj.RefusesFormerNames,
 		Now:                time.Now,
 		Home:               homeDir(),
 		Host:               hostName(),

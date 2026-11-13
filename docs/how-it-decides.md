@@ -130,13 +130,15 @@ dashboard's detail panel marks with ✗.
   processes name in their command lines (`/proc/<pid>/cmdline`, on macOS `sysctl`; paths in full or under `~/`), else
   the one they run in (`/proc/<pid>/cwd`, and on macOS `lsof`; Windows tells no process's directory, and nothing is
   renamed there). A path counts under the home directory, under a directory one of the command's processes runs in, or
-  beside the repository one runs in, and not in the home's hidden folders; the program a process runs is no work (its
-  own path, a script in a `bin` folder, the `bin` folders on a `PATH`). Two repositories named as often go to the one of
-  them the processes run in, or to neither. A repository is the first `.git` at or above a directory, looking no higher
-  than the home directory, a worktree counting as the repository it was made from. Each child of the agent's process is
-  one command, with what runs under it, and counts from when it started. A pass counts the newest when it started after
-  the last one counted; two counted in a row in one repository settle it, four in a row in one other repository move it,
-  and it is kept between commands ([naming](setup.md#naming-sessions-after-what-they-show)).
+  beside the repository one runs in (not in a folder right under `/`), and not in the home's hidden folders; the
+  programs a command runs are no work (the first word of each command, in shell code too, what `sudo`, `env` or
+  `timeout` run, a script `source` reads, a script in a `bin` folder, the `bin` folders on a `PATH`). Two repositories
+  named as often go to the one of them the processes run in, or to neither. A repository is the first `.git` at or above
+  a directory, looking no higher than the home directory, a worktree counting as the repository it was made from. Each
+  child of the agent's process is one command, with what runs under it, and counts from when it started. A pass counts
+  the newest when it started after the last one counted; two counted in a row in one repository settle it, four in a row
+  in one other repository move it, and it is kept between commands
+  ([naming](setup.md#naming-sessions-after-what-they-show)).
 - **Last use** of a running session is the newest read or write time of its panes' terminals (`/dev/pts/N`). The kernel
   moves it on input and output only, so a redraw or zellij's own bookkeeping does not count. Exited sessions use their
   files in zellij's cache, which stopped changing when the server ended. Where no terminal can be read, which is every

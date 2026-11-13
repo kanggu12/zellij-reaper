@@ -18,9 +18,11 @@ that only fixes raises the patch number. Each release's section here is its rele
   agent's commands in the directory the agent stood in when it started the helper, and the helper names the files it
   works on in full. A command now works in the repository its command line names, and only else in the one it runs in. A
   path counts under the home directory, under where one of the command's processes runs, or beside the repository it
-  runs in, and not in the home's hidden folders. The program a process runs is no work, its own path or a script in a
-  `bin` folder, so Homebrew's checkout on Apple silicon (`/opt/homebrew`) names nothing. A quoted path with blanks in it
-  is one path, and two repositories named as often go to the one the command runs in, if it is one of them.
+  runs in, unless that is right under `/`, and not in the home's hidden folders. The programs a command runs are no
+  work: the first word of each command, in the code a helper runs too, what `sudo`, `env` or `timeout` run, a script
+  `source` reads, and a script in a `bin` folder. So Homebrew's checkout on Apple silicon (`/opt/homebrew`) names
+  nothing, nor does a Claude Code settings folder kept in git. A quoted path with blanks in it is one path, and two
+  repositories named as often go to the one the command runs in, if it is one of them.
 - Leaving a project settled on takes four counted commands in a row in one other repository, where two settle the first:
   a look into another repository, or an errand there, no longer renames the session. The repository an agent was started
   in is not settled that way, and two in a row in one other repository move it.

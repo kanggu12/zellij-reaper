@@ -372,6 +372,17 @@ func TestNamedPaths(t *testing.T) {
 		// A plain argument is a word as it stands.
 		{[]string{"cat", "/srv/web app/README", "--out=/srv/b c"}, []string{"/srv/web app/README", "/srv/b c"}},
 		{claude(`cat '/srv/web app/a' "/srv/it's" /srv/d`), []string{"/srv/web app/a", "/srv/it's", "/srv/d", "/dev/null", "/tmp/claude-1-cwd"}},
+		// A program run by its path is no work, in shell code too: a helper
+		// running one project's tool on another's file works on the file.
+		{claude("/a/target/fmt /b/src/x.go"), []string{"/b/src/x.go", "/dev/null", "/tmp/claude-1-cwd"}},
+		{[]string{"bash", "-lc", "/a/fmt /b/x"}, []string{"/b/x"}},
+		{[]string{"sudo", "-n", "/a/run", "/b/x"}, []string{"/b/x"}},
+		{[]string{"timeout", "10", "/a/fmt", "/b/x"}, []string{"/b/x"}},
+		{[]string{"env", "FOO=/srv/f", "/a/run", "/b/x"}, []string{"/srv/f", "/b/x"}},
+		{[]string{"sh", "-c", "X=1 /a/run /b/x 2>&1 | tee /b/log &> /b/all"}, []string{"/b/x", "/b/log", "/b/all"}},
+		// The script source reads is the shell's program, wherever the
+		// settings it comes from are kept.
+		{[]string{"/bin/bash", "-c", "source /home/me/dotfiles/claude/shell-snapshots/s.sh && eval 'make -C /b'"}, []string{"/b"}},
 		{[]string{"vim", "~/notes/today.md", "~/.config/x", "/home/me/.cache/y"}, []string{"/home/me/notes/today.md"}},
 		// The home as its link resolves has hidden folders too.
 		{[]string{"cat", "/data/me/.claude/MEMORY.md", "/data/me/src/x"}, []string{"/data/me/src/x"}},
@@ -379,14 +390,15 @@ func TestNamedPaths(t *testing.T) {
 		// The program is no work: its first word, the script an interpreter
 		// runs from a bin folder, and the bin folders on a PATH.
 		{[]string{"/opt/homebrew/opt/python@3.12/bin/python3.12", "/opt/homebrew/bin/pytest", "-q", "tests/"}, nil},
-		{[]string{"node", "/srv/app/node_modules/.bin/vitest", "/srv/app/src"}, []string{"/srv/app/src"}},
+		// npm's .bin is in the project that installed it.
+		{[]string{"node", "/srv/app/node_modules/.bin/vitest", "/srv/app/src"}, []string{"/srv/app/node_modules/.bin/vitest", "/srv/app/src"}},
 		{[]string{"/srv/tool/run", "PATH=/opt/homebrew/bin:/usr/local/sbin:/srv/x"}, []string{"/srv/x"}},
 		// Code with no quotes or operators in it.
 		{[]string{"sh", "-c", "ls /srv/a /srv/b"}, []string{"/srv/a", "/srv/b"}},
 		// A quote in a path is part of it; a command that begins with a
 		// program's path is code all the same.
 		{[]string{"cat", "/srv/it's", "/srv/web app/a"}, []string{"/srv/it's", "/srv/web app/a"}},
-		{claude("/srv/tool/run.sh && make -C /srv/y"), []string{"/srv/tool/run.sh", "/srv/y", "/dev/null", "/tmp/claude-1-cwd"}},
+		{claude("/srv/tool/run.sh && make -C /srv/y"), []string{"/srv/y", "/dev/null", "/tmp/claude-1-cwd"}},
 	} {
 		if got := namedPaths(c.argv, home, homes); !slices.Equal(got, c.want) {
 			t.Errorf("%q: %q, want %q", c.argv, got, c.want)
@@ -404,6 +416,50 @@ func TestNamedPaths(t *testing.T) {
 	long := "cd /srv/start && " + strings.Repeat("x", maxArgBytes) + " /srv/end"
 	if got := namedPaths([]string{"bash", "-c", long}, home, homes); !slices.Equal(got, []string{"/srv/start"}) {
 		t.Errorf("a long script: %q", got)
+	}
+}
+
+func TestShellCommands(t *testing.T) {
+	for _, c := range []struct {
+		code string
+		want [][]string
+	}{
+		{"a b; c && d || e | f & g", [][]string{{"a", "b"}, {"c"}, {"d"}, {"e"}, {"f"}, {"g"}}},
+		{"x 2>&1 >| /f &> /g\ny $(z /p) `w`", [][]string{{"x", "2", "1", "/f", "/g"}, {"y", "$"}, {"z", "/p"}, {"w"}}},
+		{"{ a; } && (b)", [][]string{{"a"}, {"b"}}},
+	} {
+		got := shellCommands(c.code)
+		if len(got) != len(c.want) {
+			t.Errorf("%q: %q, want %q", c.code, got, c.want)
+			continue
+		}
+		for i := range got {
+			if !slices.Equal(got[i], c.want[i]) {
+				t.Errorf("%q: %q, want %q", c.code, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+func TestBesideARepositoryIsNotRightUnderTheRoot(t *testing.T) {
+	// A repository in /opt is beside Homebrew's prefix: /opt is no
+	// neighbourhood, and the command's paths there count only under where it
+	// runs.
+	ws := projectsDir(t)
+	fp := testutil.NewFakeProc(t)
+	fp.Add(testutil.Proc{PID: 900, PPID: 1, Comm: "bash", Argv: []string{"cmake", "-DCMAKE_PREFIX_PATH=" + ws + "/billing/x", "-S", "."}, Cwd: filepath.Join(ws, "web-app"), Started: time.Second})
+	table := readTable(t, fp)
+	f := &repo.Finder{Home: "/nonexistent-home"}
+	procs := []*procfs.Proc{table.ByPID[900]}
+	// ws is deep: billing beside web-app counts, named once, and wins.
+	if got := commandRepo(table, procs, f); got != filepath.Join(ws, "billing") {
+		t.Errorf("beside a deep repository: %q", got)
+	}
+	for repo, want := range map[string]bool{"/opt/app": false, "/app": false, "/srv/projects/app": true, "/mnt/c/src/app": true} {
+		if parent, got := beside(repo); got != want || parent != filepath.Dir(repo) {
+			t.Errorf("beside %s: %q, %v", repo, parent, got)
+		}
 	}
 }
 

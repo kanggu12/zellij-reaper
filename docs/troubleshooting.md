@@ -75,13 +75,13 @@ the dashboard says so. A name given by hand stays as it is from then on.
 ## A session is named after the wrong thing
 
 A pass names a session after the focused pane of the tab a client looks at, or of the first tab when nobody is attached,
-since zellij then marks no tab active. When that title says nothing, the other running panes come next. Its row in
-`plan --json` lists `would_rename`, and `r` in the dashboard shows the name its panes, or its agent's project, point to.
-A session where a coding agent runs is named after the git repository its newest commands work in, the one their command
+since zellij then marks no tab active. When that title says nothing, the other running panes come next. Its row in `plan
+--json` lists `would_rename`, and `r` in the dashboard shows the name its panes, or its agent's project, point to. A
+session where a coding agent runs is named after the git repository its newest commands work in, the one their command
 lines name or else the one they run in, once two that passes counted in a row worked there; moving it takes four in a
 row in one other repository. Before that, it is named after the repository the agent was started in, or as any other
 session when that is none. A path counts only near the work, under your home, where the command runs or beside its
-repository, and the program a command runs is no work, so a tool's own checkout, such as Homebrew's on Apple silicon,
+repository, and the programs a command runs are no work, so a tool's own checkout, such as Homebrew's on Apple silicon,
 names nothing. A command that starts and ends between two passes is not seen, and an agent that goes through many
 repositories, one command each, keeps its name. Give it a name with `r` or `zellij action rename-session`, and passes
 leave that name alone. To keep the name a running session has now, press `r`, then Tab and Enter. `auto_rename = false`

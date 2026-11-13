@@ -25,7 +25,7 @@
   <a href="#names-that-say-what-a-session-is">Names</a> |
   <a href="#the-dashboard">Dashboard</a> |
   <a href="docs/README.md">Documentation</a> |
-  <a href="#open-source">Open source</a>
+  <a href="#contributing">Contributing</a>
 </p>
 
 <picture>
@@ -249,22 +249,12 @@ install.
 | [Troubleshooting](docs/troubleshooting.md) | a timer that does not run, a session kept longer than you expect |
 | [Internals](docs/internals.md) | the layers, how the facts are read, the design decisions, the tests |
 
-## Open source
+## Contributing
 
-zellij-reaper is MIT licensed and built in the open. Its tests build fake machines for the rules and run real zellij
-releases in throwaway containers, so no change needs your own sessions.
-
-- **Report a session it got wrong** in [Issues](https://github.com/kanggu12/zellij-reaper/issues/new/choose), with
-  `zellij-reaper plan --json` and the log lines for the session.
-- **Change the code.** [CONTRIBUTING.md](.github/CONTRIBUTING.md) has a map of the code and what a change needs.
-- **See what changed** in [CHANGELOG.md](CHANGELOG.md), and report security problems through
-  [SECURITY.md](.github/SECURITY.md).
-
-```sh
-git clone https://github.com/kanggu12/zellij-reaper && cd zellij-reaper
-make check        # gofmt, go vet, staticcheck, shellcheck, the unit tests
-make integration  # real zellij releases in throwaway containers
-```
+[CONTRIBUTING.md](.github/CONTRIBUTING.md) has how the pieces fit, how to build and test, and what a change needs.
+Report a problem in [Issues](https://github.com/kanggu12/zellij-reaper/issues/new/choose), which asks for the
+output that helps; see what changed in [CHANGELOG.md](CHANGELOG.md), and report security problems as
+[SECURITY.md](.github/SECURITY.md) says.
 
 ## License
 

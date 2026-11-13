@@ -3,6 +3,7 @@ package inspect
 import (
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,7 +150,8 @@ func newestFirst(children []*procfs.Proc, root string) []command {
 //
 // Only a path within the command's reach counts: under the home directory,
 // under a directory one of its processes runs in, or beside the repository
-// one runs in (in the folder that holds it). A tool's files elsewhere say
+// one runs in (in the folder that holds it, unless that is right under the
+// root). A tool's files elsewhere say
 // nothing of the work, and some are git checkouts: Homebrew's prefix on Apple
 // silicon (/opt/homebrew) is one. Nor is a path on another disk looked up,
 // which may be a network mount that hangs. A tie among the paths named goes to
@@ -178,7 +180,9 @@ func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder) stri
 			ran[r]++
 			// The repository's neighbours: a helper standing in one project
 			// works on another beside it.
-			reach[filepath.Dir(r)] = true
+			if parent, ok := beside(r); ok {
+				reach[parent] = true
+			}
 		}
 	}
 	// The root of the file system holds everything: it reaches nothing.
@@ -208,6 +212,14 @@ func commandRepo(t *procfs.Table, procs []*procfs.Proc, repos *repo.Finder) stri
 	}
 	r, _ := most(tied)
 	return r
+}
+
+// beside is the folder that holds a repository, where its neighbours are, and
+// false when that folder is right under the root (/opt, /srv, /home): such a
+// folder holds unrelated things, Homebrew's prefix among them.
+func beside(root string) (string, bool) {
+	parent := filepath.Dir(root)
+	return parent, strings.Count(filepath.ToSlash(parent), "/") >= 2
 }
 
 // within reports whether p is one of the directories in reach, or under one.
@@ -268,12 +280,18 @@ const maxArgBytes = 64 << 10
 const maxCodeDepth = 4
 
 // namedPaths are the absolute paths a command line names, "~/" ones too, but
-// not the program it runs: its first word, nor anything in a bin folder, where
-// programs are installed (the script an interpreter runs, as in python3
-// /opt/homebrew/bin/pytest, or PATH=/x/bin). An argument that holds shell code
-// (bash -c, eval) is split as the shell would split it, so a quoted path with
-// blanks in it is one path; a plain one is a word as it stands, blanks and all,
-// split only at "=", ":" and "," (--dir=/x, PATH=/a:/b).
+// not the programs it runs: a program is no work, and a tool's own checkout
+// would otherwise name every command (Homebrew's prefix on Apple silicon, a
+// CLAUDE_CONFIG_DIR kept in git, whose shell snapshot Claude Code sources
+// before each command). The command line is read as commands (commandPaths):
+// the first word of each is its program, and so is the word after one that
+// runs a program (sudo, env, timeout, xargs) and the script source and "."
+// read; what eval and a shell's -c run is shell code, read the same way, so a
+// quoted path with blanks in it is one path. Nor does a path in a bin folder
+// count, where programs are installed (the script an interpreter runs, as in
+// python3 /opt/homebrew/bin/pytest, or PATH=/x/bin). Any other argument is a
+// word as it stands, blanks and all, split only at "=", ":" and ","
+// (--dir=/x, PATH=/a:/b).
 //
 // The paths are a Unix command line's, read with slashes on every system
 // (package path): Windows tells no process's directory, and renames nothing. A
@@ -298,19 +316,84 @@ func namedPaths(argv []string, home string, homes []string) []string {
 		out = append(out, p)
 		return len(out) < maxNamedPaths
 	}
-	// The first word is the program itself.
-	for i, arg := range argv {
-		if i == 0 {
+	// A process's command line is one command: its first word is the program.
+	commandPaths(argv, 0, emit)
+	return out
+}
+
+// shells run the code given with -c, as bash -c CODE and bash -lc CODE do.
+var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "ash": true, "fish": true}
+
+// runners are words that run the program after them, or come before a command
+// in the shell's grammar: that program is no work either. source and "." run
+// a script in the shell itself.
+var runners = map[string]bool{
+	"sudo": true, "doas": true, "env": true, "exec": true, "nohup": true, "nice": true, "time": true,
+	"timeout": true, "xargs": true, "command": true, "builtin": true, "setsid": true, "stdbuf": true,
+	"source": true, ".": true,
+	"if": true, "then": true, "else": true, "elif": true, "do": true, "while": true, "until": true, "!": true,
+}
+
+// numberRe is a number in a program's place: timeout's duration (10, 1.5m).
+var numberRe = regexp.MustCompile(`^[0-9.]+[smhd]?$`)
+
+// commandPaths hands emit the paths in the words of one command, and reports
+// false once emit wants no more.
+func commandPaths(words []string, depth int, emit func(string) bool) bool {
+	// program: the next word that can be a program is one. shell: the
+	// program runs code given with -c. code: the next word that is no option
+	// is shell code.
+	program, shell, code := true, false, false
+	for _, w := range words {
+		if len(w) > maxArgBytes {
+			w = w[:maxArgBytes]
+		}
+		switch {
+		case program && mayRun(w):
+			name := path.Base(w)
+			program, shell, code = runners[name], shells[name], name == "eval"
+			continue
+		case code && !strings.HasPrefix(w, "-"):
+			code = false
+			if !codePaths(w, depth+1, emit) {
+				return false
+			}
+			continue
+		case shell && isCodeFlag(w):
+			code = true
 			continue
 		}
-		if len(arg) > maxArgBytes {
-			arg = arg[:maxArgBytes]
-		}
-		if !argPaths(arg, 0, emit) {
-			break
+		if !argPaths(w, depth, emit) {
+			return false
 		}
 	}
-	return out
+	return true
+}
+
+// mayRun reports whether a word can stand in a program's place: not an
+// option, an assignment before the command (X=1) or a number.
+func mayRun(w string) bool {
+	return w != "" && !strings.HasPrefix(w, "-") && !strings.Contains(w, "=") && !numberRe.MatchString(w)
+}
+
+// isCodeFlag reports whether a shell's option word holds -c, alone or with
+// others (-lc, -ec): the shell's first word that is no option is then code.
+func isCodeFlag(w string) bool {
+	return len(w) > 1 && w[0] == '-' && w[1] != '-' && strings.ContainsRune(w[1:], 'c')
+}
+
+// codePaths hands emit the paths in shell code, each of its commands read as
+// commandPaths reads one, down to maxCodeDepth.
+func codePaths(code string, depth int, emit func(string) bool) bool {
+	if depth > maxCodeDepth {
+		return true
+	}
+	for _, cmd := range shellCommands(code) {
+		if !commandPaths(cmd, depth, emit) {
+			return false
+		}
+	}
+	return true
 }
 
 // isCode tells shell code from a plain word: the shell's operators and line
@@ -376,13 +459,25 @@ func isListBreak(r rune) bool {
 	return r == '=' || r == ':' || r == ','
 }
 
-// shellWords splits shell code into words as the shell does, with the quotes
-// taken away: blanks and operators end a word, quotes keep what is in them
+// shellWords is the words of shell code, its commands run together.
+func shellWords(s string) []string {
+	var words []string
+	for _, cmd := range shellCommands(s) {
+		words = append(words, cmd...)
+	}
+	return words
+}
+
+// shellCommands splits shell code into commands, and each into words, as the
+// shell does, with the quotes taken away: blanks end a word, and so do the
+// shell's operators, of which ;, &, |, the brackets, the backquote and a line
+// break end a command too, where < and > do not. Quotes keep what is in them
 // together, and a backslash outside single quotes takes the next character as
-// it is. What a command substitution holds comes out as words of its own.
+// it is. What a command substitution holds comes out as a command of its own.
 // Claude Code hands eval its command in single quotes, each quote in it
 // written '"'"': the command comes out as one word, to be read again.
-func shellWords(s string) []string {
+func shellCommands(s string) [][]string {
+	var cmds [][]string
 	var words []string
 	var cur strings.Builder
 	// started is true once a word began: '' is a word, if an empty one.
@@ -392,6 +487,13 @@ func shellWords(s string) []string {
 			words = append(words, cur.String())
 			cur.Reset()
 			started = false
+		}
+	}
+	next := func() {
+		end()
+		if len(words) > 0 {
+			cmds = append(cmds, words)
+			words = nil
 		}
 	}
 	for i := 0; i < len(s); i++ {
@@ -432,23 +534,36 @@ func shellWords(s string) []string {
 					cur.WriteByte(s[i])
 				}
 			}
-		case c == ' ' || c == '\t' || c == '\n' || strings.IndexByte(";&|<>(){}`", c) >= 0:
+		case c == '<' || c == '>':
+			// A redirection: >| and >& (2>&1) write to a file, not into a
+			// pipe or to the background.
+			end()
+			if i+1 < len(s) && (s[i+1] == '|' || s[i+1] == '&') {
+				i++
+			}
+		case c == '&' && i+1 < len(s) && s[i+1] == '>':
+			// &> writes both outputs to a file.
+			end()
+		case c == '\n' || strings.IndexByte(";&|(){}`", c) >= 0:
+			next()
+		case c == ' ' || c == '\t':
 			end()
 		default:
 			started = true
 			cur.WriteByte(c)
 		}
 	}
-	end()
-	return words
+	next()
+	return cmds
 }
 
-// inBin reports whether p is a folder programs are installed in, or a file
-// right in one: bin, sbin, and npm's .bin.
+// inBin reports whether p is a folder programs are installed in, bin or sbin,
+// or a file right in one. npm's .bin is not: it is in the project that
+// installed it, and a program there names that project.
 func inBin(p string) bool {
 	for _, d := range []string{path.Base(p), path.Base(path.Dir(p))} {
 		switch d {
-		case "bin", "sbin", ".bin":
+		case "bin", "sbin":
 			return true
 		}
 	}
