@@ -363,6 +363,10 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 	}
 	taken := takenNames(r)
 	e.Log.Hold()
+	// The first line has the time the naming starts, though it is written
+	// with the renames: a name zellij refuses takes seconds to learn, and the
+	// line that opens the pass must not read as later than those under it.
+	e.Log.Printf("=== names start ===")
 	for i := range r.Outcomes {
 		o := &r.Outcomes[i]
 		// A session the next full pass deletes keeps its name until then.
@@ -392,17 +396,19 @@ func namesPass(ctx context.Context, e *Env, opts Options, began time.Time) (Repo
 	if r.IndexErr == nil {
 		e.forgetChosen(r.Outcomes)
 	}
-	held := e.Log.Take()
 	_, _, renamed := r.Counts()
 	if renamed == 0 {
+		// Nothing changed: what the pass would have said goes unwritten.
+		e.Log.Take()
 		return r, nil
 	}
 	if r.IndexErr == nil {
 		e.forgetGone(taken, true)
 	}
+	// The log moves aside before the pass's lines go in, and a failure to
+	// move it is held with them, so every line keeps the order of its time.
 	e.Log.Rotate()
-	e.Log.Printf("=== names start ===")
-	e.Log.Write(held)
+	e.Log.Write(e.Log.Take())
 	e.Log.Printf("=== names end (%d renamed) ===", renamed)
 	return r, nil
 }

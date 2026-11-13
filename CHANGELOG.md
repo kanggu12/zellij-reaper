@@ -6,6 +6,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- The line that opens a names pass in the log had the time the pass wrote its lines, after the renames under it: since
+  0.14.2 a name zellij refuses takes seconds to learn, so a pass read as starting after its own renames. That line now
+  has the time the naming starts.
+
 ## [0.14.2] - 2026-11-13
 
 ### Fixed
