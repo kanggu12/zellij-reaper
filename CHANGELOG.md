@@ -8,13 +8,15 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [0.17.0] - 2026-11-17
 
+A release with fewer files: the three installers, the five archives and the checksums, and no Linux packages.
+zellij-reaper itself works as in 0.16.1.
+
 ### Removed
 
 - The Linux packages (`.deb`, `.rpm`, `.apk`, `.pkg.tar.zst`). zellij-reaper sets up a timer for each user, which a
   package cannot do, so a package install still needed `zellij-reaper install` from each user who wanted the timer; the
-  installers do both, and the archives serve a machine without internet access. A release now carries the three
-  installers, the five archives and the checksums. A package from 0.16.1 or earlier: remove it with your package
-  manager, then run the installer.
+  installers do both, and the archives serve a machine without internet access. A package from 0.16.1 or earlier: remove
+  it with your package manager, then run the installer.
 
 ## [0.16.1] - 2026-11-17
 
