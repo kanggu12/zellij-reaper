@@ -87,21 +87,19 @@ calls `x86_64`, and `arm64` (`aarch64` on Linux):
 | `zellij-reaper-0.16.1-linux-x64.tar.gz`, `-linux-arm64.tar.gz` | Linux: the binary with its license, README and changelog, in a folder of the same name |
 | `zellij-reaper-0.16.1-macos-arm64.tar.gz`, `-macos-x64.tar.gz` | macOS on Apple silicon, and on Intel |
 | `zellij-reaper-0.16.1-windows-x64.zip` | Windows on x64 |
-| `zellij-reaper-0.16.1-linux-x64.deb`, `.rpm`, `.apk`, `.pkg.tar.zst`, and the same for `arm64` | packages for Debian and Ubuntu, Fedora and openSUSE, Alpine, and Arch |
 | `zellij-reaper-0.16.1-checksums.txt` | the SHA-256 of every file above |
 
 Other ways:
 
 | From | Then |
 |:---|:---|
-| a package from the release | the binary is in `/usr/bin`; each user who wants a timer runs `zellij-reaper install` |
 | an archive from the release | put the binary from its folder on your `PATH`, run `zellij-reaper install`; on macOS, `xattr -d com.apple.quarantine zellij-reaper` first if a browser downloaded it |
 | source: `go install github.com/kanggu12/zellij-reaper/cmd/zellij-reaper@latest` | `zellij-reaper install` |
 | a clone: `make install` | builds, copies to `~/.local/bin` and installs the timer |
 
-Every archive, package and installer of a release, from 0.13.0 on, comes with a signed record of the workflow run and
-commit it was built from. The checksums show a download is the file the release lists; the record shows the release's
-files came from this repository's own build. With the [GitHub CLI](https://cli.github.com):
+Every archive and installer of a release, from 0.13.0 on, comes with a signed record of the workflow run and commit it
+was built from. The checksums show a download is the file the release lists; the record shows the release's files came
+from this repository's own build. With the [GitHub CLI](https://cli.github.com):
 
 ```sh
 gh attestation verify zellij-reaper-0.16.1-linux-x64.tar.gz --repo kanggu12/zellij-reaper
@@ -221,8 +219,6 @@ grep " zellij-reaper-$version-linux-x64.tar.gz\$" "zellij-reaper-$version-checks
 systemd on that machine, `install` says so; [run the passes from cron](#without-systemd) instead. The other ways work
 offline too:
 
-- **A package:** copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst` instead of the archive, and install it with `dpkg -i`,
-  `rpm -U`, `apk add --allow-untrusted` or `pacman -U`. Then each user who wants the timer runs `zellij-reaper install`.
 - **Many machines:** put the release's files on an internal web server as `<base>/<tag>/<file>`, the tag with its v and
   the files under their own names, and the release's install script works from there, installing the release it is named
   after: `ZELLIJ_REAPER_BASE_URL=<base> sh zellij-reaper-0.16.1-linux-installer.sh`.
@@ -239,14 +235,13 @@ A closed network also keeps you from checking for new releases: the steps above 
 
 ## Upgrade and uninstall
 
-**Upgrade** by running the newest release's install script (the [Quick start](../README.md#quick-start) names it), or
-with your package manager. The settings stay, and the script runs
-`zellij-reaper install`, which rewrites the timers; the setup screen opens only on a first install
-(`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install` again:
-`doctor` notices a timer that still runs an old path. On Windows, a copy that is running while `windows-installer.ps1`
-upgrades it (the dashboard, or the task at that moment) is renamed to `zellij-reaper.exe.<time>.old` and runs on; the
-next install removes it. When the task cannot be registered, `windows-installer.ps1` ends with an error that says so,
-with the new binary in place.
+**Upgrade** by running the newest release's install script (the [Quick start](../README.md#quick-start) names it). The
+settings stay, and the script runs `zellij-reaper install`, which rewrites the timers; the setup screen opens only on a
+first install (`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install`
+again: `doctor` notices a timer that still runs an old path. On Windows, a copy that is running while
+`windows-installer.ps1` upgrades it (the dashboard, or the task at that moment) is renamed to
+`zellij-reaper.exe.<time>.old` and runs on; the next install removes it. When the task cannot be registered,
+`windows-installer.ps1` ends with an error that says so, with the new binary in place.
 
 **Uninstall** in two steps: first what the program set up, then the program.
 
@@ -271,13 +266,12 @@ Neither removes the program, and the last line of a purge says where it is:
 | Installed with | Remove it with |
 |:---|:---|
 | `linux-installer.sh` or `macos-installer.sh` | `rm ~/.local/bin/zellij-reaper` |
-| a package | `sudo apt remove zellij-reaper`, `sudo dnf remove zellij-reaper`, `sudo apk del zellij-reaper` or `sudo pacman -R zellij-reaper` |
+| a package, from 0.16.1 or earlier | `sudo apt remove zellij-reaper`, `sudo dnf remove zellij-reaper`, `sudo apk del zellij-reaper` or `sudo pacman -R zellij-reaper` |
 | `go install` | `rm "$(go env GOPATH)/bin/zellij-reaper"` |
 | `windows-installer.ps1` | delete the folder `%LOCALAPPDATA%\Programs\zellij-reaper` and take it out of your user `PATH` |
 
-Run `uninstall` before removing the program: without it the timer stays and fails at every pass. Under a package, each
-user who ran `install` runs `uninstall`. Lingering stays on, since other services of yours may rely on it;
-`loginctl disable-linger` turns it off.
+Run `uninstall` before removing the program: without it the timer stays and fails at every pass. Lingering stays on,
+since other services of yours may rely on it; `loginctl disable-linger` turns it off.
 
 **Repair** an install by running `zellij-reaper install` again: it rewrites the timers and keeps the settings, the log
 and the lists. `zellij-reaper doctor` says what is wrong first. With a settings file that no longer parses, a command

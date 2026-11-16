@@ -1,13 +1,13 @@
-# Release build: static binaries for Linux, macOS and Windows, archives,
-# checksums, and packages for Linux.
+# Release build: static binaries for Linux, macOS and Windows, their archives
+# and checksums.
 version: 2
 
 project_name: zellij-reaper
 
 # Every file a release carries is named zellij-reaper-X.Y.Z-..., the version
-# without its v: the archives and packages go on with the system (linux,
-# macos, windows) and the machine, x64 or arm64 on every system; the install
-# scripts with the system each is for.
+# without its v: the archives go on with the system (linux, macos, windows)
+# and the machine, x64 or arm64 on every system; the install scripts with the
+# system each is for.
 
 # A snapshot (make snapshot, CI's release build) is named as the next minor
 # release would be, so the installers' check for the names before 0.16.1 lets
@@ -69,32 +69,6 @@ checksum:
       name_template: "{{ .ProjectName }}-{{ .Version }}-macos-installer.sh"
     - glob: build/installers/windows-installer.ps1
       name_template: "{{ .ProjectName }}-{{ .Version }}-windows-installer.ps1"
-
-nfpms:
-  - package_name: zellij-reaper
-    # Packages are for Linux; nfpm takes only the Linux builds.
-    homepage: https://github.com/kanggu12/zellij-reaper
-    maintainer: J.-G. Kang <kanggu12@gmail.com>
-    description: Reap idle and exited zellij sessions, safely.
-    license: MIT
-    # Where a Debian package manager files it; without one the field is left
-    # out of the package.
-    section: utils
-    formats: [deb, rpm, apk, archlinux]
-    # Named as the archives are; the package managers read the version and the
-    # machine from inside the package, not from its file name.
-    file_name_template: >-
-      {{ .ProjectName }}-{{ .Version }}-linux-{{ if eq .Arch "amd64" }}x64{{ else }}{{ .Arch }}{{ end }}{{ .ConventionalExtension }}
-    bindir: /usr/bin
-    # pacman shows "Unknown Packager" unless the package names one; the deb
-    # and the rpm take theirs from the maintainer above.
-    archlinux:
-      packager: J.-G. Kang <kanggu12@gmail.com>
-    contents:
-      - src: LICENSE
-        dst: /usr/share/licenses/zellij-reaper/LICENSE
-      - src: docs/THIRD_PARTY_NOTICES.md
-        dst: /usr/share/licenses/zellij-reaper/THIRD_PARTY_NOTICES.md
 
 # The release notes are the CHANGELOG.md section the release workflow passes with
 # --release-notes. The changelog must stay on for that: disabled, it drops them too.

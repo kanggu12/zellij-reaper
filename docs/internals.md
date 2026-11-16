@@ -364,7 +364,7 @@ failure leaves its evidence in the test output.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/release-dark.svg">
-  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing, a release build and the macOS and Windows checks on every push to main and pull request. A vX.Y.Z tag runs all of CI on Linux, macOS and Windows, then builds the archives, packages, installers and demo image, and installs the release to check the installers." src="assets/release-light.svg">
+  <img alt="From a change to a release. make check runs gofmt, go vet, staticcheck, shellcheck, the unit tests and the layers test. make integration compares each tested zellij release's word lists, then runs real sessions on it in throwaway containers. CI runs both, fuzzing, a release build and the macOS and Windows checks on every push to main and pull request. A vX.Y.Z tag runs all of CI on Linux, macOS and Windows, then builds the archives, installers and demo image, and installs the release to check the installers." src="assets/release-light.svg">
 </picture>
 
 **CI** (`.github/workflows/ci.yml`) runs `make check`, the integration scenarios once per zellij release, and a snapshot
@@ -377,7 +377,7 @@ commands naming it. `make badges` writes the badges, which are files since GitHu
 through a proxy that gives up after about four seconds, which shields.io often takes, and puts the release in the install
 commands and file names of `README.md` and `docs/setup.md`; CI checks that both name the newest section.
 `.github/workflows/release.yml` runs all of CI and the macOS and Windows checks on the tagged commit. Then GoReleaser
-builds the archives, the checksums and the packages from `.github/goreleaser.yaml`, every archive and package named
+builds the archives and the checksums from `.github/goreleaser.yaml`, every archive named
 `zellij-reaper-X.Y.Z-<system>-<machine>` (the version without its v; `x64` or `arm64`) and each archive holding a folder
 of that name. Before it builds, `scripts/installers.sh` writes the release into copies of `scripts/install.sh` and
 `scripts/install.ps1`, which go out as `zellij-reaper-X.Y.Z-linux-installer.sh` and `-macos-installer.sh` (the same
