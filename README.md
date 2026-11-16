@@ -43,8 +43,8 @@ Linux, macOS or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43
 ([requirements](docs/setup.md#requirements)):
 
 ```sh
-# 1. Install. In a terminal it opens the setup screen, then starts the timers.
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+# 1. Install v0.15.0. In a terminal it opens the setup screen, then starts the timers.
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"   # this shell; the installer says if your startup file needs it
 
 # 2. See what the next pass would do. It changes nothing.
@@ -57,7 +57,7 @@ zellij-reaper
 Windows, in PowerShell (open a new terminal afterwards to run it by name):
 
 ```powershell
-irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
+irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.ps1 | iex
 ```
 
 The setup screen shows what the first pass would reap before anything runs:

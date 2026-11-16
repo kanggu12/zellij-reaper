@@ -6,6 +6,19 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Changed
+
+- A release's files are named after it, with the system as people call it and the machine as `uname -m` prints it:
+  `zellij-reaper-v0.15.0-macos-arm64.tar.gz` where 0.14.3 had `zellij-reaper_0.14.3_darwin_arm64.tar.gz`, and
+  `zellij-reaper-v0.15.0-checksums.txt` for `checksums.txt`. An archive unpacks to a folder of the same name, and the
+  packages are named as the archives are.
+  [The setup guide](https://github.com/kanggu12/zellij-reaper/blob/main/docs/setup.md#the-releases-files) lists them.
+- Each release carries its install scripts under its own name, `zellij-reaper-v0.15.0-install.sh` and `-install.ps1`,
+  with the release written in, and each installs that release; the install commands in the README and the setup guide
+  name the newest one. `releases/latest/download/install.sh` and `install.ps1` are no more: take the command from the
+  README. A script asked for a release from before 0.15.0 says to install it with that release's own script, and a
+  script from before 0.15.0 asked for none finds 0.15.0 and cannot download it.
+
 ## [0.14.3] - 2026-11-13
 
 ### Fixed

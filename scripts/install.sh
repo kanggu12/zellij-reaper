@@ -1,17 +1,26 @@
 #!/bin/sh
 # Install zellij-reaper on Linux or macOS from a GitHub release and start its
-# timers. Windows takes install.ps1 from the same release.
+# timers. Windows takes the release's install.ps1. Each release carries this
+# script under its own name, with the release written in, and installs that
+# release:
 #
-#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.sh | sh
 #
 # Settings, all optional:
-#   ZELLIJ_REAPER_VERSION   release to install, like v0.3.0 (default: the latest)
+#   ZELLIJ_REAPER_VERSION   release to install, like v0.15.0 (default: the release
+#                           this script came with; this copy in the repository
+#                           installs the latest)
 #   ZELLIJ_REAPER_BIN_DIR   where the binary goes (default: ~/.local/bin)
 #   ZELLIJ_REAPER_NO_TIMER  set to 1 to install the binary only
 #   ZELLIJ_REAPER_NO_SETUP  set to 1 to start the timers with the defaults, without
 #                           the setup screen a first install in a terminal gets
 #   ZELLIJ_REAPER_BASE_URL  where releases are downloaded from (mirrors, tests)
 set -eu
+
+# The release this script installs. scripts/installers.sh writes it into the
+# copy each release carries; empty here, so a run from the repository installs
+# the latest.
+release=""
 
 repo=kanggu12/zellij-reaper
 base=${ZELLIJ_REAPER_BASE_URL:-https://github.com/$repo/releases/download}
@@ -28,22 +37,25 @@ fail() {
   exit 1
 }
 
-# Linux and macOS take this script; Windows takes install.ps1.
+# Linux and macOS take this script; Windows takes install.ps1. The words are
+# those of the release's file names: macos, and x86_64 or arm64 as uname -m
+# says them (aarch64 on Linux is arm64).
 case "$(uname -s)" in
   Linux) os=linux ;;
-  Darwin) os=darwin ;;
-  *) fail "no release for $(uname -s): on Windows, use install.ps1 from the same release" ;;
+  Darwin) os=macos ;;
+  *) fail "no release for $(uname -s): on Windows, use the release's install.ps1" ;;
 esac
 case "$(uname -m)" in
-  x86_64 | amd64) arch=amd64 ;;
+  x86_64 | amd64) arch=x86_64 ;;
   aarch64 | arm64) arch=arm64 ;;
   *) fail "no release for $(uname -m)" ;;
 esac
 command -v curl >/dev/null 2>&1 || fail "curl is needed"
 command -v tar >/dev/null 2>&1 || fail "tar is needed"
 
-# The latest release is where github.com/<repo>/releases/latest redirects.
-version=${ZELLIJ_REAPER_VERSION:-}
+# The release asked for, else the one this script came with, else the latest:
+# where github.com/<repo>/releases/latest redirects.
+version=${ZELLIJ_REAPER_VERSION:-$release}
 if [ -z "$version" ]; then
   # shellcheck disable=SC2086 # the options are words of their own
   url=$(curl $secure -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest") ||
@@ -59,8 +71,17 @@ case "$version" in
   v*) ;;
   *) version=v$version ;;
 esac
+# Releases before 0.15.0 named their files otherwise: each installs with the
+# install.sh it carries.
+case "$version" in
+  v0.[0-9].* | v0.1[0-4].*) fail "$version names its files otherwise: install it with the install.sh of that release" ;;
+esac
 
-archive="zellij-reaper_${version#v}_${os}_${arch}.tar.gz"
+# Every file of a release starts with the name and the release, and the archive
+# holds a folder of the same name: zellij-reaper-v0.15.0-linux-x86_64.
+name="zellij-reaper-$version-$os-$arch"
+archive="$name.tar.gz"
+sums="zellij-reaper-$version-checksums.txt"
 tmp=$(mktemp -d)
 # The download goes away however the script ends. A signal also stops the
 # install there, with the status a shell gives for it, instead of going on
@@ -69,15 +90,15 @@ trap 'rm -rf "$tmp"' EXIT
 trap 'rm -rf "$tmp"; exit 130' INT
 trap 'rm -rf "$tmp"; exit 143' TERM
 
-say "downloading zellij-reaper $version for $os/$arch"
+say "downloading $archive"
 # shellcheck disable=SC2086 # the options are words of their own
 curl $from -fsSL "$base/$version/$archive" -o "$tmp/$archive" || fail "could not download $archive"
 # shellcheck disable=SC2086
-curl $from -fsSL "$base/$version/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt"
+curl $from -fsSL "$base/$version/$sums" -o "$tmp/$sums" || fail "could not download $sums"
 
 # Refuse a download whose checksum does not match the release's list.
-want=$(grep " $archive\$" "$tmp/checksums.txt" | cut -d' ' -f1)
-[ -n "$want" ] || fail "$archive is not in checksums.txt"
+want=$(grep " $archive\$" "$tmp/$sums" | cut -d' ' -f1)
+[ -n "$want" ] || fail "$archive is not in $sums"
 if command -v sha256sum >/dev/null 2>&1; then
   got=$(sha256sum "$tmp/$archive" | cut -d' ' -f1)
 else
@@ -85,9 +106,10 @@ else
 fi
 [ "$got" = "$want" ] || fail "checksum mismatch for $archive"
 
-tar -xzf "$tmp/$archive" -C "$tmp" zellij-reaper
+# Only the binary, out of the archive's folder.
+tar -xzf "$tmp/$archive" -C "$tmp" "$name/zellij-reaper"
 mkdir -p "$bin_dir"
-install -m 0755 "$tmp/zellij-reaper" "$bin_dir/zellij-reaper"
+install -m 0755 "$tmp/$name/zellij-reaper" "$bin_dir/zellij-reaper"
 say "installed $bin_dir/zellij-reaper"
 
 # The binary is in place whatever comes of the timers, so their failing (no

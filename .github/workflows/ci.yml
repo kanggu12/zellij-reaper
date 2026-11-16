@@ -39,6 +39,24 @@ jobs:
             echo "the release badge does not say v$v: run make badges"
             exit 1
           fi
+      # Each release's installer installs that release: a command naming an
+      # older one would install the older one.
+      - name: the docs' install commands name the newest release
+        run: |
+          v=$(awk '/^## \[[0-9]/ { gsub(/[][]/, "", $2); print $2; exit }' CHANGELOG.md)
+          for f in README.md docs/setup.md; do
+            grep -qF "releases/download/v$v/zellij-reaper-v$v-install.sh" "$f" || { echo "$f has no install command for v$v: run make badges"; exit 1; }
+          done
+          # Every place make badges writes the release: this project's download
+          # addresses, its file names, the offline steps' version= and the Quick
+          # start's comment. zellij's own download addresses are not this one's.
+          stale=$(grep -noE 'zellij-reaper/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/|zellij-reaper-v[0-9]+\.[0-9]+\.[0-9]+-|^version=v[0-9]+\.[0-9]+\.[0-9]+$|^# 1\. Install v[0-9]+\.[0-9]+\.[0-9]+' README.md docs/setup.md |
+            grep -vF -e "/v$v/" -e "-v$v-" -e "=v$v" -e "Install v$v" || true)
+          if [ -n "$stale" ]; then
+            echo "these name another release than v$v: run make badges"
+            echo "$stale"
+            exit 1
+          fi
 
   integration:
     name: zellij ${{ matrix.zellij }}${{ matrix.runner != 'ubuntu-latest' && ' on arm64' || '' }}
@@ -76,8 +94,22 @@ jobs:
           go-version-file: go.mod
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: "~> v2"
+          # The goreleaser of the release workflow and `make snapshot`: the file
+          # names a release gets are checked with the one that gives them.
+          version: v2.19.0
           args: release --snapshot --clean --config .github/goreleaser.yaml
+      # The install script the snapshot carries, against the snapshot's files as
+      # a release lays them out: the names goreleaser gives are the names the
+      # script asks for, and the binary is the one the script names.
+      - name: the snapshot's install script installs the snapshot
+        run: |
+          v=$(sed -n 's/^release="\(.*\)"$/\1/p' build/installers/install.sh)
+          test -n "$v"
+          mkdir -p "$RUNNER_TEMP/rel/$v"
+          cp dist/zellij-reaper-"$v"-* "$RUNNER_TEMP/rel/$v/"
+          ZELLIJ_REAPER_BASE_URL="file://$RUNNER_TEMP/rel" ZELLIJ_REAPER_BIN_DIR="$RUNNER_TEMP/bin" ZELLIJ_REAPER_NO_TIMER=1 \
+            sh build/installers/install.sh
+          "$RUNNER_TEMP/bin/zellij-reaper" version | grep -F "zellij-reaper $v "
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist

@@ -1,5 +1,7 @@
-# Built binaries and release output.
+# Built binaries and release output, and the installers a release build writes
+# (scripts/installers.sh).
 /dist/
+/build/
 # Downloaded zellij releases and the binary the integration tests mount.
 /test/integration/.cache/
 # Local tools and notes that are not part of the project.

@@ -75,8 +75,9 @@ Unit tests build fake machines with `internal/testutil`: a `/proc` with chosen p
 for the inode matching, session files with chosen times. [Internals](../docs/internals.md#tests) lists what each level
 covers. A failing integration check prints the plan and the last pass in the log.
 
-A release is a `## [X.Y.Z] - date` section in `CHANGELOG.md` with its link at the bottom, `make badges`, a commit, and
-an annotated `vX.Y.Z` tag on it once CI is green. Versions follow [semantic versioning](https://semver.org/): a release
+A release is a `## [X.Y.Z] - date` section in `CHANGELOG.md` with its link at the bottom, `make badges` (the README's
+badges, and the release in the install commands and file names of the README and `docs/setup.md`), a commit, and an
+annotated `vX.Y.Z` tag on it once CI is green. Versions follow [semantic versioning](https://semver.org/): a release
 that adds something raises the minor number (0.7.0), one that only fixes raises the patch number (0.6.2). Before 1.0 a
 minor release may also change how something works, and its notes say what. The section is the release's notes:
 `.github/workflows/release.yml` refuses a tag without one, and `internal/changelog_test.go` checks the file's shape.

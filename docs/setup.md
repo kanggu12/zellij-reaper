@@ -37,25 +37,25 @@ The [Quick start](../README.md#quick-start) covers the usual install. Without sy
 [cron](#without-systemd).
 
 ```sh
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.sh | sh
 ```
 
-The script works on Linux and macOS. It downloads the latest release for your system and architecture,
-checks it against the release's `checksums.txt` and installs it to `~/.local/bin`. On a first install in a terminal it
-then opens [the setup screen](commands.md#setting-up); <kbd>esc</kbd> there keeps the defaults. Otherwise (an upgrade,
-or no terminal) it runs `zellij-reaper install`. On
-Windows, `install.ps1` does the same in PowerShell, puts the binary in `%LOCALAPPDATA%\Programs\zellij-reaper` and adds
-that folder to your `PATH`:
+The script works on Linux and macOS. Each release carries its own copy, named after it, and the copy installs that
+release: it downloads the archive for your system and machine, checks it against the release's checksums and installs
+it to `~/.local/bin`. On a first install in a terminal it then opens [the setup screen](commands.md#setting-up);
+<kbd>esc</kbd> there keeps the defaults. Otherwise (an upgrade, or no terminal) it runs `zellij-reaper install`. On
+Windows, the release's `install.ps1` does the same in PowerShell, puts the binary in
+`%LOCALAPPDATA%\Programs\zellij-reaper` and adds that folder to your `PATH`:
 
 ```powershell
-irm https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.ps1 | iex
+irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.ps1 | iex
 ```
 
 These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPER_BIN_DIR=~/bin sh`):
 
 | Variable | Default | Effect |
 |:---|:---:|:---|
-| `ZELLIJ_REAPER_VERSION` | the latest release | install a given release, like `v0.3.0` |
+| `ZELLIJ_REAPER_VERSION` | the script's release | install another release from 0.15.0 on, like `v0.15.0`; an earlier one installs with its own `install.sh` |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
 | `ZELLIJ_REAPER_NO_SETUP` | | `1` starts the timers with the defaults, without the setup screen |
@@ -68,25 +68,39 @@ In a script, or over `ssh host command` with no terminal, make the setup screen'
 alone, then let `setup` write them and start the timers ([the flags](commands.md#setting-up)):
 
 ```sh
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/latest/download/install.sh | ZELLIJ_REAPER_NO_TIMER=1 sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.sh | ZELLIJ_REAPER_NO_TIMER=1 sh
 ~/.local/bin/zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run
 ```
+
+### The release's files
+
+Every file on the [releases page](https://github.com/kanggu12/zellij-reaper/releases) starts with the release, and
+names the system as people call it and the machine as `uname -m` prints it (`aarch64` on Linux is `arm64`):
+
+| File | What it is |
+|:---|:---|
+| `zellij-reaper-v0.15.0-install.sh`, `-install.ps1` | the install scripts above, for Linux and macOS, and for Windows |
+| `zellij-reaper-v0.15.0-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz` | Linux: the binary with its license, README and changelog, in a folder of the same name |
+| `zellij-reaper-v0.15.0-macos-arm64.tar.gz`, `-macos-x86_64.tar.gz` | macOS on Apple silicon, and on Intel |
+| `zellij-reaper-v0.15.0-windows-x86_64.zip` | Windows on x64 |
+| `zellij-reaper-v0.15.0-linux-x86_64.deb`, `.rpm`, `.apk`, `.pkg.tar.zst`, and the same for `arm64` | packages for Debian and Ubuntu, Fedora and openSUSE, Alpine, and Arch |
+| `zellij-reaper-v0.15.0-checksums.txt` | the SHA-256 of every file above |
 
 Other ways:
 
 | From | Then |
 |:---|:---|
-| a package (`.deb`, `.rpm`, `.apk`, Arch) from the [releases page](https://github.com/kanggu12/zellij-reaper/releases) | the binary is in `/usr/bin`; each user who wants a timer runs `zellij-reaper install` |
-| a release archive, `zellij-reaper_<version>_<os>_<arch>.tar.gz` (`.zip` for Windows) | put the binary on your `PATH`, run `zellij-reaper install`; on macOS, `xattr -d com.apple.quarantine zellij-reaper` first if a browser downloaded it |
+| a package from the release | the binary is in `/usr/bin`; each user who wants a timer runs `zellij-reaper install` |
+| an archive from the release | put the binary from its folder on your `PATH`, run `zellij-reaper install`; on macOS, `xattr -d com.apple.quarantine zellij-reaper` first if a browser downloaded it |
 | source: `go install github.com/kanggu12/zellij-reaper/cmd/zellij-reaper@latest` | `zellij-reaper install` |
 | a clone: `make install` | builds, copies to `~/.local/bin` and installs the timer |
 
 Every archive, package and installer of a release, from 0.13.0 on, comes with a signed record of the workflow run and
-commit it was built from. `checksums.txt` shows a download is the file the release lists; the record shows the release's
+commit it was built from. The checksums show a download is the file the release lists; the record shows the release's
 files came from this repository's own build. With the [GitHub CLI](https://cli.github.com):
 
 ```sh
-gh attestation verify zellij-reaper_0.13.0_linux_amd64.tar.gz --repo kanggu12/zellij-reaper
+gh attestation verify zellij-reaper-v0.15.0-linux-x86_64.tar.gz --repo kanggu12/zellij-reaper
 ```
 
 ### What `zellij-reaper install` does
@@ -180,23 +194,22 @@ with `zellij-reaper config show`.
 
 zellij-reaper needs no network to run: it makes no connection, and its integration tests run in a container with none.
 Only the install script downloads anything, so on a closed network, skip it. On a machine with internet access, fetch the
-archive for the target's architecture (`amd64` or `arm64`) and the checksums, and carry both across:
+archive for the target's machine (`x86_64` or `arm64`) and the checksums, and carry both across:
 
 ```sh
-base=https://github.com/kanggu12/zellij-reaper/releases/latest/download
-version=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
-  https://github.com/kanggu12/zellij-reaper/releases/latest | sed 's|.*/v||')
-curl -fsSLO "$base/zellij-reaper_${version}_linux_amd64.tar.gz"
-curl -fsSLO "$base/checksums.txt"
+version=v0.15.0
+base=https://github.com/kanggu12/zellij-reaper/releases/download/$version
+curl -fsSLO "$base/zellij-reaper-$version-linux-x86_64.tar.gz"
+curl -fsSLO "$base/zellij-reaper-$version-checksums.txt"
 ```
 
-Then, on the closed machine, set `version` to the release you carried across and run:
+Then, on the closed machine, with `version` the release you carried across:
 
 ```sh
-version=0.7.0
-grep " zellij-reaper_${version}_linux_amd64.tar.gz\$" checksums.txt | sha256sum -c - &&
-  tar -xzf "zellij-reaper_${version}_linux_amd64.tar.gz" zellij-reaper &&
-  install -Dm0755 zellij-reaper ~/.local/bin/zellij-reaper &&
+version=v0.15.0
+grep " zellij-reaper-$version-linux-x86_64.tar.gz\$" "zellij-reaper-$version-checksums.txt" | sha256sum -c - &&
+  tar -xzf "zellij-reaper-$version-linux-x86_64.tar.gz" &&
+  install -Dm0755 "zellij-reaper-$version-linux-x86_64/zellij-reaper" ~/.local/bin/zellij-reaper &&
   ~/.local/bin/zellij-reaper install
 ```
 
@@ -206,9 +219,9 @@ offline too:
 
 - **A package:** copy the `.deb`, `.rpm`, `.apk` or `.pkg.tar.zst` instead of the archive, and install it with `dpkg -i`,
   `rpm -U`, `apk add --allow-untrusted` or `pacman -U`. Then each user who wants the timer runs `zellij-reaper install`.
-- **Many machines:** put the release's files on an internal web server as `<base>/v<version>/<file>`, and the install
-  script works from there: `ZELLIJ_REAPER_BASE_URL=<base> ZELLIJ_REAPER_VERSION=v<version> sh install.sh`. It needs the
-  version, since only GitHub can say which release is the latest.
+- **Many machines:** put the release's files on an internal web server as `<base>/<release>/<file>`, and the release's
+  install script works from there, installing the release it is named after:
+  `ZELLIJ_REAPER_BASE_URL=<base> sh zellij-reaper-v0.15.0-install.sh`.
 - **zellij itself:** one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
   `zellij-<machine>-unknown-linux-musl.tar.gz`.
 - **The demo image:** on a machine with internet access, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then
@@ -222,7 +235,8 @@ A closed network also keeps you from checking for new releases: the steps above 
 
 ## Upgrade and uninstall
 
-**Upgrade** by running the install script again, or with your package manager. The settings stay, and the script runs
+**Upgrade** by running the newest release's install script (the [Quick start](../README.md#quick-start) names it), or
+with your package manager. The settings stay, and the script runs
 `zellij-reaper install`, which rewrites the timers; the setup screen opens only on a first install
 (`zellij-reaper setup` opens it any time). After moving the binary by hand, run `zellij-reaper install` again:
 `doctor` notices a timer that still runs an old path. On Windows, a copy that is running while `install.ps1` upgrades it

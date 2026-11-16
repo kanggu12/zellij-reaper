@@ -2,9 +2,10 @@
 # Write the README's badges into docs/assets/badges/. GitHub shows an image from
 # another site through a proxy that gives up after about four seconds, and
 # shields.io often takes longer, so badges linked from there showed as broken
-# images. A file in the repository is served without that proxy. Run it once a
-# release's section is in CHANGELOG.md, and after the tested zellij releases
-# change:
+# images. A file in the repository is served without that proxy. It also puts
+# the newest release in the install commands and file names of the README and
+# docs/setup.md. Run it once a release's section is in CHANGELOG.md, and after
+# the tested zellij releases change:
 #
 #   make badges
 set -eu
@@ -50,4 +51,15 @@ sed -i \
   -e "s/alt=\"Release v[0-9][0-9.]*\"/alt=\"Release v$version\"/" \
   -e "s/alt=\"zellij [0-9.]* to [0-9.]*\"/alt=\"zellij $first to $last\"/" \
   README.md
-echo "wrote $dir: release v$version, zellij $first to $last"
+
+# The install commands and the release's file names in the README and the setup
+# guide name the newest release too: each release's installer installs that
+# release, so a command naming an older one would install the older one. The
+# words "from 0.15.0 on" and the like have no v and stay.
+sed -i -E \
+  -e "s|zellij-reaper/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/|zellij-reaper/releases/download/v$version/|g" \
+  -e "s|zellij-reaper-v[0-9]+\.[0-9]+\.[0-9]+-|zellij-reaper-v$version-|g" \
+  -e "s|^version=v[0-9]+\.[0-9]+\.[0-9]+\$|version=v$version|" \
+  -e "s|^(# 1\. Install )v[0-9]+\.[0-9]+\.[0-9]+|\1v$version|" \
+  README.md docs/setup.md
+echo "wrote $dir: release v$version, zellij $first to $last; the docs' install commands name v$version"

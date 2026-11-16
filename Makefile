@@ -50,7 +50,8 @@ demo:
 notices:
 	scripts/third-party-notices.sh
 
-## badges: the README's badges in docs/assets/badges, for a release or a new zellij
+## badges: the README's badges in docs/assets/badges, and the newest release in the docs'
+## install commands, for a release or a new zellij
 badges:
 	scripts/badges.sh
 
@@ -59,4 +60,4 @@ snapshot:
 	go run github.com/goreleaser/goreleaser/v2@v2.19.0 release --snapshot --clean --config .github/goreleaser.yaml
 
 clean:
-	rm -rf dist test/integration/.cache
+	rm -rf dist build test/integration/.cache

@@ -372,14 +372,17 @@ release build on every push to `main` and every pull request; `.github/workflows
 real sessions on macOS and Windows alongside. A new zellij release joins the matrix, and
 `default_versions` in `test/integration/run.sh`, once it passes.
 
-**A release** is a `vX.Y.Z` tag, a `## [X.Y.Z]` section in `CHANGELOG.md` and a README release badge naming it. The
-README's badges are files that `make badges` writes, since GitHub shows an image from another site through a proxy that
-gives up after about four seconds, which shields.io often takes; CI checks that the release badge names the newest
-section. `.github/workflows/release.yml` runs all of CI and the macOS and Windows checks on the tagged commit. Then
-GoReleaser builds the archives, `checksums.txt` and the packages from `.github/goreleaser.yaml` and attaches
-`scripts/install.sh` and `scripts/install.ps1`, with the changelog section as the release notes; the demo image goes to
-ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` installs the published release with both scripts,
-on Linux, macOS and Windows.
+**A release** is a `vX.Y.Z` tag, a `## [X.Y.Z]` section in `CHANGELOG.md`, and a README release badge and install
+commands naming it. `make badges` writes the badges, which are files since GitHub shows an image from another site
+through a proxy that gives up after about four seconds, which shields.io often takes, and puts the release in the install
+commands and file names of `README.md` and `docs/setup.md`; CI checks that both name the newest section.
+`.github/workflows/release.yml` runs all of CI and the macOS and Windows checks on the tagged commit. Then GoReleaser
+builds the archives, the checksums and the packages from `.github/goreleaser.yaml`, every file named
+`zellij-reaper-vX.Y.Z-<system>-<machine>` and each archive holding a folder of that name. Before it builds,
+`scripts/installers.sh` writes the release into copies of `scripts/install.sh` and `scripts/install.ps1`, which go out as
+`zellij-reaper-vX.Y.Z-install.sh` and `-install.ps1` and install that release. The changelog section is the release
+notes; the demo image goes to ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` runs both published
+scripts as the README gives them, on Linux, macOS and Windows, and checks they installed that release.
 
 **Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
 install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the

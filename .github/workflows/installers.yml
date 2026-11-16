@@ -1,8 +1,10 @@
 name: installers
 
-# The installers as people run them, from a published release: install.sh on
-# Linux and macOS, install.ps1 on Windows. Each installs, checks the binary and
-# its timers with doctor, and uninstalls.
+# The installers as people run them, from a published release: the release's
+# install.sh on Linux and macOS, its install.ps1 on Windows, from the addresses
+# the README gives and with nothing set, so each installs the release it came
+# with. Each checks the binary is that release, and its timers with doctor, and
+# uninstalls.
 # A release made by the release workflow does not start other workflows, so
 # that workflow calls this one once the release is out.
 on:
@@ -14,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: release to install, like v0.6.0 (default the latest)
+        description: release to install, like v0.15.0 (default the latest)
         required: false
 
 permissions:
@@ -30,16 +32,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
+      - name: the release
+        id: release
+        env:
+          WANT: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
       - name: install
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
+          V: ${{ steps.release.outputs.version }}
           # A runner has no systemd user instance; the timers are checked
           # where there is one (macOS here).
           ZELLIJ_REAPER_NO_TIMER: ${{ runner.os == 'Linux' && '1' || '' }}
-        run: curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/install.sh" | sh
+        run: curl -fsSL "https://github.com/${{ github.repository }}/releases/download/$V/zellij-reaper-$V-install.sh" | sh
       - name: check
+        env:
+          V: ${{ steps.release.outputs.version }}
         run: |
-          ~/.local/bin/zellij-reaper version
+          ~/.local/bin/zellij-reaper version | tee version.txt
+          grep -qF "zellij-reaper $V " version.txt
           if [ "$RUNNER_OS" = macOS ]; then
             ~/.local/bin/zellij-reaper doctor | tee doctor.txt || true
             grep -q 'launchd answers' doctor.txt
@@ -54,16 +65,27 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
+      - name: the release
+        id: release
+        shell: bash
+        env:
+          WANT: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
       - name: install
         shell: pwsh
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
-        run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
+          V: ${{ steps.release.outputs.version }}
+        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$env:V-install.ps1" | iex
       - name: check
         shell: pwsh
+        env:
+          V: ${{ steps.release.outputs.version }}
         run: |
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
-          & $exe version
+          $version = & $exe version | Out-String
+          $version
+          if (-not $version.StartsWith("zellij-reaper $env:V ")) { 'not the release the script came with'; exit 1 }
           $doctor = & $exe doctor | Out-String
           $doctor
           if ($doctor -notmatch 'Task Scheduler answers' -or $doctor -notmatch 'timer enabled') { exit 1 }
@@ -76,16 +98,27 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
+      - name: the release
+        id: release
+        shell: bash
+        env:
+          WANT: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
       - name: install
         shell: powershell
         env:
-          ZELLIJ_REAPER_VERSION: ${{ inputs.version }}
-        run: irm "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" | iex
+          V: ${{ steps.release.outputs.version }}
+        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$env:V-install.ps1" | iex
       - name: check
         shell: powershell
+        env:
+          V: ${{ steps.release.outputs.version }}
         run: |
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\zellij-reaper\zellij-reaper.exe'
-          & $exe version
+          $version = & $exe version | Out-String
+          $version
+          if (-not $version.StartsWith("zellij-reaper $env:V ")) { 'not the release the script came with'; exit 1 }
           $doctor = & $exe doctor | Out-String
           $doctor
           if ($doctor -notmatch 'Task Scheduler answers' -or $doctor -notmatch 'timer enabled') { exit 1 }
