@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-17
+
 ### Changed
 
 - The release's files drop the v from the version and call x86_64 `x64` on every system:
@@ -810,7 +812,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.16.1
 [0.16.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.16.0
 [0.15.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.1
 [0.15.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.0
