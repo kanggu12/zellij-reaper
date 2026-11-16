@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kanggu12/zellij-reaper/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.16.1" src="docs/assets/badges/release.svg"></a>
+  <a href="https://github.com/kanggu12/zellij-reaper/releases"><img alt="Release v0.17.0" src="docs/assets/badges/release.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="docs/assets/badges/license.svg"></a>
   <a href="https://github.com/kanggu12/zellij-reaper/pkgs/container/zellij-reaper-demo"><img alt="Demo image" src="docs/assets/badges/demo.svg"></a>
   <img alt="Runs on Linux, macOS and Windows" src="docs/assets/badges/runs-on.svg">
@@ -43,8 +43,8 @@ Linux or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43 to 0.4
 ([requirements](docs/setup.md#requirements)):
 
 ```sh
-# 1. Install v0.16.1. In a terminal it opens the setup screen, then starts the timers.
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-linux-installer.sh | sh
+# 1. Install v0.17.0. In a terminal it opens the setup screen, then starts the timers.
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-linux-installer.sh | sh
 export PATH="$HOME/.local/bin:$PATH"   # this shell; the installer says if your startup file needs it
 
 # 2. See what the next pass would do. It changes nothing.
@@ -57,13 +57,13 @@ zellij-reaper
 macOS takes its own installer in step 1; the rest is the same:
 
 ```sh
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-macos-installer.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-macos-installer.sh | sh
 ```
 
 Windows, in PowerShell (open a new terminal afterwards to run it by name):
 
 ```powershell
-irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-windows-installer.ps1 | iex
+irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-windows-installer.ps1 | iex
 ```
 
 The setup screen shows what the first pass would reap before anything runs:

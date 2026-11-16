@@ -38,9 +38,9 @@ The [Quick start](../README.md#quick-start) covers the usual install. Without sy
 
 ```sh
 # Linux and WSL 2
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-linux-installer.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-linux-installer.sh | sh
 # macOS
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-macos-installer.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-macos-installer.sh | sh
 ```
 
 Each release carries this script twice, as its `-linux-installer.sh` and `-macos-installer.sh`; the two are the same,
@@ -51,7 +51,7 @@ terminal it then opens [the setup screen](commands.md#setting-up); <kbd>esc</kbd
 same in PowerShell, puts the binary in `%LOCALAPPDATA%\Programs\zellij-reaper` and adds that folder to your `PATH`:
 
 ```powershell
-irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-windows-installer.ps1 | iex
+irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-windows-installer.ps1 | iex
 ```
 
 These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPER_BIN_DIR=~/bin sh`):
@@ -71,7 +71,7 @@ In a script, or over `ssh host command` with no terminal, make the setup screen'
 alone, then let `setup` write them and start the timers ([the flags](commands.md#setting-up)):
 
 ```sh
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.1/zellij-reaper-0.16.1-linux-installer.sh | ZELLIJ_REAPER_NO_TIMER=1 sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.17.0/zellij-reaper-0.17.0-linux-installer.sh | ZELLIJ_REAPER_NO_TIMER=1 sh
 ~/.local/bin/zellij-reaper setup --idle-after 4h --exited-after 1w --dry-run
 ```
 
@@ -83,11 +83,11 @@ calls `x86_64`, and `arm64` (`aarch64` on Linux):
 
 | File | What it is |
 |:---|:---|
-| `zellij-reaper-0.16.1-linux-installer.sh`, `-macos-installer.sh`, `-windows-installer.ps1` | the installers above; the Linux and macOS ones are the same script |
-| `zellij-reaper-0.16.1-linux-x64.tar.gz`, `-linux-arm64.tar.gz` | Linux: the binary with its license, README and changelog, in a folder of the same name |
-| `zellij-reaper-0.16.1-macos-arm64.tar.gz`, `-macos-x64.tar.gz` | macOS on Apple silicon, and on Intel |
-| `zellij-reaper-0.16.1-windows-x64.zip` | Windows on x64 |
-| `zellij-reaper-0.16.1-checksums.txt` | the SHA-256 of every file above |
+| `zellij-reaper-0.17.0-linux-installer.sh`, `-macos-installer.sh`, `-windows-installer.ps1` | the installers above; the Linux and macOS ones are the same script |
+| `zellij-reaper-0.17.0-linux-x64.tar.gz`, `-linux-arm64.tar.gz` | Linux: the binary with its license, README and changelog, in a folder of the same name |
+| `zellij-reaper-0.17.0-macos-arm64.tar.gz`, `-macos-x64.tar.gz` | macOS on Apple silicon, and on Intel |
+| `zellij-reaper-0.17.0-windows-x64.zip` | Windows on x64 |
+| `zellij-reaper-0.17.0-checksums.txt` | the SHA-256 of every file above |
 
 Other ways:
 
@@ -102,7 +102,7 @@ was built from. The checksums show a download is the file the release lists; the
 from this repository's own build. With the [GitHub CLI](https://cli.github.com):
 
 ```sh
-gh attestation verify zellij-reaper-0.16.1-linux-x64.tar.gz --repo kanggu12/zellij-reaper
+gh attestation verify zellij-reaper-0.17.0-linux-x64.tar.gz --repo kanggu12/zellij-reaper
 ```
 
 ### What `zellij-reaper install` does
@@ -199,7 +199,7 @@ Only the install script downloads anything, so on a closed network, skip it. On 
 archive for the target's machine (`x64` or `arm64`) and the checksums, and carry both across:
 
 ```sh
-version=0.16.1
+version=0.17.0
 base=https://github.com/kanggu12/zellij-reaper/releases/download/v$version
 curl -fsSLO "$base/zellij-reaper-$version-linux-x64.tar.gz"
 curl -fsSLO "$base/zellij-reaper-$version-checksums.txt"
@@ -208,7 +208,7 @@ curl -fsSLO "$base/zellij-reaper-$version-checksums.txt"
 Then, on the closed machine, with `version` the release you carried across:
 
 ```sh
-version=0.16.1
+version=0.17.0
 grep " zellij-reaper-$version-linux-x64.tar.gz\$" "zellij-reaper-$version-checksums.txt" | sha256sum -c - &&
   tar -xzf "zellij-reaper-$version-linux-x64.tar.gz" &&
   install -Dm0755 "zellij-reaper-$version-linux-x64/zellij-reaper" ~/.local/bin/zellij-reaper &&
@@ -221,7 +221,7 @@ offline too:
 
 - **Many machines:** put the release's files on an internal web server as `<base>/<tag>/<file>`, the tag with its v and
   the files under their own names, and the release's install script works from there, installing the release it is named
-  after: `ZELLIJ_REAPER_BASE_URL=<base> sh zellij-reaper-0.16.1-linux-installer.sh`.
+  after: `ZELLIJ_REAPER_BASE_URL=<base> sh zellij-reaper-0.17.0-linux-installer.sh`.
 - **zellij itself:** one binary too, from [its releases](https://github.com/zellij-org/zellij/releases):
   `zellij-<machine>-unknown-linux-musl.tar.gz`.
 - **The demo image:** on a machine with internet access, `docker pull ghcr.io/kanggu12/zellij-reaper-demo`, then
