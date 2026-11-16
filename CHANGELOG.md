@@ -6,6 +6,10 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-17
+
+On a mirror, asking for an older release gives a command that installs it from the mirror.
+
 ### Fixed
 
 - Asked for a release from before 0.16.1 while downloading from a mirror (`ZELLIJ_REAPER_BASE_URL`), the installers
@@ -829,7 +833,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.17.1
 [0.17.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.17.0
 [0.16.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.16.1
 [0.16.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.16.0
