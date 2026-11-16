@@ -172,14 +172,18 @@ prints the file's path, `init` writes the file with every key at its default, an
   <img alt="The dashboard: the sessions with what the next pass does to each, the checks for the selected one, and the latest decisions" src="assets/screenshot-light.png">
 </picture>
 
-The top bar shows the name and this build's version (for a build from source, `dev` and the commit), zellij's version,
-whether passes delete (`reaping on`) or only log (`dry run`), both waits (`reaps after 12h idle, 3d exited`) and when
-the timer runs next. The table has a row per session: its state, how long it has been idle, its clients, and what the
-next pass does to it. Rows are sorted by outcome: deleted, waiting, unclear, attached, busy, protected. The panel beside
-it (below it on terminals under 132 columns) explains the selected session: the verdict in a sentence, every check with
-its evidence and where it came from, its panes, the name the next pass gives it, or that its name is kept, with the
-`forget-name` command that lets it go, and the settings that apply. Under a short table, the latest reaps, renames and
-kept names fill the column.
+The top bar starts with the logo in one row, the name, this build's version (for a build from source, `dev` and the
+commit) and zellij's version. On the right it says whether passes delete anything: `reaping on`, or `dry run` when they
+only log, or, in red, `timer off` or `timer not installed` when the timer does not run, since then nothing runs on its
+own. Then when the timer runs next and how long until then (`next pass 20:22, in 41m`), `off after a restart` in red for
+a systemd timer disabled without `--now`, which runs until it stops, and both waits (`reaps after 12h idle, 3d exited`).
+On a narrow screen the waits leave first, then the versions, how long until the next pass, the logo, that note and the
+next pass, and on the narrowest screens the name; what passes do stays. The table has a row per session: its state, how
+long it has been idle, its clients, and what the next pass does to it. Rows are sorted by outcome: deleted, waiting,
+unclear, attached, busy, protected. The panel beside it (below it on terminals under 132 columns) explains the selected
+session: the verdict in a sentence, every check with its evidence and where it came from, its panes, the name the next
+pass gives it, or that its name is kept, with the `forget-name` command that lets it go, and the settings that apply.
+Under a short table, the latest reaps, renames and kept names fill the column.
 
 The color of a row says what will happen to it:
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image/color"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -172,58 +173,84 @@ func evenBlock(lines []string) []string {
 	return out
 }
 
-// header is the top bar: the name, zellij's version, and the settings that
-// decide what the next pass does.
+// header is the top bar. On the left the mark, the name and the two versions
+// a bug report asks for; on the right whether passes delete anything, when
+// the next one runs, and the waits. A screen too narrow for all of it drops
+// pieces in one order, the same in every state (headerDrops), the name last;
+// the state stays.
 func (m model) header() string {
-	t := m.th
-	// The name as the logo writes it, then this build's version, then
-	// zellij's: the two versions a bug report asks for.
-	name := " " + t.Wordmark()
-	named := " " + t.Brand(version.Short())
-	left := named
-	if m.version != "" {
-		left += ui.Fg(t.Rule).Render(" · ") + ui.Fg(t.Muted).Render("zellij "+m.version)
+	var gone []string
+	for _, piece := range headerDrops {
+		if line, w := m.headerWith(gone); w <= m.width {
+			return line
+		}
+		gone = append(gone, piece)
 	}
-	// A reload in flight shows as a small mark after the name.
+	line, _ := m.headerWith(gone)
+	return line
+}
+
+// headerDrops is the order the header's pieces leave a narrow screen, the
+// least needed first: the waits, which the details say too; zellij's version
+// and this build's, which a bug report asks for and `version` prints; how long
+// until the next pass, its time staying; the mark; that a running timer will
+// not start again; the next pass; and on the narrowest screens the name, which
+// the window's title says too. What passes do stays.
+var headerDrops = []string{"waits", "zellij", "version", "countdown", "mark", "note", "when", "name"}
+
+// headerWith is the header without the pieces in gone, and the cells it
+// needs: the line itself is padded to the screen's width, or not when it
+// does not fit.
+func (m model) headerWith(gone []string) (string, int) {
+	t := m.th
+	without := func(piece string) bool { return slices.Contains(gone, piece) }
+	sep := ui.Fg(t.Rule).Render(" · ")
+	// One cell of margin on each side, as the table has.
+	left := " "
+	if !without("mark") {
+		left += t.LogoMark() + " "
+	}
+	if !without("name") {
+		left += t.Wordmark()
+	}
+	if !without("version") {
+		left += "  " + ui.Fg(t.Muted).Render(version.Short())
+	}
+	if m.version != "" && !without("zellij") {
+		left += sep + ui.Fg(t.Muted).Render("zellij "+m.version)
+	}
+	// A reload in flight shows as a small mark after the name. Its two cells
+	// are kept when there is none, so a reload every few seconds does not
+	// drop a piece and bring it back on a screen just wide enough for it.
 	if m.loading {
 		left += ui.Fg(t.Muted).Render(" ↻")
+	} else {
+		left += "  "
 	}
-	cfg := m.b.Config()
-	mode := ui.Fg(t.Cat[ui.CatAttached]).Render("● " + i18n.T("header.live"))
-	if cfg.DryRun {
-		mode = ui.Fg(t.Cat[ui.CatReap]).Render("● " + i18n.T("header.dry"))
-	}
-	right := []string{mode,
-		ui.Fg(t.Muted).Render(i18n.T("settings.waits", duration.Format(cfg.IdleAfter), duration.Format(cfg.ExitedAfter))),
-	}
-	// The timer shows once systemd has answered.
-	if w := m.timerWords(); w != "" {
+	right := []string{m.stateWords()}
+	if w := m.whenWords(!without("countdown")); w != "" && !without("when") {
 		right = append(right, w)
 	}
-	sep := ui.Fg(t.Rule).Render(" · ")
-	// Drop the middle facts first when the screen is narrow; keep the mode
-	// and the timer, which matter most.
-	for len(right) > 2 && lipgloss.Width(left)+lipgloss.Width(strings.Join(right, sep))+2 > m.width {
-		right = append(right[:1], right[2:]...)
+	if n := ui.PassNote(m.timer, m.timerKnown); n != "" && !without("note") {
+		right = append(right, ui.Fg(t.Cat[ui.CatUnknown]).Render(n))
 	}
-	r := strings.Join(right, sep)
-	// Still too wide: zellij's version goes before the mode would, then
-	// this build's.
-	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
-		left = named
+	if !without("waits") {
+		cfg := m.b.Config()
+		right = append(right, ui.Fg(t.Muted).Render(i18n.T("settings.waits", duration.Format(cfg.IdleAfter), duration.Format(cfg.ExitedAfter))))
 	}
-	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
-		left = name
+	r := strings.Join(right, sep) + " "
+	need := lipgloss.Width(left) + 1 + lipgloss.Width(r)
+	if need > m.width {
+		return left + " " + r, need
 	}
-	// Still too wide: the timer goes too, rather than be cut mid-word.
-	if lipgloss.Width(left)+lipgloss.Width(r)+1 > m.width {
-		r = right[0]
-	}
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(r)
-	if gap < 1 {
-		return name + " " + r
-	}
-	return left + strings.Repeat(" ", gap) + r
+	return left + strings.Repeat(" ", m.width-lipgloss.Width(left)-lipgloss.Width(r)) + r, need
+}
+
+// stateWords is whether passes delete anything (ui.PassState), bold, in the
+// color of what it means.
+func (m model) stateWords() string {
+	cat, words := ui.PassState(m.b.Config().DryRun, m.timer, m.timerKnown)
+	return lipgloss.NewStyle().Bold(true).Foreground(m.th.Cat[cat]).Render("● " + words)
 }
 
 // nextPass is when the timer runs the next pass, or zero while systemd has
@@ -235,23 +262,19 @@ func (m model) nextPass() time.Time {
 	return time.Time{}
 }
 
-// timerWords says when the timer runs next, or that it is not running.
-func (m model) timerWords() string {
-	t, st := m.th, m.timer
-	switch {
-	case !m.timerKnown:
-		return ""
-	case !st.Installed:
-		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.none"))
-	case !st.Enabled || !st.Active:
-		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.off"))
-	// launchd does not say when it runs a job next: its interval does.
-	case st.Next.IsZero() && st.Interval > 0:
-		return ui.Fg(t.Muted).Render(i18n.T("header.every", duration.Format(st.Interval)))
-	case st.Next.IsZero():
-		return ui.Fg(t.Muted).Render(i18n.T("header.next", "?"))
+// whenWords says when the timer runs next (ui.PassWhen), quietly, counted
+// from the last plan's time or the last tick's, whichever is later: a plan
+// that takes its time would hold the count still.
+func (m model) whenWords(countdown bool) string {
+	now := m.now
+	if m.clock.After(now) {
+		now = m.clock
 	}
-	return ui.Fg(t.Muted).Render(i18n.T("header.next", ui.Clock(st.Next)))
+	w := ui.PassWhen(m.b.Config().DryRun, m.timer, m.timerKnown, now, countdown)
+	if w == "" {
+		return ""
+	}
+	return ui.Fg(m.th.Muted).Render(w)
 }
 
 // Patterns for the log lines the recent decisions are built from.

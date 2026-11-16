@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
+	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/core/policy"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
@@ -46,18 +47,26 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 	if asJSON {
 		return writeJSON(w, r)
 	}
-	t := theme()
 	width := 100
 	if isTerminal(stdoutFile(w)) {
 		width = terminalWidth()
 	}
-	for _, line := range headline(ctx, a, t, width) {
+	showPlan(ctx, w, a, r, width)
+	return nil
+}
+
+// showPlan prints a plan as a table width wide: the headline, a row per
+// session and what the next pass reaps. The next pass is the timer's, in the
+// settings' mode.
+func showPlan(ctx context.Context, w io.Writer, a *app.App, r reaper.Report, width int) {
+	t := theme()
+	for _, line := range headline(ctx, a, t, width, a.Config.DryRun) {
 		println(w, line)
 	}
 	println(w)
 	if r.NoSessions {
 		println(w, ui.Fg(t.Muted).Render("  "+i18n.T("plan.none")))
-		return nil
+		return
 	}
 	for _, line := range t.Table(ui.Sorted(ui.RowsFrom(r, time.Now())), width, -1) {
 		println(w, trimRight(line))
@@ -72,7 +81,6 @@ func runPlan(ctx context.Context, w io.Writer, asJSON bool) error {
 	} else {
 		println(w, ui.Fg(t.Muted).Render(summary+" · "+hint))
 	}
-	return nil
 }
 
 // trimRight drops the blanks a table pads its lines with, also those inside

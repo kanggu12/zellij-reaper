@@ -482,10 +482,13 @@ func TestOnlyARunningTimerHasANextPass(t *testing.T) {
 	if !on.NextPass().Equal(next) {
 		t.Errorf("a running timer: %v, want %v", on.NextPass(), next)
 	}
+	// A systemd timer disabled without --now fires until it stops.
+	if disabled := (TimerStatus{Installed: true, Active: true, Next: next}); !disabled.NextPass().Equal(next) {
+		t.Errorf("a timer that runs without being enabled: %v, want %v", disabled.NextPass(), next)
+	}
 	// A cron line keeps its next time while the daemon is down.
 	for _, st := range []TimerStatus{
 		{Installed: true, Enabled: true, Active: false, Next: next},
-		{Installed: true, Enabled: false, Active: true, Next: next},
 		{Installed: false, Next: next},
 	} {
 		if !st.NextPass().IsZero() {

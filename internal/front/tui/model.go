@@ -75,6 +75,9 @@ type model struct {
 	loaded  bool
 	loading bool
 	now     time.Time
+	// clock is the last tick's time: the header counts down from it while a
+	// plan is slow to come.
+	clock time.Time
 
 	// sel is the selected row among the visible ones; selName keeps the
 	// selection on the same session across refreshes, and selServer keeps it
@@ -247,6 +250,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.version = string(msg)
 		return m, nil
 	case tickMsg:
+		m.clock = time.Time(msg)
 		// The log feeds the recent decisions too, so it is re-read on
 		// every tick (it is small: bounded by log.max_bytes).
 		cmds := []tea.Cmd{tick(), m.loadTimer(), m.loadLog()}

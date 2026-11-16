@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
@@ -18,7 +19,6 @@ import (
 	"github.com/kanggu12/zellij-reaper/internal/app"
 	"github.com/kanggu12/zellij-reaper/internal/core/duration"
 	"github.com/kanggu12/zellij-reaper/internal/engine/reaper"
-	"github.com/kanggu12/zellij-reaper/internal/engine/timers"
 	"github.com/kanggu12/zellij-reaper/internal/front/i18n"
 	"github.com/kanggu12/zellij-reaper/internal/front/tui"
 	"github.com/kanggu12/zellij-reaper/internal/front/ui"
@@ -222,21 +222,32 @@ func cmdVersion() *cobra.Command {
 	}
 }
 
-// headline is the one-line summary at the top of `plan` and the dashboard:
-// the zellij version, the mode, the waits and the next timer run.
-func headline(ctx context.Context, a *app.App, t ui.Theme, width int) []string {
+// headline is the one-line summary at the top of `plan` and `run`: the zellij
+// version, what passes do and when the next runs, as the dashboard's header
+// says them (ui.PassState, ui.PassWhen, ui.PassNote), and the waits. dry is
+// the mode of the pass the table is about: the settings' for plan, run's own
+// for run, which --dry-run sets.
+func headline(ctx context.Context, a *app.App, t ui.Theme, width int, dry bool) []string {
 	sep := ui.Fg(t.Rule).Render(" · ")
 	parts := []string{lipgloss.NewStyle().Bold(true).Foreground(t.Ink).Render("zellij-reaper")}
 	if v, err := a.Zellij.Version(ctx); err == nil {
 		parts = append(parts, ui.Fg(t.Muted).Render("zellij "+v))
 	}
-	mode := ui.Fg(t.Cat[ui.CatAttached]).Render(i18n.T("header.live"))
-	if a.Config.DryRun {
-		mode = ui.Fg(t.Cat[ui.CatReap]).Render(i18n.T("header.dry"))
+	st := a.System.Status()
+	cat, state := ui.PassState(dry, st, true)
+	parts = append(parts, lipgloss.NewStyle().Bold(true).Foreground(t.Cat[cat]).Render("● "+state))
+	// The timer's next pass runs in the settings' mode: under a run whose own
+	// mode is another (run --dry-run), it would read as that run's, and so
+	// would the note after it.
+	timerMode := dry == a.Config.DryRun
+	if w := ui.PassWhen(dry, st, true, time.Now(), true); w != "" && (timerMode || !st.Active) {
+		parts = append(parts, ui.Fg(t.Muted).Render(w))
 	}
-	parts = append(parts, mode,
+	if n := ui.PassNote(st, true); n != "" && timerMode {
+		parts = append(parts, ui.Fg(t.Cat[ui.CatUnknown]).Render(n))
+	}
+	parts = append(parts,
 		ui.Fg(t.Muted).Render(i18n.T("settings.waits", duration.Format(a.Config.IdleAfter), duration.Format(a.Config.ExitedAfter))))
-	parts = append(parts, timerWords(a.System.Status(), t))
 	return joinWithin(parts, sep, width)
 }
 
@@ -262,20 +273,4 @@ func joinWithin(parts []string, sep string, width int) []string {
 		lines = append(lines, line)
 	}
 	return lines
-}
-
-// timerWords describes the timer: when it runs next, or that it is off.
-func timerWords(st timers.TimerStatus, t ui.Theme) string {
-	switch {
-	case !st.Installed:
-		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.none"))
-	case !st.Enabled || !st.Active:
-		return ui.Fg(t.Cat[ui.CatUnknown]).Render(i18n.T("header.timer.off"))
-	// launchd does not say when it runs a job next: its interval does.
-	case st.Next.IsZero() && st.Interval > 0:
-		return ui.Fg(t.Muted).Render(i18n.T("header.every", duration.Format(st.Interval)))
-	case st.Next.IsZero():
-		return ui.Fg(t.Muted).Render(i18n.T("header.next", "?"))
-	}
-	return ui.Fg(t.Muted).Render(i18n.T("header.next", ui.Clock(st.Next)))
 }

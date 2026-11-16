@@ -106,7 +106,7 @@ func showPass(ctx context.Context, w io.Writer, a *app.App, r reaper.Report, nam
 	}
 	// The settings this pass ran with, then what it did to each session.
 	width := terminalWidthFor(w)
-	for _, line := range headline(ctx, a, t, width) {
+	for _, line := range headline(ctx, a, t, width, r.DryRun) {
 		println(w, line)
 	}
 	println(w)

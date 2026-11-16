@@ -45,12 +45,12 @@ func TestTheHeadlineBreaksBetweenItsPartsToFit(t *testing.T) {
 	home := isolate(t)
 	a := fakeApp(t, config.MapEnv{"HOME": home})
 	th := ui.NewTheme(true)
-	whole := headline(context.Background(), a, th, 1000)
+	whole := headline(context.Background(), a, th, 1000, false)
 	if len(whole) != 1 || lipgloss.Width(whole[0]) <= 80 {
 		t.Fatalf("on a wide screen: %q", whole)
 	}
 	for _, width := range []int{80, 60, 40} {
-		lines := headline(context.Background(), a, th, width)
+		lines := headline(context.Background(), a, th, width, false)
 		for _, l := range lines {
 			if lipgloss.Width(l) > width {
 				t.Errorf("at %d columns, %d: %q", width, lipgloss.Width(l), ansi.Strip(l))

@@ -29,10 +29,11 @@ type TimerStatus struct {
 }
 
 // NextPass is when the timer runs its next pass, or zero when it is not
-// installed, enabled and running: a cron line keeps its next time while the
-// daemon that would run it is down.
+// installed and running (active): a cron line keeps its next time while the
+// daemon that would run it is down. A systemd timer disabled without --now
+// still runs, and fires, until it stops or systemd starts again.
 func (s TimerStatus) NextPass() time.Time {
-	if s.Installed && s.Enabled && s.Active {
+	if s.Installed && s.Active {
 		return s.Next
 	}
 	return time.Time{}

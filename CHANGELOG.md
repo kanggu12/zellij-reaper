@@ -6,6 +6,28 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Added
+
+- The dashboard's header counts down to the next pass (`next pass 20:56, in 41m`, `다음 점검 20:56(41m 뒤)`), and opens
+  with the logo in one row before the name, as the tool's other screens show the full logo. The line above `plan`'s
+  and `run`'s tables counts down too.
+- A systemd timer disabled without `--now` runs until it stops or systemd starts again: the header and that line say
+  `off after a restart` after its next pass, in red, and the counts "at the next pass" take that pass, where they
+  counted as of now.
+
+### Fixed
+
+- The header, and the line above `plan`'s and `run`'s tables, said `reaping on` in green beside `timer off` or
+  `timer not installed`, though a timer that does not run fires nothing. They now say the timer's state alone, in red
+  and bold as the other states are, with `dry run` after it when a pass run by hand would only log. `run --dry-run`
+  says `dry run` too, where the line took the mode from the settings, and leaves out the timer's next pass, which
+  runs in the settings' mode.
+- A narrow header dropped its pieces in an order that changed with the state: before the timer answered, the waits
+  stayed while both versions went, and at forty columns `timer off` went while the waits had gone long before. It now
+  drops them in one order in every state, the waits first; what passes do stays, and on the narrowest screens it stays
+  without the name, which the window's title gives. A reload every few seconds no longer drops a piece and brings it
+  back on a screen just wide enough for it, and the header keeps a cell of margin on the right, as on the left.
+
 ## [0.15.1] - 2026-11-17
 
 ### Fixed

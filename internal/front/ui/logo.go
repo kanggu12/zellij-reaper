@@ -65,6 +65,17 @@ func (t Theme) Logo() []string {
 	return out
 }
 
+// LogoMarkWidth is the one-row mark's width in cells.
+const LogoMarkWidth = 4
+
+// LogoMark is the logo in one row, for the header the name sits in: the
+// blade's tip down to the left, the blade, and the cursor it grew from, in
+// the logo's colors. Half blocks as the logo has them; the cursor is half a
+// cell wide, so it reads as a bar and not as a fourth block of blade.
+func (t Theme) LogoMark() string {
+	return Fg(t.Blade).Render("▄▀▀") + Fg(t.Ink).Render("▌")
+}
+
 // Wordmark is the name as the logo writes it: "zellij" in the text color,
 // a quiet hyphen, "reaper" in the blade's amber.
 func (t Theme) Wordmark() string {
