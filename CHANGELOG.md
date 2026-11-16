@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-17
+
 ### Added
 
 - The dashboard's header counts down to the next pass (`next pass 20:56, in 41m`, `다음 점검 20:56(41m 뒤)`), and opens
@@ -794,7 +796,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.16.0
 [0.15.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.1
 [0.15.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.0
 [0.14.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.3
