@@ -6,6 +6,8 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-17
+
 ### Fixed
 
 - Asked for a release from before 0.15.0, the install scripts said to install it with that release's own script, which
@@ -770,7 +772,8 @@ These were wrong in the shell version:
 - `recover --aggressive` stopped the servers of renamed sessions as if they were orphans.
 - A pass that found no sessions was logged as `zellij list-sessions failed`.
 
-[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/kanggu12/zellij-reaper/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.1
 [0.15.0]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.15.0
 [0.14.3]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.3
 [0.14.2]: https://github.com/kanggu12/zellij-reaper/releases/tag/v0.14.2
