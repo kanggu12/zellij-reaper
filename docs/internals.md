@@ -381,10 +381,9 @@ builds the archives, the checksums and the packages from `.github/goreleaser.yam
 `zellij-reaper-X.Y.Z-<system>-<machine>` (the version without its v; `x64` or `arm64`) and each archive holding a folder
 of that name. Before it builds, `scripts/installers.sh` writes the release into copies of `scripts/install.sh` and
 `scripts/install.ps1`, which go out as `zellij-reaper-X.Y.Z-linux-installer.sh` and `-macos-installer.sh` (the same
-script) and `-windows-installer.ps1`, and install that release. The release notes are the changelog section and, after
-it, the table of the release's files in `.github/release-files.md`, which CI checks against the files a snapshot gets;
-the demo image goes to ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` runs the published scripts as
-the README gives them, on Linux, macOS and Windows, and checks they installed that release.
+script) and `-windows-installer.ps1`, and install that release. The changelog section is the release notes; the demo
+image goes to ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` runs the published scripts as the
+README gives them, on Linux, macOS and Windows, and checks they installed that release.
 
 **Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
 install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the

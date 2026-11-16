@@ -118,13 +118,6 @@ jobs:
           for s in linux-installer.sh macos-installer.sh windows-installer.ps1; do
             grep -q " zellij-reaper-${v#v}-$s\$" "dist/zellij-reaper-${v#v}-checksums.txt"
           done
-          # The release notes' Files table (.github/release-files.md) names every
-          # file the release carries, and no other: the checksums list them all
-          # but the checksums file itself.
-          # shellcheck disable=SC2016 # the backticks are the table's, to match as they are
-          sed "s/@V@/${v#v}/g" .github/release-files.md | grep -o '`zellij-reaper-[^`]*`' | tr -d '`' | sort >"$RUNNER_TEMP/named"
-          { awk '{ print $2 }' "dist/zellij-reaper-${v#v}-checksums.txt"; echo "zellij-reaper-${v#v}-checksums.txt"; } | sort >"$RUNNER_TEMP/files"
-          diff "$RUNNER_TEMP/named" "$RUNNER_TEMP/files"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist

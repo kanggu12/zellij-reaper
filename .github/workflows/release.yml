@@ -34,7 +34,7 @@ jobs:
           # Built from a clean module cache: one another workflow filled
           # does not reach what is published.
           cache: false
-      - name: release notes from CHANGELOG.md, and the files
+      - name: release notes from CHANGELOG.md
         run: |
           # The section for this tag, up to the next "## " heading.
           awk -v tag="${GITHUB_REF_NAME#v}" '
@@ -43,10 +43,6 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           test -s "$RUNNER_TEMP/notes.md" || { echo "CHANGELOG.md has no section for $GITHUB_REF_NAME"; exit 1; }
-          # Under the changes, what each file of the release is for, so the
-          # release page says which one to take. CI checks the table names
-          # every file a release carries, and no other.
-          sed "s/@V@/${GITHUB_REF_NAME#v}/g" .github/release-files.md >>"$RUNNER_TEMP/notes.md"
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           # The same goreleaser as `make snapshot`, not whichever is newest.
