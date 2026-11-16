@@ -6,6 +6,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- Asked for a release from before 0.16.1 while downloading from a mirror (`ZELLIJ_REAPER_BASE_URL`), the installers
+  gave a command that fetched that release's own script from GitHub, which a closed network cannot reach. The command
+  now fetches it from the mirror and passes the mirror on; with no mirror it is the same as before.
+
 ## [0.17.0] - 2026-11-17
 
 A release with fewer files: the three installers, the five archives and the checksums, and no Linux packages.

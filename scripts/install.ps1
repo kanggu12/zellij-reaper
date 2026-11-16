@@ -59,18 +59,22 @@
   # the script it carries: one before 0.15.0 with its install.ps1, told which
   # release, since left to itself it looks for the latest, whose files it
   # cannot name; one from 0.15.0 to 0.16.0 with the script named with its v,
-  # which installs its own release. The backticks keep $env in the message as
-  # words to type. Windows builds start with 0.6.0.
+  # which installs its own release. The command fetches that script from
+  # where this one downloads, and on a mirror sets the mirror too: every
+  # release's script reads ZELLIJ_REAPER_BASE_URL. The backticks keep $env in
+  # the message as words to type. Windows builds start with 0.6.0.
+  $via = ''
+  if ($env:ZELLIJ_REAPER_BASE_URL) { $via = "`$env:ZELLIJ_REAPER_BASE_URL = '$base'; " }
   if ($version -match '^v0\.[0-5]\.') {
     throw "zellij-reaper install: $version has no Windows build; the first release with one is v0.6.0"
   }
   if ($version -match '^v0\.([0-9]|1[0-4])\.') {
     throw "zellij-reaper install: $version names its files otherwise; install it with its own script: " +
-      "`$env:ZELLIJ_REAPER_VERSION = '$version'; irm https://github.com/$repo/releases/download/$version/install.ps1 | iex"
+      "$via`$env:ZELLIJ_REAPER_VERSION = '$version'; irm $base/$version/install.ps1 | iex"
   }
   if ($version -match '^v0\.(15\.|16\.0$)') {
     throw "zellij-reaper install: $version names its files otherwise; install it with its own script: " +
-      "irm https://github.com/$repo/releases/download/$version/zellij-reaper-$version-install.ps1 | iex"
+      "${via}irm $base/$version/zellij-reaper-$version-install.ps1 | iex"
   }
 
   # Every file of a release starts with the name and the version, without its

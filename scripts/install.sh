@@ -77,18 +77,24 @@ esac
 # the script it carries: one before 0.15.0 with its install.sh, told which
 # release, since left to itself it looks for the latest, whose files it cannot
 # name; one from 0.15.0 to 0.16.0 with the script named with its v, which
-# installs its own release. 0.1.0 and 0.1.1 carry no install script.
+# installs its own release. 0.1.0 and 0.1.1 carry no install script. The
+# command fetches that script from where this one downloads, and on a mirror
+# tells it the mirror too: every release's script reads ZELLIJ_REAPER_BASE_URL.
+via=""
+if [ -n "${ZELLIJ_REAPER_BASE_URL:-}" ]; then
+  via="ZELLIJ_REAPER_BASE_URL=$base "
+fi
 case "$version" in
   v0.1.*)
     fail "$version has no install script; take its archive from https://github.com/$repo/releases/tag/$version"
     ;;
   v0.[0-9].* | v0.1[0-4].*)
     fail "$version names its files otherwise; install it with its own script:
-  curl -fsSL https://github.com/$repo/releases/download/$version/install.sh | ZELLIJ_REAPER_VERSION=$version sh"
+  curl -fsSL $base/$version/install.sh | ${via}ZELLIJ_REAPER_VERSION=$version sh"
     ;;
   v0.15.* | v0.16.0)
     fail "$version names its files otherwise; install it with its own script:
-  curl -fsSL https://github.com/$repo/releases/download/$version/zellij-reaper-$version-install.sh | sh"
+  curl -fsSL $base/$version/zellij-reaper-$version-install.sh | ${via}sh"
     ;;
 esac
 
