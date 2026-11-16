@@ -227,6 +227,21 @@ wait_title() {
   done
   return 1
 }
+# Wait until zellij has written the metadata of the session it lists under a
+# name that matches $1. A rename moves a session's files and zellij writes them
+# again a moment later: a pass in between finds no pane title to name the
+# session after, and names it at the next pass (zellij 0.45.1 had written none
+# two seconds after a rename once).
+wait_meta_of() {
+  local name
+  for _ in $(seq 90); do
+    name=$($Z list-sessions -n -s 2>/dev/null | grep -E "$1" | head -1)
+    [ -n "$name" ] && grep -q 'title "' "$INFO/$(file_of "$name")/session-metadata.kdl" 2>/dev/null && return 0
+    sleep 1
+  done
+  echo "  (zellij wrote no metadata for a session named like $1)"
+  return 1
+}
 # titled waits for the title of each session given: a session, its title, and
 # so on in pairs.
 titled() {
@@ -536,8 +551,10 @@ check "and it is gone" gone notes-v1.2.md
 check "a stamp can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=date $R run --quiet
 check "the name ends in the day of last use" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}\$'"
 check "a stamp leaves a chosen name alone" listed my-project
+wait_meta_of '^api_[0-9]{4}$'
 check "the minute can be asked for" env ZELLIJ_REAPER_AUTO_RENAME=1 ZELLIJ_REAPER_AUTO_RENAME_STAMP=time $R run --quiet
 check "the name ends in its minute" sh -c "$Z list-sessions -n -s | grep -Eq '^api_[0-9]{4}-[0-9]{4}\$'"
+wait_meta_of '^api_[0-9]{4}-[0-9]{4}$'
 check "without a stamp the name comes back" env ZELLIJ_REAPER_AUTO_RENAME=1 $R run --quiet
 check "and the stamp is gone" sh -c "$Z list-sessions -n -s | grep -Eq '^api(-[0-9]+)?\$'"
 before=$(renames)
