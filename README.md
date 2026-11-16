@@ -39,12 +39,12 @@ stays.
 
 ## Quick start
 
-Linux, macOS or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43 to 0.45
+Linux or WSL 2 ([with systemd on](docs/setup.md#wsl-2)), with zellij 0.43 to 0.45
 ([requirements](docs/setup.md#requirements)):
 
 ```sh
 # 1. Install v0.16.0. In a terminal it opens the setup screen, then starts the timers.
-curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.0/zellij-reaper-v0.16.0-install.sh | sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.0/zellij-reaper-0.16.0-linux-installer.sh | sh
 export PATH="$HOME/.local/bin:$PATH"   # this shell; the installer says if your startup file needs it
 
 # 2. See what the next pass would do. It changes nothing.
@@ -54,10 +54,16 @@ zellij-reaper plan
 zellij-reaper
 ```
 
+macOS takes its own installer in step 1; the rest is the same:
+
+```sh
+curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.0/zellij-reaper-0.16.0-macos-installer.sh | sh
+```
+
 Windows, in PowerShell (open a new terminal afterwards to run it by name):
 
 ```powershell
-irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.0/zellij-reaper-v0.16.0-install.ps1 | iex
+irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.16.0/zellij-reaper-0.16.0-windows-installer.ps1 | iex
 ```
 
 The setup screen shows what the first pass would reap before anything runs:

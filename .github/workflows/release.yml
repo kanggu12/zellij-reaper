@@ -34,7 +34,7 @@ jobs:
           # Built from a clean module cache: one another workflow filled
           # does not reach what is published.
           cache: false
-      - name: release notes from CHANGELOG.md
+      - name: release notes from CHANGELOG.md, and the files
         run: |
           # The section for this tag, up to the next "## " heading.
           awk -v tag="${GITHUB_REF_NAME#v}" '
@@ -43,6 +43,10 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           test -s "$RUNNER_TEMP/notes.md" || { echo "CHANGELOG.md has no section for $GITHUB_REF_NAME"; exit 1; }
+          # Under the changes, what each file of the release is for, so the
+          # release page says which one to take. CI checks the table names
+          # every file a release carries, and no other.
+          sed "s/@V@/${GITHUB_REF_NAME#v}/g" .github/release-files.md >>"$RUNNER_TEMP/notes.md"
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           # The same goreleaser as `make snapshot`, not whichever is newest.
@@ -52,15 +56,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # The attestation below takes a path it cannot read for a list with
       # nothing in it, and signs nothing without a word: a renamed checksums
-      # file stops the release here instead.
+      # file stops the release here instead. The attestation reads the path
+      # checked here; the files' names have the version without its v.
       - name: the checksums the attestation reads are there
-        run: test -s "dist/zellij-reaper-$GITHUB_REF_NAME-checksums.txt"
+        id: sums
+        run: |
+          sums="dist/zellij-reaper-${GITHUB_REF_NAME#v}-checksums.txt"
+          test -s "$sums"
+          echo "path=$sums" >>"$GITHUB_OUTPUT"
       # A signed statement of where and from what each file in the release's
       # checksums was built: `gh attestation verify FILE --repo
       # kanggu12/zellij-reaper` checks a download against it.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-checksums: dist/zellij-reaper-${{ github.ref_name }}-checksums.txt
+          subject-checksums: ${{ steps.sums.outputs.path }}
 
   # The demo image: the dashboard on demo sessions, without a clone or Go.
   demo-image:

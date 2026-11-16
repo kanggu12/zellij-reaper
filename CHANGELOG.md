@@ -6,6 +6,20 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Changed
+
+- The release's files drop the v from the version and call x86_64 `x64` on every system:
+  `zellij-reaper-0.16.1-linux-x64.tar.gz`, `zellij-reaper-0.16.1-windows-x64.zip`. The installers name the system
+  they are for: `zellij-reaper-0.16.1-linux-installer.sh` and `-macos-installer.sh` (the same script), and
+  `-windows-installer.ps1`. The release notes end with a table of the release's files and what each is for. Asked
+  for a release from 0.15.0 to 0.16.0, whose files have the v, the installers give the command that installs it
+  with its own script.
+
+### Fixed
+
+- Asked for 0.1.0 or 0.1.1, which carry no install script, the installers gave a command that fetched nothing; so
+  did the Windows installer for a release before 0.6.0, which has no Windows build. They now say so.
+
 ## [0.16.0] - 2026-11-17
 
 ### Added

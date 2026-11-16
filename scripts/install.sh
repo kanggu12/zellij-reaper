@@ -1,13 +1,15 @@
 #!/bin/sh
 # Install zellij-reaper on Linux or macOS from a GitHub release and start its
-# timers. Windows takes the release's install.ps1. Each release carries this
-# script under its own name, with the release written in here and below, and
-# installs that release:
+# timers. Windows takes the release's windows-installer.ps1. Each release carries
+# this script under the name of each system, the same script in both, with the
+# release written in here and below, and installs that release for the system
+# it runs on:
 #
-#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/vX.Y.Z/zellij-reaper-vX.Y.Z-install.sh | sh
+#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/vX.Y.Z/zellij-reaper-X.Y.Z-linux-installer.sh | sh
+#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/vX.Y.Z/zellij-reaper-X.Y.Z-macos-installer.sh | sh
 #
 # Settings, all optional:
-#   ZELLIJ_REAPER_VERSION   release to install, like v0.15.0 (default: the release
+#   ZELLIJ_REAPER_VERSION   release to install, v0.16.1 or later (default: the release
 #                           this script came with; this copy in the repository
 #                           installs the latest)
 #   ZELLIJ_REAPER_BIN_DIR   where the binary goes (default: ~/.local/bin)
@@ -37,16 +39,16 @@ fail() {
   exit 1
 }
 
-# Linux and macOS take this script; Windows takes install.ps1. The words are
-# those of the release's file names: macos, and x86_64 or arm64 as uname -m
-# says them (aarch64 on Linux is arm64).
+# Linux and macOS take this script; Windows takes windows-installer.ps1. The
+# words are those of the release's file names: macos, and x64 for what uname -m
+# calls x86_64, arm64 for arm64 and for Linux's aarch64.
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=macos ;;
-  *) fail "no release for $(uname -s): on Windows, use the release's install.ps1" ;;
+  *) fail "no release for $(uname -s): on Windows, use the release's windows-installer.ps1" ;;
 esac
 case "$(uname -m)" in
-  x86_64 | amd64) arch=x86_64 ;;
+  x86_64 | amd64) arch=x64 ;;
   aarch64 | arm64) arch=arm64 ;;
   *) fail "no release for $(uname -m)" ;;
 esac
@@ -71,21 +73,30 @@ case "$version" in
   v*) ;;
   *) version=v$version ;;
 esac
-# Releases before 0.15.0 named their files otherwise: each installs with the
-# install.sh it carries, told which release, since left to itself it looks for
-# the latest, whose files it cannot name.
+# Releases before 0.16.1 named their files otherwise, and each installs with
+# the script it carries: one before 0.15.0 with its install.sh, told which
+# release, since left to itself it looks for the latest, whose files it cannot
+# name; one from 0.15.0 to 0.16.0 with the script named with its v, which
+# installs its own release. 0.1.0 and 0.1.1 carry no install script.
 case "$version" in
+  v0.1.*)
+    fail "$version has no install script; take its archive from https://github.com/$repo/releases/tag/$version"
+    ;;
   v0.[0-9].* | v0.1[0-4].*)
     fail "$version names its files otherwise; install it with its own script:
   curl -fsSL https://github.com/$repo/releases/download/$version/install.sh | ZELLIJ_REAPER_VERSION=$version sh"
     ;;
+  v0.15.* | v0.16.0)
+    fail "$version names its files otherwise; install it with its own script:
+  curl -fsSL https://github.com/$repo/releases/download/$version/zellij-reaper-$version-install.sh | sh"
+    ;;
 esac
 
-# Every file of a release starts with the name and the release, and the archive
-# holds a folder of the same name: zellij-reaper-v0.15.0-linux-x86_64.
-name="zellij-reaper-$version-$os-$arch"
+# Every file of a release starts with the name and the version, without its v,
+# and the archive holds a folder of the same name: zellij-reaper-0.16.1-linux-x64.
+name="zellij-reaper-${version#v}-$os-$arch"
 archive="$name.tar.gz"
-sums="zellij-reaper-$version-checksums.txt"
+sums="zellij-reaper-${version#v}-checksums.txt"
 tmp=$(mktemp -d)
 # The download goes away however the script ends. A signal also stops the
 # install there, with the status a shell gives for it, instead of going on

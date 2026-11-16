@@ -4,12 +4,13 @@ version: 2
 
 project_name: zellij-reaper
 
-# Every file a release carries is named zellij-reaper-vX.Y.Z-...: the archives
-# and packages go on with the system as people call it (linux, macos,
-# windows) and the machine as uname -m says it (x86_64, arm64).
+# Every file a release carries is named zellij-reaper-X.Y.Z-..., the version
+# without its v: the archives and packages go on with the system (linux,
+# macos, windows) and the machine, x64 or arm64 on every system; the install
+# scripts with the system each is for.
 
 # A snapshot (make snapshot, CI's release build) is named as the next minor
-# release would be, so the installers' check for the names before 0.15.0 lets
+# release would be, so the installers' check for the names before 0.16.1 lets
 # it through.
 snapshot:
   version_template: "{{ incminor .Version }}-snapshot"
@@ -47,7 +48,7 @@ archives:
     # scripts/install.sh and install.ps1 download this exact name, and take the
     # binary out of the folder of the same name the archive holds.
     name_template: >-
-      {{ .ProjectName }}-v{{ .Version }}-{{ if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}-{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+      {{ .ProjectName }}-{{ .Version }}-{{ if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}-{{ if eq .Arch "amd64" }}x64{{ else }}{{ .Arch }}{{ end }}
     wrap_in_directory: true
     files:
       - LICENSE
@@ -58,14 +59,16 @@ archives:
         dst: THIRD_PARTY_NOTICES.md
 
 checksum:
-  name_template: "{{ .ProjectName }}-v{{ .Version }}-checksums.txt"
+  name_template: "{{ .ProjectName }}-{{ .Version }}-checksums.txt"
   # The installers too: people pipe them into a shell, and the release's
   # build provenance attests what the checksums file lists.
   extra_files:
-    - glob: build/installers/install.sh
-      name_template: "{{ .ProjectName }}-v{{ .Version }}-install.sh"
-    - glob: build/installers/install.ps1
-      name_template: "{{ .ProjectName }}-v{{ .Version }}-install.ps1"
+    - glob: build/installers/linux-installer.sh
+      name_template: "{{ .ProjectName }}-{{ .Version }}-linux-installer.sh"
+    - glob: build/installers/macos-installer.sh
+      name_template: "{{ .ProjectName }}-{{ .Version }}-macos-installer.sh"
+    - glob: build/installers/windows-installer.ps1
+      name_template: "{{ .ProjectName }}-{{ .Version }}-windows-installer.ps1"
 
 nfpms:
   - package_name: zellij-reaper
@@ -81,7 +84,7 @@ nfpms:
     # Named as the archives are; the package managers read the version and the
     # machine from inside the package, not from its file name.
     file_name_template: >-
-      {{ .ProjectName }}-v{{ .Version }}-linux-{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}{{ .ConventionalExtension }}
+      {{ .ProjectName }}-{{ .Version }}-linux-{{ if eq .Arch "amd64" }}x64{{ else }}{{ .Arch }}{{ end }}{{ .ConventionalExtension }}
     bindir: /usr/bin
     # pacman shows "Unknown Packager" unless the package names one; the deb
     # and the rpm take theirs from the maintainer above.
@@ -102,7 +105,9 @@ release:
   # The installers travel with the release, each with the release written in,
   # so the address of one names the release it installs.
   extra_files:
-    - glob: build/installers/install.sh
-      name_template: "{{ .ProjectName }}-v{{ .Version }}-install.sh"
-    - glob: build/installers/install.ps1
-      name_template: "{{ .ProjectName }}-v{{ .Version }}-install.ps1"
+    - glob: build/installers/linux-installer.sh
+      name_template: "{{ .ProjectName }}-{{ .Version }}-linux-installer.sh"
+    - glob: build/installers/macos-installer.sh
+      name_template: "{{ .ProjectName }}-{{ .Version }}-macos-installer.sh"
+    - glob: build/installers/windows-installer.ps1
+      name_template: "{{ .ProjectName }}-{{ .Version }}-windows-installer.ps1"

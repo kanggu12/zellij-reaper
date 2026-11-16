@@ -55,11 +55,13 @@ sed -i \
 # The install commands and the release's file names in the README and the setup
 # guide name the newest release too: each release's installer installs that
 # release, so a command naming an older one would install the older one. The
-# words "from 0.15.0 on" and the like have no v and stay.
+# address has the v and the files' names do not. Versions in prose ("from
+# 0.16.1 on", "like v0.16.1") stay, and so do the names of releases before
+# 0.16.1, which have the v.
 sed -i -E \
   -e "s|zellij-reaper/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/|zellij-reaper/releases/download/v$version/|g" \
-  -e "s|zellij-reaper-v[0-9]+\.[0-9]+\.[0-9]+-|zellij-reaper-v$version-|g" \
-  -e "s|^version=v[0-9]+\.[0-9]+\.[0-9]+\$|version=v$version|" \
+  -e "s|zellij-reaper-[0-9]+\.[0-9]+\.[0-9]+-|zellij-reaper-$version-|g" \
+  -e "s|^version=[0-9]+\.[0-9]+\.[0-9]+\$|version=$version|" \
   -e "s|^(# 1\. Install )v[0-9]+\.[0-9]+\.[0-9]+|\1v$version|" \
   README.md docs/setup.md
 echo "wrote $dir: release v$version, zellij $first to $last; the docs' install commands name v$version"

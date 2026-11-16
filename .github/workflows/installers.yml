@@ -1,10 +1,10 @@
 name: installers
 
 # The installers as people run them, from a published release: the release's
-# install.sh on Linux and macOS, its install.ps1 on Windows, from the addresses
-# the README gives and with nothing set, so each installs the release it came
-# with. Each checks the binary is that release, and its timers with doctor, and
-# uninstalls.
+# linux-installer.sh and macos-installer.sh, and its windows-installer.ps1, from the
+# addresses the README gives and with nothing set, so each installs the release
+# it came with. Each checks the binary is that release, and its timers with
+# doctor, and uninstalls.
 # A release made by the release workflow does not start other workflows, so
 # that workflow calls this one once the release is out.
 on:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: release to install, like v0.15.0 (default the latest)
+        description: release to install, v0.16.1 or later (default the latest)
         required: false
 
 permissions:
@@ -24,11 +24,15 @@ permissions:
 
 jobs:
   unix:
-    name: install.sh on ${{ matrix.os }}
+    name: ${{ matrix.system }}-installer.sh on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            system: linux
+          - os: macos-latest
+            system: macos
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -37,14 +41,19 @@ jobs:
         env:
           WANT: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
-        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
+        # A release typed without its v is the same tag.
+        run: |
+          v=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}
+          case "$v" in v*) ;; *) v=v$v ;; esac
+          echo "version=$v" >>"$GITHUB_OUTPUT"
       - name: install
         env:
           V: ${{ steps.release.outputs.version }}
           # A runner has no systemd user instance; the timers are checked
           # where there is one (macOS here).
           ZELLIJ_REAPER_NO_TIMER: ${{ runner.os == 'Linux' && '1' || '' }}
-        run: curl -fsSL "https://github.com/${{ github.repository }}/releases/download/$V/zellij-reaper-$V-install.sh" | sh
+        # The files' names have the version without its v, the address with it.
+        run: curl -fsSL "https://github.com/${{ github.repository }}/releases/download/$V/zellij-reaper-${V#v}-${{ matrix.system }}-installer.sh" | sh
       - name: check
         env:
           V: ${{ steps.release.outputs.version }}
@@ -61,7 +70,7 @@ jobs:
   windows:
     # In PowerShell 7 and in Windows PowerShell 5.1, which every Windows has.
     # A step's shell cannot come from a matrix, so each has its own job.
-    name: install.ps1 in PowerShell 7
+    name: windows-installer.ps1 in PowerShell 7
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -71,12 +80,16 @@ jobs:
         env:
           WANT: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
-        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
+        # A release typed without its v is the same tag.
+        run: |
+          v=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}
+          case "$v" in v*) ;; *) v=v$v ;; esac
+          echo "version=$v" >>"$GITHUB_OUTPUT"
       - name: install
         shell: pwsh
         env:
           V: ${{ steps.release.outputs.version }}
-        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$env:V-install.ps1" | iex
+        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$($env:V.Substring(1))-windows-installer.ps1" | iex
       - name: check
         shell: pwsh
         env:
@@ -94,7 +107,7 @@ jobs:
           exit 0
 
   windows-5:
-    name: install.ps1 in Windows PowerShell 5.1
+    name: windows-installer.ps1 in Windows PowerShell 5.1
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -104,12 +117,16 @@ jobs:
         env:
           WANT: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
-        run: echo "version=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}" >>"$GITHUB_OUTPUT"
+        # A release typed without its v is the same tag.
+        run: |
+          v=${WANT:-$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)}
+          case "$v" in v*) ;; *) v=v$v ;; esac
+          echo "version=$v" >>"$GITHUB_OUTPUT"
       - name: install
         shell: powershell
         env:
           V: ${{ steps.release.outputs.version }}
-        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$env:V-install.ps1" | iex
+        run: irm "https://github.com/${{ github.repository }}/releases/download/$env:V/zellij-reaper-$($env:V.Substring(1))-windows-installer.ps1" | iex
       - name: check
         shell: powershell
         env:

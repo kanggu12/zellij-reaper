@@ -377,12 +377,14 @@ commands naming it. `make badges` writes the badges, which are files since GitHu
 through a proxy that gives up after about four seconds, which shields.io often takes, and puts the release in the install
 commands and file names of `README.md` and `docs/setup.md`; CI checks that both name the newest section.
 `.github/workflows/release.yml` runs all of CI and the macOS and Windows checks on the tagged commit. Then GoReleaser
-builds the archives, the checksums and the packages from `.github/goreleaser.yaml`, every file named
-`zellij-reaper-vX.Y.Z-<system>-<machine>` and each archive holding a folder of that name. Before it builds,
-`scripts/installers.sh` writes the release into copies of `scripts/install.sh` and `scripts/install.ps1`, which go out as
-`zellij-reaper-vX.Y.Z-install.sh` and `-install.ps1` and install that release. The changelog section is the release
-notes; the demo image goes to ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` runs both published
-scripts as the README gives them, on Linux, macOS and Windows, and checks they installed that release.
+builds the archives, the checksums and the packages from `.github/goreleaser.yaml`, every archive and package named
+`zellij-reaper-X.Y.Z-<system>-<machine>` (the version without its v; `x64` or `arm64`) and each archive holding a folder
+of that name. Before it builds, `scripts/installers.sh` writes the release into copies of `scripts/install.sh` and
+`scripts/install.ps1`, which go out as `zellij-reaper-X.Y.Z-linux-installer.sh` and `-macos-installer.sh` (the same
+script) and `-windows-installer.ps1`, and install that release. The release notes are the changelog section and, after
+it, the table of the release's files in `.github/release-files.md`, which CI checks against the files a snapshot gets;
+the demo image goes to ghcr.io for amd64 and arm64; and `.github/workflows/installers.yml` runs the published scripts as
+the README gives them, on Linux, macOS and Windows, and checks they installed that release.
 
 **Not covered:** a timer firing (the containers and runners run zellij-reaper directly; the systemd units and their
 install steps are tested against a stand-in `systemctl`, the launch agents and tasks are installed and read back on the
