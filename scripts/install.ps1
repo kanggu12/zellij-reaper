@@ -1,8 +1,8 @@
 # Install zellij-reaper on Windows from a GitHub release and start its task.
 # Each release carries this script under its own name, with the release
-# written in, and installs that release:
+# written in here and below, and installs that release:
 #
-#   irm https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.ps1 | iex
+#   irm https://github.com/kanggu12/zellij-reaper/releases/download/vX.Y.Z/zellij-reaper-vX.Y.Z-install.ps1 | iex
 #
 # Settings, all optional, as environment variables:
 #   ZELLIJ_REAPER_VERSION   release to install, like v0.15.0 (default: the release this
@@ -56,9 +56,12 @@
   }
   if (-not $version.StartsWith('v')) { $version = "v$version" }
   # Releases before 0.15.0 named their files otherwise: each installs with the
-  # install.ps1 it carries.
+  # install.ps1 it carries, told which release, since left to itself it looks
+  # for the latest, whose files it cannot name. The backticks keep $env in the
+  # message as words to type.
   if ($version -match '^v0\.([0-9]|1[0-4])\.') {
-    throw "zellij-reaper install: $version names its files otherwise: install it with the install.ps1 of that release"
+    throw "zellij-reaper install: $version names its files otherwise; install it with its own script: " +
+      "`$env:ZELLIJ_REAPER_VERSION = '$version'; irm https://github.com/$repo/releases/download/$version/install.ps1 | iex"
   }
 
   # Every file of a release starts with the name and the release, and the

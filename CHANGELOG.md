@@ -6,6 +6,12 @@ that only fixes raises the patch number. Each release's section here is its rele
 
 ## [Unreleased]
 
+### Fixed
+
+- Asked for a release from before 0.15.0, the install scripts said to install it with that release's own script, which
+  left to itself looks for the latest release, 0.15.0, and cannot name its files. They now give the whole command, with
+  `ZELLIJ_REAPER_VERSION` set to that release.
+
 ## [0.15.0] - 2026-11-17
 
 ### Changed

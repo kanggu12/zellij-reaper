@@ -1,10 +1,10 @@
 #!/bin/sh
 # Install zellij-reaper on Linux or macOS from a GitHub release and start its
 # timers. Windows takes the release's install.ps1. Each release carries this
-# script under its own name, with the release written in, and installs that
-# release:
+# script under its own name, with the release written in here and below, and
+# installs that release:
 #
-#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/v0.15.0/zellij-reaper-v0.15.0-install.sh | sh
+#   curl -fsSL https://github.com/kanggu12/zellij-reaper/releases/download/vX.Y.Z/zellij-reaper-vX.Y.Z-install.sh | sh
 #
 # Settings, all optional:
 #   ZELLIJ_REAPER_VERSION   release to install, like v0.15.0 (default: the release
@@ -72,9 +72,13 @@ case "$version" in
   *) version=v$version ;;
 esac
 # Releases before 0.15.0 named their files otherwise: each installs with the
-# install.sh it carries.
+# install.sh it carries, told which release, since left to itself it looks for
+# the latest, whose files it cannot name.
 case "$version" in
-  v0.[0-9].* | v0.1[0-4].*) fail "$version names its files otherwise: install it with the install.sh of that release" ;;
+  v0.[0-9].* | v0.1[0-4].*)
+    fail "$version names its files otherwise; install it with its own script:
+  curl -fsSL https://github.com/$repo/releases/download/$version/install.sh | ZELLIJ_REAPER_VERSION=$version sh"
+    ;;
 esac
 
 # Every file of a release starts with the name and the release, and the archive

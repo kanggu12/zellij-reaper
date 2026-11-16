@@ -50,6 +50,11 @@ jobs:
           args: release --clean --config .github/goreleaser.yaml --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The attestation below takes a path it cannot read for a list with
+      # nothing in it, and signs nothing without a word: a renamed checksums
+      # file stops the release here instead.
+      - name: the checksums the attestation reads are there
+        run: test -s "dist/zellij-reaper-$GITHUB_REF_NAME-checksums.txt"
       # A signed statement of where and from what each file in the release's
       # checksums was built: `gh attestation verify FILE --repo
       # kanggu12/zellij-reaper` checks a download against it.

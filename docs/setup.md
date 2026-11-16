@@ -55,7 +55,7 @@ These variables change what it does, set on `sh` (`curl -fsSL URL | ZELLIJ_REAPE
 
 | Variable | Default | Effect |
 |:---|:---:|:---|
-| `ZELLIJ_REAPER_VERSION` | the script's release | install another release from 0.15.0 on, like `v0.15.0`; an earlier one installs with its own `install.sh` |
+| `ZELLIJ_REAPER_VERSION` | the script's release | install another release from 0.15.0 on, like `v0.15.0`; an earlier one installs with its own `install.sh`, with this set to it |
 | `ZELLIJ_REAPER_BIN_DIR` | `~/.local/bin` | where the binary goes |
 | `ZELLIJ_REAPER_NO_TIMER` | | `1` installs the binary only |
 | `ZELLIJ_REAPER_NO_SETUP` | | `1` starts the timers with the defaults, without the setup screen |
