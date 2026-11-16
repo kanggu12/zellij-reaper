@@ -106,6 +106,17 @@ A pass reads the machine once and decides every session from that snapshot. It l
 and changes sessions only through zellij's own commands. [How it decides](docs/how-it-decides.md) has every check and
 the log's words, and [Commands](docs/commands.md) every command and the dashboard's keys.
 
+## How it compares
+
+| | zellij-reaper | `zellij delete-all-sessions` | `zellij kill-all-sessions` |
+|:---|:---:|:---:|:---:|
+| Exited sessions | deleted after a wait you set | deleted, all at once | left |
+| Running sessions | deleted when idle, after a wait you set | with `--force`, all of them | stopped, all of them |
+| A session with a client attached | kept | with `--force`, deleted | stopped |
+| A session running a program | kept | with `--force`, deleted | stopped |
+| Runs on its own | yes, from a timer | no | no |
+| Shows what it would do first | `plan`, the dashboard | no | no |
+
 ## What it runs on
 
 Linux on x86_64 or arm64, WSL 2 with systemd, macOS on Apple silicon or Intel, and Windows on x64, with zellij 0.43 to
@@ -114,11 +125,13 @@ Linux on x86_64 or arm64, WSL 2 with systemd, macOS on Apple silicon or Intel, a
 
 ## Documentation
 
-- [How it decides](docs/how-it-decides.md): a pass step by step, every check, the log's words
-- [Setup](docs/setup.md): installing, every setting, protecting and naming sessions, macOS, Windows, WSL 2
-- [Commands](docs/commands.md): every command and flag, the dashboard's keys and colors
-- [Troubleshooting](docs/troubleshooting.md): a timer that does not run, a session kept longer than you expect
-- [Internals](docs/internals.md): the layers, how the facts are read, the design decisions, the tests
+| Guide | What it covers |
+|:---|:---|
+| [How it decides](docs/how-it-decides.md) | a pass step by step, every check, the log's words |
+| [Setup](docs/setup.md) | installing, every setting, protecting and naming sessions, macOS, Windows, WSL 2 |
+| [Commands](docs/commands.md) | every command and flag, the dashboard's keys and colors |
+| [Troubleshooting](docs/troubleshooting.md) | a timer that does not run, a session kept longer than you expect |
+| [Internals](docs/internals.md) | the layers, how the facts are read, the design decisions, the tests |
 
 ## Contributing
 
